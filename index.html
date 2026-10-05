@@ -1,0 +1,802 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#08131f">
+<title>Pier Life Tracker</title>
+<meta name="description" content="A deterministic personal life planner powered by GOAP-style rules, not an LLM.">
+<style>
+:root{
+  --bg:#07111b;--bg2:#0b1723;--panel:#101e2c;--panel2:#142536;--panel3:#1a2d40;
+  --text:#f3f8fc;--muted:#8fa5b8;--line:#24384a;--accent:#4fd1a5;--accent2:#65b7ff;
+  --danger:#ff6b6b;--warn:#ffca63;--ok:#4fd1a5;--shadow:0 18px 50px rgba(0,0,0,.28);
+  --radius:18px;--sidebar:245px;--top:70px;
+}
+[data-theme="light"]{
+  --bg:#eef4f8;--bg2:#f6fafc;--panel:#ffffff;--panel2:#f5f9fb;--panel3:#edf4f8;
+  --text:#102131;--muted:#667b8f;--line:#d7e2ea;--shadow:0 12px 32px rgba(36,67,91,.12);
+}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%;background:var(--bg);color:var(--text);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+body{overflow-x:hidden}
+button,input,select,textarea{font:inherit}
+button{cursor:pointer}
+a{color:inherit}
+.hidden{display:none!important}
+.muted{color:var(--muted)}
+.small{font-size:12px}
+.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+strong{font-weight:750}
+#authScreen{min-height:100vh;display:grid;place-items:center;padding:24px;background:
+ radial-gradient(circle at 15% 15%,rgba(79,209,165,.12),transparent 35%),
+ radial-gradient(circle at 85% 10%,rgba(101,183,255,.12),transparent 32%),var(--bg)}
+.auth-card{width:min(440px,100%);background:rgba(16,30,44,.92);border:1px solid var(--line);border-radius:26px;padding:28px;box-shadow:var(--shadow);backdrop-filter:blur(16px)}
+.logo{display:flex;align-items:center;gap:12px;font-weight:850;letter-spacing:-.03em;font-size:22px}
+.logo-mark{width:38px;height:38px;border-radius:13px;background:linear-gradient(135deg,var(--accent),var(--accent2));display:grid;place-items:center;color:#06131d;font-weight:950;box-shadow:0 8px 24px rgba(79,209,165,.22)}
+.auth-card h1{font-size:34px;line-height:1.05;margin:30px 0 8px;letter-spacing:-.04em}
+.auth-card p{color:var(--muted);line-height:1.55;margin:0 0 24px}
+.field{display:grid;gap:7px;margin:13px 0}
+.field label{font-size:12px;font-weight:750;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+input,select,textarea{width:100%;border:1px solid var(--line);background:var(--panel2);color:var(--text);border-radius:12px;padding:12px 13px;outline:none;transition:.15s}
+input:focus,select:focus,textarea:focus{border-color:var(--accent2);box-shadow:0 0 0 3px rgba(101,183,255,.12)}
+textarea{min-height:92px;resize:vertical}
+.btn{border:1px solid var(--line);background:var(--panel2);color:var(--text);padding:10px 14px;border-radius:12px;font-weight:750;display:inline-flex;align-items:center;justify-content:center;gap:8px;transition:.15s}
+.btn:hover{transform:translateY(-1px);border-color:#3c5367}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#062017}
+.btn.blue{background:var(--accent2);border-color:var(--accent2);color:#07131e}
+.btn.danger{background:rgba(255,107,107,.12);border-color:rgba(255,107,107,.35);color:#ff8c8c}
+.btn.warn{background:rgba(255,202,99,.12);border-color:rgba(255,202,99,.35);color:var(--warn)}
+.btn.ghost{background:transparent}
+.btn.icon{width:38px;height:38px;padding:0}
+.btn.wide{width:100%}
+.auth-actions{display:flex;gap:10px;margin-top:18px}
+.auth-actions .btn{flex:1}
+.auth-links{display:flex;justify-content:space-between;gap:12px;margin-top:15px;font-size:12px}
+.link-btn{border:0;background:none;color:var(--accent2);padding:0}
+#appShell{min-height:100vh}
+.sidebar{position:fixed;left:0;top:0;bottom:0;width:var(--sidebar);padding:18px 14px;border-right:1px solid var(--line);background:var(--bg2);z-index:20;display:flex;flex-direction:column}
+.sidebar .logo{padding:4px 8px 18px}
+.nav{display:grid;gap:5px;margin-top:10px}
+.nav-btn{width:100%;border:0;background:transparent;color:var(--muted);padding:11px 12px;border-radius:11px;text-align:left;display:flex;align-items:center;gap:11px;font-weight:700}
+.nav-btn:hover{background:var(--panel);color:var(--text)}
+.nav-btn.active{background:var(--panel2);color:var(--text);box-shadow:inset 3px 0 0 var(--accent)}
+.nav-icon{width:22px;text-align:center}
+.sidebar-bottom{margin-top:auto;border-top:1px solid var(--line);padding-top:14px}
+.sync-box{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px}
+.sync-row{display:flex;align-items:center;gap:8px;font-size:12px}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--muted)}
+.dot.ok{background:var(--ok);box-shadow:0 0 0 4px rgba(79,209,165,.1)}
+.dot.bad{background:var(--danger)}
+.main{margin-left:var(--sidebar);min-height:100vh}
+.topbar{height:var(--top);position:sticky;top:0;z-index:15;background:rgba(7,17,27,.84);backdrop-filter:blur(18px);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:12px;padding:0 24px}
+[data-theme="light"] .topbar{background:rgba(238,244,248,.86)}
+.topbar h2{font-size:19px;margin:0;letter-spacing:-.02em}
+.topbar .spacer{flex:1}
+.user-chip{display:flex;align-items:center;gap:9px;border:1px solid var(--line);background:var(--panel);border-radius:99px;padding:6px 9px 6px 7px;max-width:220px}
+.avatar{width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,var(--accent2),var(--accent));color:#07131e;display:grid;place-items:center;font-weight:900}
+.user-chip span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:12px;color:var(--muted)}
+.content{padding:24px;max-width:1500px;margin:0 auto}
+.setup-banner{background:rgba(255,202,99,.1);border:1px solid rgba(255,202,99,.32);color:#ffe1a0;border-radius:15px;padding:12px 14px;margin-bottom:18px;display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
+[data-theme="light"] .setup-banner{color:#775200}
+.hero{display:grid;grid-template-columns:1.4fr .8fr;gap:18px;margin-bottom:18px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);box-shadow:0 8px 26px rgba(0,0,0,.08)}
+.card.pad{padding:18px}
+.card-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px}
+.card-head h3{margin:0;font-size:15px;letter-spacing:-.01em}
+.hero-card{padding:24px;min-height:210px;background:
+ linear-gradient(135deg,rgba(79,209,165,.10),transparent 45%),
+ linear-gradient(315deg,rgba(101,183,255,.08),transparent 45%),var(--panel)}
+.eyebrow{font-size:11px;text-transform:uppercase;letter-spacing:.12em;color:var(--accent);font-weight:850}
+.hero-title{font-size:31px;line-height:1.08;margin:10px 0 8px;letter-spacing:-.04em}
+.hero-sub{color:var(--muted);max-width:720px;line-height:1.5}
+.next-action{margin-top:22px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.rank-bubble{min-width:46px;height:46px;border-radius:14px;background:var(--panel3);display:grid;place-items:center;font-weight:900}
+.metrics{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+.metric{padding:16px;background:var(--panel);border:1px solid var(--line);border-radius:16px}
+.metric .label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.07em}
+.metric .value{font-size:24px;font-weight:850;margin-top:7px;letter-spacing:-.03em}
+.metric .sub{font-size:11px;color:var(--muted);margin-top:4px}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.plan-list,.stack{display:grid;gap:9px}
+.plan-item,.task-row,.bill-row,.routine-row,.inbox-row{border:1px solid var(--line);background:var(--panel2);border-radius:14px;padding:12px;display:flex;gap:12px;align-items:flex-start}
+.plan-num{width:30px;height:30px;border-radius:10px;background:var(--panel3);display:grid;place-items:center;font-size:12px;font-weight:900;flex:0 0 auto}
+.plan-body,.row-main{min-width:0;flex:1}
+.plan-title,.task-title{font-weight:800;line-height:1.25}
+.plan-reason,.row-meta{font-size:11px;color:var(--muted);margin-top:4px;line-height:1.35}
+.row-actions{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.pill{display:inline-flex;align-items:center;gap:5px;border-radius:999px;border:1px solid var(--line);padding:4px 8px;font-size:10px;font-weight:800;color:var(--muted);background:var(--panel)}
+.pill.must{color:#ffd6d6;border-color:rgba(255,107,107,.35);background:rgba(255,107,107,.08)}
+.pill.urgent{color:#ffe3aa;border-color:rgba(255,202,99,.35);background:rgba(255,202,99,.08)}
+.pill.good{color:#bff6e3;border-color:rgba(79,209,165,.35);background:rgba(79,209,165,.08)}
+.pill.blue{color:#c8e7ff;border-color:rgba(101,183,255,.35);background:rgba(101,183,255,.08)}
+.section-title{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin:4px 0 16px}
+.section-title h1{font-size:30px;margin:0;letter-spacing:-.04em}
+.section-title p{margin:5px 0 0;color:var(--muted);font-size:13px}
+.toolbar{display:flex;gap:9px;align-items:center;flex-wrap:wrap}
+.toolbar input,.toolbar select{width:auto;min-width:150px}
+.task-board{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.board-col{min-width:0}
+.board-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:9px}
+.board-head h3{margin:0;font-size:13px}
+.count{min-width:25px;height:25px;padding:0 7px;border-radius:99px;background:var(--panel2);display:grid;place-items:center;font-size:11px;color:var(--muted)}
+.money-hero{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px}
+.account-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.account-card{padding:16px;border-radius:16px;background:var(--panel2);border:1px solid var(--line)}
+.account-card .amount{font-size:25px;font-weight:900;margin:8px 0}
+.account-card .name{font-size:12px;color:var(--muted)}
+.table-wrap{overflow:auto;border:1px solid var(--line);border-radius:14px}
+table{width:100%;border-collapse:collapse;min-width:650px}
+th,td{padding:11px 12px;text-align:left;border-bottom:1px solid var(--line);font-size:12px}
+th{color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.07em;background:var(--panel2)}
+tr:last-child td{border-bottom:0}
+.amount.income{color:var(--ok)}
+.amount.expense{color:#ff9b9b}
+.progress{height:8px;border-radius:999px;background:var(--panel3);overflow:hidden}
+.progress>span{height:100%;display:block;background:linear-gradient(90deg,var(--accent),var(--accent2));border-radius:inherit}
+.goal-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.goal-card{padding:17px}
+.goal-top{display:flex;justify-content:space-between;gap:10px}
+.goal-title{font-weight:850}
+.goal-value{font-size:24px;font-weight:900;margin:16px 0 8px}
+.goal-meta{display:flex;justify-content:space-between;gap:10px;color:var(--muted);font-size:11px;margin-top:8px}
+.empty{padding:26px;text-align:center;border:1px dashed var(--line);border-radius:14px;color:var(--muted);font-size:13px}
+.quick-capture{display:flex;gap:8px}
+.quick-capture input{flex:1}
+.blocker{border-color:rgba(255,107,107,.38);background:rgba(255,107,107,.06)}
+.priority-bar{width:5px;align-self:stretch;border-radius:9px;background:var(--muted)}
+.priority-bar.p5{background:var(--danger)}.priority-bar.p4{background:var(--warn)}.priority-bar.p3{background:var(--accent2)}.priority-bar.p2{background:var(--accent)}.priority-bar.p1{background:var(--muted)}
+.tabs{display:flex;gap:5px;background:var(--panel2);border:1px solid var(--line);padding:4px;border-radius:12px;width:max-content;max-width:100%;overflow:auto}
+.tab{border:0;background:transparent;color:var(--muted);padding:8px 11px;border-radius:8px;font-size:11px;font-weight:800;white-space:nowrap}
+.tab.active{background:var(--panel);color:var(--text)}
+.settings-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.setting-row{display:flex;justify-content:space-between;gap:20px;align-items:center;padding:13px 0;border-bottom:1px solid var(--line)}
+.setting-row:last-child{border-bottom:0}
+.setting-row input,.setting-row select{width:160px}
+.modal-backdrop{position:fixed;inset:0;background:rgba(1,8,14,.72);backdrop-filter:blur(7px);z-index:100;display:grid;place-items:center;padding:18px}
+.modal{width:min(650px,100%);max-height:90vh;overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:22px;box-shadow:var(--shadow)}
+.modal-head{position:sticky;top:0;background:var(--panel);padding:18px 20px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;z-index:2}
+.modal-head h3{margin:0}
+.modal-body{padding:20px}
+.modal-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 12px}
+.check{display:flex;gap:9px;align-items:center;margin:12px 0;color:var(--text)}
+.check input{width:auto}
+.modal-foot{display:flex;justify-content:flex-end;gap:9px;margin-top:18px}
+.toast-wrap{position:fixed;right:18px;bottom:18px;z-index:200;display:grid;gap:9px;width:min(360px,calc(100% - 36px))}
+.toast{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px 14px;box-shadow:var(--shadow);animation:toastin .18s ease-out}
+.toast.error{border-color:rgba(255,107,107,.45)}.toast.ok{border-color:rgba(79,209,165,.45)}
+@keyframes toastin{from{transform:translateY(8px);opacity:0}to{transform:none;opacity:1}}
+.mobile-nav{display:none}
+.kbd{border:1px solid var(--line);background:var(--panel2);padding:2px 6px;border-radius:6px;font-size:10px;color:var(--muted)}
+.split-line{height:1px;background:var(--line);margin:15px 0}
+.right{text-align:right}
+@media(max-width:1100px){
+  .hero,.grid-2,.settings-grid{grid-template-columns:1fr}
+  .task-board{grid-template-columns:1fr}
+  .goal-grid,.account-grid{grid-template-columns:repeat(2,1fr)}
+  .money-hero{grid-template-columns:repeat(2,1fr)}
+}
+@media(max-width:820px){
+  :root{--sidebar:0px}
+  .sidebar{display:none}
+  .main{margin-left:0;padding-bottom:72px}
+  .topbar{padding:0 14px}
+  .content{padding:15px}
+  .topbar .btn .desktop-label{display:none}
+  .user-chip span{display:none}
+  .mobile-nav{position:fixed;display:grid;grid-template-columns:repeat(5,1fr);bottom:0;left:0;right:0;height:64px;background:rgba(11,23,35,.96);backdrop-filter:blur(16px);border-top:1px solid var(--line);z-index:50;padding-bottom:env(safe-area-inset-bottom)}
+  .mobile-nav button{border:0;background:transparent;color:var(--muted);font-size:9px;font-weight:800;display:grid;place-items:center;gap:2px}
+  .mobile-nav button span{font-size:19px;line-height:1}
+  .mobile-nav button.active{color:var(--accent)}
+}
+@media(max-width:600px){
+  .hero-card{padding:19px}.hero-title{font-size:26px}
+  .metrics{grid-template-columns:1fr 1fr}
+  .goal-grid,.account-grid{grid-template-columns:1fr}
+  .money-hero{grid-template-columns:1fr 1fr}
+  .modal-grid{grid-template-columns:1fr}
+  .section-title{align-items:flex-start;flex-direction:column}
+  .toolbar{width:100%}.toolbar input,.toolbar select{width:100%}
+}
+</style>
+</head>
+<body>
+<section id="authScreen">
+  <div class="auth-card">
+    <div class="logo"><div class="logo-mark">P</div><span>Pier Life Tracker</span></div>
+    <h1>Run your life on a plan.</h1>
+    <p>No chatbot. No motivational fluff. Pier turns money, deadlines, must-do items and goals into a ranked action plan.</p>
+    <div class="field"><label>Email</label><input id="authEmail" type="email" autocomplete="email" placeholder="you@example.com"></div>
+    <div class="field"><label>Password</label><input id="authPassword" type="password" autocomplete="current-password" placeholder="••••••••"></div>
+    <div class="auth-actions">
+      <button class="btn primary" id="signInBtn">Sign in</button>
+      <button class="btn" id="signUpBtn">Create account</button>
+    </div>
+    <div class="auth-links">
+      <button class="link-btn" id="resetPasswordBtn">Forgot password?</button>
+      <span class="muted">Firebase account sync</span>
+    </div>
+    <div id="authStatus" class="small muted" style="margin-top:14px"></div>
+  </div>
+</section>
+
+<div id="appShell" class="hidden">
+  <aside class="sidebar">
+    <div class="logo"><div class="logo-mark">P</div><span>Pier</span></div>
+    <nav class="nav" id="sideNav">
+      <button class="nav-btn active" data-view="dashboard"><span class="nav-icon">⌂</span>Dashboard</button>
+      <button class="nav-btn" data-view="tasks"><span class="nav-icon">✓</span>Tasks</button>
+      <button class="nav-btn" data-view="money"><span class="nav-icon">$</span>Money</button>
+      <button class="nav-btn" data-view="goals"><span class="nav-icon">◎</span>Goals</button>
+      <button class="nav-btn" data-view="routines"><span class="nav-icon">↻</span>Routines</button>
+      <button class="nav-btn" data-view="inbox"><span class="nav-icon">↓</span>Inbox</button>
+      <button class="nav-btn" data-view="settings"><span class="nav-icon">⚙</span>Settings</button>
+    </nav>
+    <div class="sidebar-bottom">
+      <div class="sync-box">
+        <div class="sync-row"><span id="syncDot" class="dot"></span><strong id="syncLabel">Connecting…</strong></div>
+        <div id="syncDetail" class="small muted" style="margin-top:6px">Waiting for Firebase</div>
+      </div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <header class="topbar">
+      <h2 id="pageTitle">Dashboard</h2>
+      <div class="spacer"></div>
+      <button class="btn ghost" id="runPlannerBtn">⚡ <span class="desktop-label">Re-plan</span></button>
+      <button class="btn primary" id="quickAddBtn">＋ <span class="desktop-label">Add task</span></button>
+      <div class="user-chip" title="Signed in">
+        <div class="avatar" id="avatar">P</div><span id="userEmail"></span>
+      </div>
+    </header>
+    <div class="content">
+      <div id="setupBanner" class="setup-banner hidden">
+        <div><strong>Firebase setup is blocking Pier.</strong><div class="small" id="setupMessage" style="margin-top:4px"></div></div>
+        <button class="btn warn" data-view="settings">Setup</button>
+      </div>
+      <div id="viewRoot"></div>
+    </div>
+  </main>
+
+  <nav class="mobile-nav" id="mobileNav">
+    <button class="active" data-view="dashboard"><span>⌂</span>Home</button>
+    <button data-view="tasks"><span>✓</span>Tasks</button>
+    <button data-view="money"><span>$</span>Money</button>
+    <button data-view="goals"><span>◎</span>Goals</button>
+    <button data-view="inbox"><span>↓</span>Inbox</button>
+  </nav>
+</div>
+
+<div id="modalBackdrop" class="modal-backdrop hidden">
+  <div class="modal">
+    <div class="modal-head"><h3 id="modalTitle"></h3><button class="btn icon ghost" id="closeModalBtn">×</button></div>
+    <div class="modal-body" id="modalBody"></div>
+  </div>
+</div>
+<div class="toast-wrap" id="toastWrap"></div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
+import {
+  getAuth,onAuthStateChanged,createUserWithEmailAndPassword,signInWithEmailAndPassword,
+  signOut,sendPasswordResetEmail
+} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
+import {
+  getFirestore,doc,collection,getDoc,setDoc,addDoc,updateDoc,deleteDoc,onSnapshot,
+  serverTimestamp,writeBatch
+} from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+
+const firebaseConfig={
+  apiKey:"AIzaSyBb4jh--lY-Nff81ZOmlgTw8V5cps9fm6A",
+  authDomain:"pier-life-tracker.firebaseapp.com",
+  projectId:"pier-life-tracker",
+  storageBucket:"pier-life-tracker.firebasestorage.app",
+  messagingSenderId:"879775817513",
+  appId:"1:879775817513:web:42c1410034245ed146e138",
+  measurementId:"G-XRG8DMYTWD"
+};
+
+const fbApp=initializeApp(firebaseConfig);
+const auth=getAuth(fbApp);
+const db=getFirestore(fbApp);
+
+const $=s=>document.querySelector(s);
+const $$=s=>Array.from(document.querySelectorAll(s));
+const money=n=>new Intl.NumberFormat("en-US",{style:"currency",currency:"USD"}).format(Number(n||0));
+const esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
+const num=v=>Number.isFinite(Number(v))?Number(v):0;
+const clamp=(v,a,b)=>Math.min(b,Math.max(a,v));
+const today=()=>{const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")};
+const localDateTimeValue=(d=new Date())=>{const z=new Date(d.getTime()-d.getTimezoneOffset()*60000);return z.toISOString().slice(0,16)};
+const daysUntil=v=>{if(!v)return 9999;const d=new Date(v.length<=10?v+"T23:59:59":v);return Math.ceil((d-new Date())/86400000)};
+const fmtDate=v=>{if(!v)return "No deadline";const d=new Date(v.length<=10?v+"T12:00:00":v);return d.toLocaleDateString([], {month:"short",day:"numeric",year:d.getFullYear()!==new Date().getFullYear()?"numeric":undefined})+(v.includes("T")?" · "+d.toLocaleTimeString([],{hour:"numeric",minute:"2-digit"}):"")};
+const idSafe=v=>String(v||"").replace(/[^a-zA-Z0-9_-]/g,"");
+
+const DEFAULT_PROFILE={
+  name:"Pier",dailyMinutes:240,emergencyReserve:300,urgentDays:3,
+  theme:"dark",notifications:false,createdAt:null
+};
+
+const S={
+  user:null,profile:{...DEFAULT_PROFILE},tasks:[],accounts:[],transactions:[],bills:[],goals:[],routines:[],inbox:[],
+  unsubs:[],view:"dashboard",syncError:"",taskSearch:"",taskFilter:"open",plan:null
+};
+
+function toast(message,type="ok"){
+  const el=document.createElement("div");el.className="toast "+type;el.textContent=message;$("#toastWrap").appendChild(el);
+  setTimeout(()=>el.remove(),3200);
+}
+function setAuthStatus(msg,bad=false){const el=$("#authStatus");el.textContent=msg;el.style.color=bad?"var(--danger)":"var(--muted)"}
+function firstLetter(){return (S.profile.name||S.user?.email||"P").trim().charAt(0).toUpperCase()||"P"}
+
+function showModal(title,html,onSubmit){
+  $("#modalTitle").textContent=title;$("#modalBody").innerHTML=html;$("#modalBackdrop").classList.remove("hidden");
+  const form=$("#modalBody form");
+  if(form&&onSubmit)form.addEventListener("submit",async e=>{e.preventDefault();const btn=form.querySelector("[type=submit]");if(btn){btn.disabled=true;btn.textContent="Saving…"}try{await onSubmit(new FormData(form));closeModal()}catch(err){toast(friendlyError(err),"error");if(btn){btn.disabled=false;btn.textContent="Save"}}});
+  setTimeout(()=>$("#modalBody input:not([type=hidden]),#modalBody textarea")?.focus(),40);
+}
+function closeModal(){$("#modalBackdrop").classList.add("hidden");$("#modalBody").innerHTML=""}
+$("#closeModalBtn").onclick=closeModal;
+$("#modalBackdrop").addEventListener("click",e=>{if(e.target.id==="modalBackdrop")closeModal()});
+document.addEventListener("keydown",e=>{if(e.key==="Escape")closeModal();if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="k"){e.preventDefault();openTaskModal()} });
+
+function friendlyError(err){
+  const c=err?.code||"";if(c.includes("invalid-credential"))return "Wrong email or password.";
+  if(c.includes("email-already-in-use"))return "That email already has an account.";
+  if(c.includes("weak-password"))return "Password needs at least 6 characters.";
+  if(c.includes("permission-denied"))return "Firestore denied access. Enable Email/Password Auth and publish the included firestore.rules.";
+  return err?.message||"Something failed.";
+}
+
+$("#signInBtn").onclick=async()=>{try{setAuthStatus("Signing in…");await signInWithEmailAndPassword(auth,$("#authEmail").value.trim(),$("#authPassword").value)}catch(e){setAuthStatus(friendlyError(e),true)}};
+$("#signUpBtn").onclick=async()=>{try{setAuthStatus("Creating account…");await createUserWithEmailAndPassword(auth,$("#authEmail").value.trim(),$("#authPassword").value)}catch(e){setAuthStatus(friendlyError(e),true)}};
+$("#resetPasswordBtn").onclick=async()=>{const email=$("#authEmail").value.trim();if(!email)return setAuthStatus("Enter your email first.",true);try{await sendPasswordResetEmail(auth,email);setAuthStatus("Password reset email sent.")}catch(e){setAuthStatus(friendlyError(e),true)}};
+
+onAuthStateChanged(auth,async user=>{
+  stopListeners();S.user=user;
+  if(!user){$("#authScreen").classList.remove("hidden");$("#appShell").classList.add("hidden");return}
+  $("#authScreen").classList.add("hidden");$("#appShell").classList.remove("hidden");$("#userEmail").textContent=user.email||"Signed in";
+  await bootstrapUser();startListeners();navigate("dashboard");
+});
+
+function userDoc(){return doc(db,"users",S.user.uid)}
+function subcol(name){return collection(db,"users",S.user.uid,name)}
+function subdoc(name,id){return doc(db,"users",S.user.uid,name,id)}
+async function bootstrapUser(){
+  try{
+    const p=await getDoc(userDoc());
+    if(!p.exists())await setDoc(userDoc(),{...DEFAULT_PROFILE,email:S.user.email||"",createdAt:serverTimestamp()});
+    const cash=await getDoc(subdoc("accounts","cash"));
+    if(!cash.exists())await setDoc(subdoc("accounts","cash"),{name:"Cash",type:"cash",openingBalance:0,createdAt:serverTimestamp()});
+  }catch(e){setSyncError(e)}
+}
+function stopListeners(){S.unsubs.forEach(u=>{try{u()}catch{}});S.unsubs=[]}
+function startListeners(){
+  stopListeners();S.syncError="";
+  S.unsubs.push(onSnapshot(userDoc(),snap=>{if(snap.exists()){S.profile={...DEFAULT_PROFILE,...snap.data()};applyTheme();refresh()}setSynced()},setSyncError));
+  ["tasks","accounts","transactions","bills","goals","routines","inbox"].forEach(name=>{
+    S.unsubs.push(onSnapshot(subcol(name),snap=>{S[name]=snap.docs.map(d=>({id:d.id,...d.data()}));sortData(name);refresh();setSynced()},setSyncError));
+  });
+}
+function sortData(name){
+  if(name==="transactions")S.transactions.sort((a,b)=>String(b.date||"").localeCompare(String(a.date||"")));
+  if(name==="tasks")S.tasks.sort((a,b)=>scoreAction(toTaskAction(b))-scoreAction(toTaskAction(a)));
+  if(name==="bills")S.bills.sort((a,b)=>String(a.dueDate||"9999").localeCompare(String(b.dueDate||"9999")));
+  if(name==="inbox")S.inbox.sort((a,b)=>(b.createdMs||0)-(a.createdMs||0));
+}
+function setSynced(){
+  if(S.syncError)return;$("#syncDot").className="dot ok";$("#syncLabel").textContent="Synced";$("#syncDetail").textContent="Firebase · "+(S.user?.email||"");
+  $("#setupBanner").classList.add("hidden");
+}
+function setSyncError(err){
+  S.syncError=friendlyError(err);$("#syncDot").className="dot bad";$("#syncLabel").textContent="Needs setup";$("#syncDetail").textContent="Firestore blocked";
+  $("#setupMessage").textContent=S.syncError;$("#setupBanner").classList.remove("hidden");
+}
+function applyTheme(){document.documentElement.dataset.theme=S.profile.theme==="light"?"light":"dark"}
+
+function navigate(view){
+  S.view=view;const titles={dashboard:"Dashboard",tasks:"Tasks",money:"Money",goals:"Goals",routines:"Routines",inbox:"Inbox",settings:"Settings"};
+  $("#pageTitle").textContent=titles[view]||"Pier";
+  $$("[data-view]").forEach(b=>b.classList.toggle("active",b.dataset.view===view));
+  render();
+}
+document.addEventListener("click",e=>{
+  const nav=e.target.closest("[data-view]");if(nav){navigate(nav.dataset.view);return}
+  const a=e.target.closest("[data-action]");if(a)handleAction(a.dataset.action,a.dataset.id,a);
+});
+$("#quickAddBtn").onclick=()=>openTaskModal();
+$("#runPlannerBtn").onclick=()=>{S.plan=generatePlan();toast("Plan rebuilt.");render()};
+
+function refresh(){
+  $("#avatar").textContent=firstLetter();S.plan=generatePlan();
+  if($("#appShell").classList.contains("hidden"))return;
+  render();
+}
+function render(){
+  const root=$("#viewRoot");if(!root)return;
+  if(S.view==="dashboard")root.innerHTML=renderDashboard();
+  else if(S.view==="tasks")root.innerHTML=renderTasks();
+  else if(S.view==="money")root.innerHTML=renderMoney();
+  else if(S.view==="goals")root.innerHTML=renderGoals();
+  else if(S.view==="routines")root.innerHTML=renderRoutines();
+  else if(S.view==="inbox")root.innerHTML=renderInbox();
+  else root.innerHTML=renderSettings();
+  bindViewInputs();
+}
+
+function balances(){
+  const map={};S.accounts.forEach(a=>map[a.id]=num(a.openingBalance));
+  S.transactions.forEach(t=>{if(map[t.accountId]===undefined)map[t.accountId]=0;map[t.accountId]+=t.type==="income"?num(t.amount):-num(t.amount)});
+  return map;
+}
+function totalBalance(){return Object.values(balances()).reduce((a,b)=>a+b,0)}
+function monthFlow(){
+  const now=new Date(),ym=now.getFullYear()+"-"+String(now.getMonth()+1).padStart(2,"0");
+  return S.transactions.filter(t=>String(t.date||"").startsWith(ym)).reduce((o,t)=>{o[t.type]+=num(t.amount);return o},{income:0,expense:0});
+}
+function openTasks(){return S.tasks.filter(t=>t.status!=="done")}
+function overdueCount(){return openTasks().filter(t=>t.dueAt&&daysUntil(t.dueAt)<0).length}
+function mustCount(){return openTasks().filter(t=>t.must).length}
+function dueSoonCount(){return openTasks().filter(t=>t.dueAt&&daysUntil(t.dueAt)>=0&&daysUntil(t.dueAt)<=num(S.profile.urgentDays)).length}
+function availableMoney(){return totalBalance()-num(S.profile.emergencyReserve)}
+
+function toTaskAction(t){return {key:"task:"+t.id,type:"task",id:t.id,title:t.title||"Untitled",priority:num(t.priority)||3,must:!!t.must,due:t.dueAt||"",minutes:Math.max(1,num(t.estimateMin)||15),cashCost:Math.max(0,num(t.moneyCost)),category:t.category||"General"}}
+function toBillAction(b){return {key:"bill:"+b.id,type:"bill",id:b.id,title:"Pay "+(b.name||"bill"),priority:num(b.priority)||5,must:true,due:b.dueDate||"",minutes:5,cashCost:Math.max(0,num(b.amount)),category:"Bill"}}
+function routineDue(r){
+  if(!r.active)return false;const day=new Date().getDay();const days=Array.isArray(r.days)?r.days.map(Number):[];
+  return (days.length===0||days.includes(day))&&r.lastCompletedDate!==today();
+}
+function toRoutineAction(r){return {key:"routine:"+r.id,type:"routine",id:r.id,title:r.name||"Routine",priority:num(r.priority)||3,must:!!r.must,due:today(),minutes:Math.max(1,num(r.estimateMin)||15),cashCost:0,category:"Routine"}}
+function toGoalAction(g){return {key:"goal:"+g.id,type:"goal",id:g.id,title:g.nextAction||("Work on "+g.name),priority:num(g.priority)||3,must:false,due:g.deadline||"",minutes:Math.max(1,num(g.nextActionMinutes)||30),cashCost:0,category:"Goal"}}
+function allActions(){
+  return [
+    ...openTasks().map(toTaskAction),
+    ...S.bills.filter(b=>b.status!=="paid").map(toBillAction),
+    ...S.routines.filter(routineDue).map(toRoutineAction),
+    ...S.goals.filter(g=>g.status!=="done"&&g.nextAction).map(toGoalAction)
+  ];
+}
+function scoreAction(a){
+  let score=(num(a.priority)||3)*14;const d=daysUntil(a.due);
+  if(a.must)score+=85;
+  if(d<0)score+=135+Math.min(70,Math.abs(d)*7);
+  else if(d===0)score+=100;
+  else if(d===1)score+=72;
+  else if(d<=3)score+=48;
+  else if(d<=7)score+=26;
+  if(a.type==="bill")score+=24;if(a.type==="routine")score+=10;
+  if(a.minutes<=20)score+=5;
+  return Math.round(score);
+}
+function whyAction(a){
+  const r=[],d=daysUntil(a.due);
+  if(a.must)r.push("HAVE TO");
+  if(d<0)r.push(Math.abs(d)+"d overdue");else if(d===0)r.push("due today");else if(d===1)r.push("due tomorrow");else if(d<=7)r.push("due in "+d+"d");
+  r.push("P"+(a.priority||3));r.push(a.minutes+" min");
+  if(a.cashCost)r.push(money(a.cashCost));
+  return r.join(" · ");
+}
+
+function generatePlan(){
+  const actions=allActions().sort((a,b)=>scoreAction(b)-scoreAction(a));
+  const world={minutes:Math.max(30,num(S.profile.dailyMinutes)||240),cash:Math.max(0,availableMoney())};
+  const initial={...world},selected=[],blocked=[];
+  for(const a of actions){
+    const urgent=daysUntil(a.due)<=num(S.profile.urgentDays);
+    const worth=a.must||urgent||scoreAction(a)>=75;
+    if(!worth)continue;
+    const fail=[];
+    if(a.cashCost>world.cash)fail.push("needs "+money(a.cashCost)+" but spendable cash is "+money(world.cash));
+    if(a.minutes>world.minutes)fail.push("needs "+a.minutes+" min but only "+world.minutes+" min remain");
+    if(fail.length){
+      if(a.must||urgent)blocked.push({...a,reason:fail.join("; "),score:scoreAction(a)});
+      continue;
+    }
+    selected.push({...a,score:scoreAction(a),reason:whyAction(a)});
+    world.minutes-=a.minutes;world.cash-=a.cashCost;
+  }
+  return {selected,blocked,initial,remaining:world,generatedAt:new Date()};
+}
+function plan(){return S.plan||generatePlan()}
+
+function renderDashboard(){
+  const p=plan(),next=p.selected[0],flow=monthFlow(),name=esc((S.profile.name||"").split(" ")[0]||"");
+  return '<div class="hero">'+
+    '<section class="card hero-card"><div class="eyebrow">PIER / TODAY</div><div class="hero-title">'+greeting()+', '+name+'.</div>'+
+      '<div class="hero-sub">'+(next?'Your highest-value move is below. Pier ranked it from urgency, must-do status, deadline, time and money constraints.':'You are clear right now. Add what you need to do and Pier will build the order.')+'</div>'+
+      '<div class="next-action">'+(next?'<div class="rank-bubble">'+next.score+'</div><div style="flex:1;min-width:190px"><div class="task-title">'+esc(next.title)+'</div><div class="row-meta">'+esc(next.reason)+'</div></div><button class="btn primary" data-action="complete-plan" data-id="'+esc(next.key)+'">Done</button>':'<button class="btn primary" data-action="add-task">Add your first task</button>')+'</div>'+
+    '</section>'+
+    '<div class="metrics">'+
+      metric("Spendable",money(availableMoney()),"After "+money(S.profile.emergencyReserve)+" reserve")+
+      metric("Have to",mustCount(),dueSoonCount()+" due soon")+
+      metric("Overdue",overdueCount(),overdueCount()?"Needs attention":"Nothing late")+
+      metric("This month",money(flow.income-flow.expense),money(flow.income)+" in · "+money(flow.expense)+" out")+
+    '</div></div>'+
+    '<div class="grid-2">'+
+      '<section class="card pad"><div class="card-head"><h3>Today plan</h3><div class="pill blue">'+p.selected.length+' actions · '+(p.initial.minutes-p.remaining.minutes)+' min</div></div>'+renderPlanList(p.selected,6)+'</section>'+
+      '<section class="card pad"><div class="card-head"><h3>Planner blockers</h3><span class="pill '+(p.blocked.length?'must':'good')+'">'+p.blocked.length+' blocked</span></div>'+renderBlockers(p.blocked)+'</section>'+
+    '</div>'+
+    '<div class="grid-2" style="margin-top:18px">'+
+      '<section class="card pad"><div class="card-head"><h3>Money snapshot</h3><button class="btn ghost" data-view="money">Open money →</button></div>'+renderMiniAccounts()+'</section>'+
+      '<section class="card pad"><div class="card-head"><h3>Quick brain dump</h3><span class="small muted">Capture first. Organize second.</span></div><form id="dashInboxForm" class="quick-capture"><input name="text" maxlength="240" placeholder="Anything you do not want to forget…"><button class="btn blue">Capture</button></form><div class="small muted" style="margin-top:10px">Tip: use Tasks for something actionable; Inbox is for messy thoughts.</div></section>'+
+    '</div>';
+}
+function greeting(){const h=new Date().getHours();return h<12?"Good morning":h<18?"Good afternoon":"Good evening"}
+function metric(label,value,sub){return '<div class="metric"><div class="label">'+esc(label)+'</div><div class="value">'+esc(value)+'</div><div class="sub">'+esc(sub)+'</div></div>'}
+function renderPlanList(items,limit=99){
+  if(!items.length)return '<div class="empty">Nothing is demanding your attention right now.</div>';
+  return '<div class="plan-list">'+items.slice(0,limit).map((a,i)=>'<div class="plan-item"><div class="plan-num">'+(i+1)+'</div><div class="plan-body"><div class="plan-title">'+esc(a.title)+'</div><div class="plan-reason">'+esc(a.reason)+'</div></div><button class="btn icon ghost" title="Complete" data-action="complete-plan" data-id="'+esc(a.key)+'">✓</button></div>').join("")+'</div>';
+}
+function renderBlockers(items){
+  if(!items.length)return '<div class="empty">No urgent item is blocked by today\'s time or money limits.</div>';
+  return '<div class="stack">'+items.slice(0,6).map(a=>'<div class="plan-item blocker"><div class="plan-num">!</div><div class="plan-body"><div class="plan-title">'+esc(a.title)+'</div><div class="plan-reason">'+esc(a.reason)+'</div></div></div>').join("")+'</div>';
+}
+function renderMiniAccounts(){
+  const b=balances();if(!S.accounts.length)return '<div class="empty">Add an account or cash balance.</div>';
+  return '<div class="stack">'+S.accounts.slice(0,4).map(a=>'<div class="setting-row"><div><strong>'+esc(a.name)+'</strong><div class="small muted">'+esc(a.type||"account")+'</div></div><strong>'+money(b[a.id]||0)+'</strong></div>').join("")+'</div>';
+}
+
+function renderTasks(){
+  let tasks=openTasks();
+  if(S.taskSearch)tasks=tasks.filter(t=>(t.title+" "+(t.notes||"")+" "+(t.category||"")).toLowerCase().includes(S.taskSearch.toLowerCase()));
+  if(S.taskFilter==="must")tasks=tasks.filter(t=>t.must);
+  if(S.taskFilter==="overdue")tasks=tasks.filter(t=>t.dueAt&&daysUntil(t.dueAt)<0);
+  if(S.taskFilter==="done")tasks=S.tasks.filter(t=>t.status==="done");
+  tasks.sort((a,b)=>scoreAction(toTaskAction(b))-scoreAction(toTaskAction(a)));
+  const urgent=[],have=[],later=[];
+  tasks.forEach(t=>{const a=toTaskAction(t);if(t.status==="done")later.push(t);else if(daysUntil(t.dueAt)<=S.profile.urgentDays)urgent.push(t);else if(t.must)have.push(t);else later.push(t)});
+  return '<div class="section-title"><div><h1>Tasks</h1><p>Ranked from actual urgency instead of the order you typed them.</p></div><button class="btn primary" data-action="add-task">＋ Add task</button></div>'+
+    '<div class="toolbar" style="margin-bottom:16px"><input id="taskSearch" value="'+esc(S.taskSearch)+'" placeholder="Search tasks…"><select id="taskFilter"><option value="open">Open</option><option value="must">Have to</option><option value="overdue">Overdue</option><option value="done">Completed</option></select><span class="pill blue">'+tasks.length+' shown</span></div>'+
+    '<div class="task-board">'+taskColumn("Urgent",urgent,"Due soon or overdue")+taskColumn("Have to",have,"Mandatory, not immediate")+taskColumn(S.taskFilter==="done"?"Completed":"Later",later,S.taskFilter==="done"?"Finished items":"Everything else")+'</div>';
+}
+function taskColumn(title,items,sub){
+  return '<section class="board-col"><div class="board-head"><div><h3>'+title+'</h3><div class="small muted">'+sub+'</div></div><span class="count">'+items.length+'</span></div><div class="stack">'+(items.length?items.map(taskCard).join(""):'<div class="empty">Empty</div>')+'</div></section>';
+}
+function taskCard(t){
+  const a=toTaskAction(t),d=daysUntil(t.dueAt),done=t.status==="done";
+  return '<article class="task-row"><div class="priority-bar p'+clamp(num(t.priority)||3,1,5)+'"></div><div class="row-main"><div class="task-title" style="'+(done?'text-decoration:line-through;opacity:.65':'')+'">'+esc(t.title)+'</div><div class="row-meta">'+esc(t.category||"General")+' · Rank '+scoreAction(a)+(t.dueAt?' · '+fmtDate(t.dueAt):'')+' · '+a.minutes+' min'+(a.cashCost?' · '+money(a.cashCost):'')+'</div><div style="margin-top:8px;display:flex;gap:5px;flex-wrap:wrap">'+(t.must?'<span class="pill must">HAVE TO</span>':'')+(d<0&&!done?'<span class="pill urgent">'+Math.abs(d)+'d OVERDUE</span>':'')+'<span class="pill">P'+esc(t.priority||3)+'</span></div></div><div class="row-actions">'+(!done?'<button class="btn icon ghost" data-action="done-task" data-id="'+t.id+'" title="Done">✓</button>':'<button class="btn ghost" data-action="reopen-task" data-id="'+t.id+'">Reopen</button>')+'<button class="btn icon ghost" data-action="edit-task" data-id="'+t.id+'" title="Edit">✎</button></div></article>';
+}
+
+function renderMoney(){
+  const b=balances(),flow=monthFlow(),openBills=S.bills.filter(x=>x.status!=="paid");
+  return '<div class="section-title"><div><h1>Money</h1><p>Pier treats cash as a planning constraint, not just a number on a dashboard.</p></div><div class="toolbar"><button class="btn" data-action="add-account">＋ Account</button><button class="btn blue" data-action="add-transaction">＋ Transaction</button><button class="btn primary" data-action="add-bill">＋ Bill</button></div></div>'+
+    '<div class="money-hero">'+metric("Total cash",money(totalBalance()),S.accounts.length+" accounts")+metric("Protected reserve",money(S.profile.emergencyReserve),"Planner will not spend this")+metric("Spendable",money(availableMoney()),availableMoney()<0?"Below reserve":"Available for plans")+metric("Monthly flow",money(flow.income-flow.expense),money(flow.income)+" in · "+money(flow.expense)+" out")+'</div>'+
+    '<div class="grid-2"><section class="card pad"><div class="card-head"><h3>Accounts</h3></div><div class="account-grid">'+(S.accounts.length?S.accounts.map(a=>'<div class="account-card"><div class="name">'+esc(a.type||"account")+'</div><div class="amount">'+money(b[a.id]||0)+'</div><strong>'+esc(a.name)+'</strong><div style="margin-top:10px"><button class="btn ghost small" data-action="edit-account" data-id="'+a.id+'">Adjust</button></div></div>').join(""):'<div class="empty">No accounts</div>')+'</div></section>'+
+    '<section class="card pad"><div class="card-head"><h3>Bills / obligations</h3><span class="pill must">'+openBills.length+' open</span></div><div class="stack">'+(openBills.length?openBills.map(billCard).join(""):'<div class="empty">No unpaid bills.</div>')+'</div></section></div>'+
+    '<section class="card pad" style="margin-top:18px"><div class="card-head"><h3>Recent transactions</h3><span class="small muted">'+S.transactions.length+' total</span></div>'+renderTransactions()+'</section>';
+}
+function billCard(b){
+  const d=daysUntil(b.dueDate);return '<div class="bill-row"><div class="priority-bar p5"></div><div class="row-main"><div class="task-title">'+esc(b.name)+'</div><div class="row-meta">'+money(b.amount)+' · '+fmtDate(b.dueDate)+(b.recurrence&&b.recurrence!=="none"?' · '+esc(b.recurrence):"")+'</div></div><div class="row-actions">'+(d<=3?'<span class="pill urgent">'+(d<0?"OVERDUE":d===0?"TODAY":d+"D")+'</span>':'')+'<button class="btn primary" data-action="pay-bill" data-id="'+b.id+'">Pay</button><button class="btn icon ghost" data-action="edit-bill" data-id="'+b.id+'">✎</button></div></div>';
+}
+function renderTransactions(){
+  if(!S.transactions.length)return '<div class="empty">No transactions yet.</div>';
+  const amap=Object.fromEntries(S.accounts.map(a=>[a.id,a.name]));
+  return '<div class="table-wrap"><table><thead><tr><th>Date</th><th>Description</th><th>Account</th><th>Category</th><th class="right">Amount</th><th></th></tr></thead><tbody>'+
+    S.transactions.slice(0,50).map(t=>'<tr><td>'+fmtDate(t.date)+'</td><td><strong>'+esc(t.description||t.type)+'</strong></td><td>'+esc(amap[t.accountId]||"Unknown")+'</td><td>'+esc(t.category||"Other")+'</td><td class="right amount '+esc(t.type)+'">'+(t.type==="income"?"+":"−")+money(t.amount)+'</td><td class="right"><button class="btn icon ghost" data-action="delete-transaction" data-id="'+t.id+'">×</button></td></tr>').join("")+
+    '</tbody></table></div>';
+}
+
+function renderGoals(){
+  return '<div class="section-title"><div><h1>Goals</h1><p>Give every goal a measurable target and a next action.</p></div><button class="btn primary" data-action="add-goal">＋ Add goal</button></div>'+
+    '<div class="goal-grid">'+(S.goals.length?S.goals.filter(g=>g.status!=="done").map(goalCard).join(""):'<div class="empty">No goals yet.</div>')+'</div>';
+}
+function goalCard(g){
+  const cur=num(g.current),target=Math.max(1,num(g.target)),pct=clamp(cur/target*100,0,100),isMoney=g.kind==="money";
+  return '<article class="card goal-card"><div class="goal-top"><div><div class="goal-title">'+esc(g.name)+'</div><div class="row-meta">'+(g.deadline?fmtDate(g.deadline):"No deadline")+' · P'+esc(g.priority||3)+'</div></div><button class="btn icon ghost" data-action="edit-goal" data-id="'+g.id+'">✎</button></div><div class="goal-value">'+(isMoney?money(cur):cur)+' <span class="small muted">/ '+(isMoney?money(target):target)+'</span></div><div class="progress"><span style="width:'+pct+'%"></span></div><div class="goal-meta"><span>'+Math.round(pct)+'%</span><span>'+esc(g.nextAction||"No next action")+'</span></div><div class="row-actions" style="margin-top:14px;justify-content:flex-start"><button class="btn" data-action="goal-progress" data-id="'+g.id+'">Update progress</button><button class="btn ghost" data-action="goal-done" data-id="'+g.id+'">Complete</button></div></article>';
+}
+
+function renderRoutines(){
+  return '<div class="section-title"><div><h1>Routines</h1><p>Recurring actions appear in the planner on the days you choose.</p></div><button class="btn primary" data-action="add-routine">＋ Add routine</button></div>'+
+    '<div class="card pad"><div class="stack">'+(S.routines.length?S.routines.map(r=>'<div class="routine-row"><div class="row-main"><div class="task-title">'+esc(r.name)+'</div><div class="row-meta">'+esc(daysText(r.days))+' · '+num(r.estimateMin||15)+' min · P'+esc(r.priority||3)+(r.must?' · HAVE TO':'')+'</div></div><div class="row-actions">'+(routineDue(r)?'<button class="btn primary" data-action="routine-done" data-id="'+r.id+'">Done today</button>':'<span class="pill good">'+(r.lastCompletedDate===today()?"DONE TODAY":r.active?"NOT DUE":"PAUSED")+'</span>')+'<button class="btn icon ghost" data-action="edit-routine" data-id="'+r.id+'">✎</button></div></div>').join(""):'<div class="empty">No routines yet.</div>')+'</div></div>';
+}
+function daysText(days){
+  const map=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];const d=Array.isArray(days)?days.map(Number):[];
+  if(!d.length||d.length===7)return "Every day";return d.map(x=>map[x]).join(", ");
+}
+
+function renderInbox(){
+  const open=S.inbox.filter(i=>!i.converted);
+  return '<div class="section-title"><div><h1>Inbox</h1><p>Dump it here before your brain turns it into clutter.</p></div></div>'+
+    '<section class="card pad"><form id="inboxForm" class="quick-capture"><input name="text" maxlength="500" placeholder="Write it exactly how it is in your head…"><button class="btn primary">Capture</button></form></section>'+
+    '<section class="card pad" style="margin-top:18px"><div class="card-head"><h3>Unsorted</h3><span class="pill blue">'+open.length+' items</span></div><div class="stack">'+(open.length?open.map(i=>'<div class="inbox-row"><div class="row-main"><div class="task-title">'+esc(i.text)+'</div><div class="row-meta">'+fmtDate(i.date||today())+'</div></div><div class="row-actions"><button class="btn blue" data-action="inbox-to-task" data-id="'+i.id+'">Make task</button><button class="btn icon ghost" data-action="delete-inbox" data-id="'+i.id+'">×</button></div></div>').join(""):'<div class="empty">Inbox zero.</div>')+'</div></section>';
+}
+
+function renderSettings(){
+  return '<div class="section-title"><div><h1>Settings</h1><p>These values change how Pier decides what comes first.</p></div></div>'+
+    '<div class="settings-grid"><section class="card pad"><div class="card-head"><h3>Planner rules</h3></div><form id="settingsForm">'+
+      '<div class="setting-row"><div><strong>Your name</strong><div class="small muted">Used on the dashboard</div></div><input name="name" value="'+esc(S.profile.name||"")+'"></div>'+
+      '<div class="setting-row"><div><strong>Daily action time</strong><div class="small muted">Minutes Pier may schedule per day</div></div><input name="dailyMinutes" type="number" min="30" step="15" value="'+num(S.profile.dailyMinutes)+'"></div>'+
+      '<div class="setting-row"><div><strong>Emergency reserve</strong><div class="small muted">Money the planner treats as untouchable</div></div><input name="emergencyReserve" type="number" min="0" step="1" value="'+num(S.profile.emergencyReserve)+'"></div>'+
+      '<div class="setting-row"><div><strong>Urgent window</strong><div class="small muted">Deadline becomes urgent this many days out</div></div><input name="urgentDays" type="number" min="0" max="30" value="'+num(S.profile.urgentDays)+'"></div>'+
+      '<div class="setting-row"><div><strong>Theme</strong></div><select name="theme"><option value="dark">Dark</option><option value="light">Light</option></select></div>'+
+      '<div style="margin-top:16px"><button class="btn primary" type="submit">Save planner settings</button></div></form></section>'+
+    '<section class="card pad"><div class="card-head"><h3>Firebase / account</h3></div>'+
+      '<div class="setting-row"><div><strong>Signed in</strong><div class="small muted">'+esc(S.user?.email||"")+'</div></div><span class="pill good">AUTH</span></div>'+
+      '<div class="setting-row"><div><strong>Firestore</strong><div class="small muted">'+(S.syncError?esc(S.syncError):"Realtime sync active")+'</div></div><span class="pill '+(S.syncError?'must':'good')+'">'+(S.syncError?"SETUP":"LIVE")+'</span></div>'+
+      '<div class="split-line"></div><div class="small muted" style="line-height:1.55">If Firestore says permission denied: Firebase Console → Authentication → Sign-in method → enable Email/Password. Then Firestore → Rules → publish the contents of <span class="mono">firestore.rules</span> from this repository.</div>'+
+      '<div class="split-line"></div><div class="toolbar"><button class="btn" data-action="export-data">Export JSON</button><button class="btn" data-action="request-notifications">Browser alerts</button><button class="btn danger" data-action="sign-out">Sign out</button></div>'+
+    '</section></div>'+
+    '<section class="card pad" style="margin-top:18px"><div class="card-head"><h3>How Pier ranks your life</h3><span class="pill blue">DETERMINISTIC GOAP</span></div><div class="small muted" style="line-height:1.7">Pier builds actions from open tasks, unpaid bills, due routines and goal next-actions. Each action has preconditions (time and spendable cash), effects (uses minutes/cash), and a score from priority, HAVE TO status and deadline pressure. Overdue and mandatory actions rise hardest. Your emergency reserve is removed before money actions are considered. If an urgent action cannot fit, it is shown as a blocker instead of silently disappearing.</div></section>';
+}
+
+function bindViewInputs(){
+  const search=$("#taskSearch");if(search){search.oninput=e=>{S.taskSearch=e.target.value;render()};$("#taskFilter").value=S.taskFilter;$("#taskFilter").onchange=e=>{S.taskFilter=e.target.value;render()}}
+  const inbox=$("#inboxForm");if(inbox)inbox.onsubmit=saveInbox;
+  const dash=$("#dashInboxForm");if(dash)dash.onsubmit=saveInbox;
+  const sf=$("#settingsForm");if(sf){sf.theme.value=S.profile.theme||"dark";sf.onsubmit=saveSettings}
+}
+
+async function handleAction(action,id,el){
+  if(action==="add-task")return openTaskModal();
+  if(action==="edit-task")return openTaskModal(S.tasks.find(x=>x.id===id));
+  if(action==="done-task")return completeTask(id);
+  if(action==="reopen-task")return updateDoc(subdoc("tasks",id),{status:"open",completedAt:null,updatedAt:serverTimestamp()});
+  if(action==="add-account")return openAccountModal();
+  if(action==="edit-account")return openAccountModal(S.accounts.find(x=>x.id===id));
+  if(action==="add-transaction")return openTransactionModal();
+  if(action==="delete-transaction")return removeDoc("transactions",id,"Delete this transaction?");
+  if(action==="add-bill")return openBillModal();
+  if(action==="edit-bill")return openBillModal(S.bills.find(x=>x.id===id));
+  if(action==="pay-bill")return payBill(id);
+  if(action==="add-goal")return openGoalModal();
+  if(action==="edit-goal")return openGoalModal(S.goals.find(x=>x.id===id));
+  if(action==="goal-progress")return openGoalProgress(S.goals.find(x=>x.id===id));
+  if(action==="goal-done")return updateDoc(subdoc("goals",id),{status:"done",updatedAt:serverTimestamp()});
+  if(action==="add-routine")return openRoutineModal();
+  if(action==="edit-routine")return openRoutineModal(S.routines.find(x=>x.id===id));
+  if(action==="routine-done")return updateDoc(subdoc("routines",id),{lastCompletedDate:today(),updatedAt:serverTimestamp()});
+  if(action==="inbox-to-task")return inboxToTask(id);
+  if(action==="delete-inbox")return removeDoc("inbox",id,"Delete this inbox item?");
+  if(action==="complete-plan")return completePlanItem(id);
+  if(action==="export-data")return exportData();
+  if(action==="request-notifications")return requestNotifications();
+  if(action==="sign-out")return signOut(auth);
+}
+async function removeDoc(col,id,msg){if(confirm(msg))await deleteDoc(subdoc(col,id))}
+async function completeTask(id){await updateDoc(subdoc("tasks",id),{status:"done",completedAt:serverTimestamp(),updatedAt:serverTimestamp()});toast("Task completed.")}
+async function completePlanItem(key){
+  const [type,id]=String(key).split(":");
+  if(type==="task")return completeTask(id);
+  if(type==="bill")return payBill(id);
+  if(type==="routine"){await updateDoc(subdoc("routines",id),{lastCompletedDate:today(),updatedAt:serverTimestamp()});return toast("Routine completed.")}
+  if(type==="goal"){const g=S.goals.find(x=>x.id===id);return g&&openGoalProgress(g)}
+}
+
+function openTaskModal(t={}){
+  const isEdit=!!t.id;
+  showModal(isEdit?"Edit task":"Add task",
+    '<form><div class="field"><label>What has to get done?</label><input name="title" maxlength="160" required value="'+esc(t.title||"")+'" placeholder="Pay rent, call school, finish engine patch…"></div>'+
+    '<div class="modal-grid"><div class="field"><label>Priority</label><select name="priority">'+[1,2,3,4,5].map(x=>'<option value="'+x+'" '+(num(t.priority||3)===x?'selected':'')+'>P'+x+(x===5?' — critical':x===1?' — low':'')+'</option>').join("")+'</select></div>'+
+    '<div class="field"><label>Category</label><input name="category" value="'+esc(t.category||"General")+'" placeholder="Home, Work, Family…"></div>'+
+    '<div class="field"><label>Deadline</label><input name="dueAt" type="datetime-local" value="'+esc(t.dueAt||"")+'"></div>'+
+    '<div class="field"><label>Time needed (minutes)</label><input name="estimateMin" type="number" min="1" value="'+num(t.estimateMin||30)+'"></div>'+
+    '<div class="field"><label>Money required</label><input name="moneyCost" type="number" min="0" step=".01" value="'+num(t.moneyCost||0)+'"></div></div>'+
+    '<label class="check"><input name="must" type="checkbox" '+(t.must?'checked':'')+'> <strong>HAVE TO</strong> — treat this as mandatory</label>'+
+    '<div class="field"><label>Notes</label><textarea name="notes" placeholder="Anything you need when you come back to this…">'+esc(t.notes||"")+'</textarea></div>'+
+    '<div class="modal-foot">'+(isEdit?'<button class="btn danger" type="button" id="deleteTaskBtn">Delete</button>':'')+'<button class="btn ghost" type="button" id="cancelModalBtn">Cancel</button><button class="btn primary" type="submit">Save</button></div></form>',
+    async fd=>{
+      const data={title:fd.get("title").trim(),priority:num(fd.get("priority")),category:fd.get("category").trim()||"General",dueAt:fd.get("dueAt")||"",estimateMin:num(fd.get("estimateMin"))||30,moneyCost:num(fd.get("moneyCost")),must:fd.get("must")==="on",notes:fd.get("notes").trim(),updatedAt:serverTimestamp()};
+      if(isEdit)await updateDoc(subdoc("tasks",t.id),data);else await addDoc(subcol("tasks"),{...data,status:"open",createdAt:serverTimestamp()});
+      toast(isEdit?"Task updated.":"Task added.");
+    });
+  $("#cancelModalBtn").onclick=closeModal;
+  if(isEdit)$("#deleteTaskBtn").onclick=async()=>{if(confirm("Delete this task?")){await deleteDoc(subdoc("tasks",t.id));closeModal();toast("Task deleted.")}};
+}
+
+function openAccountModal(a={}){
+  const isEdit=!!a.id;
+  showModal(isEdit?"Adjust account":"Add account",
+    '<form><div class="field"><label>Name</label><input name="name" required value="'+esc(a.name||"")+'" placeholder="Checking, Cash, Savings"></div><div class="modal-grid"><div class="field"><label>Type</label><select name="type"><option>checking</option><option>savings</option><option>cash</option><option>other</option></select></div><div class="field"><label>'+ (isEdit?"Set current balance":"Starting balance") +'</label><input name="balance" type="number" step=".01" value="'+(isEdit?num(balances()[a.id]):num(a.openingBalance))+'"></div></div><div class="modal-foot"><button class="btn ghost" type="button" id="cancelModalBtn">Cancel</button><button class="btn primary" type="submit">Save</button></div></form>',
+    async fd=>{
+      const name=fd.get("name").trim(),type=fd.get("type"),desired=num(fd.get("balance"));
+      if(!isEdit)await addDoc(subcol("accounts"),{name,type,openingBalance:desired,createdAt:serverTimestamp(),updatedAt:serverTimestamp()});
+      else{
+        const current=num(balances()[a.id]),delta=desired-current;
+        await updateDoc(subdoc("accounts",a.id),{name,type,updatedAt:serverTimestamp()});
+        if(Math.abs(delta)>.004)await addDoc(subcol("transactions"),{type:delta>=0?"income":"expense",amount:Math.abs(delta),accountId:a.id,category:"Balance adjustment",description:"Balance adjustment",date:today(),createdAt:serverTimestamp()});
+      }toast("Account saved.");
+    });
+  $("#cancelModalBtn").onclick=closeModal;if(isEdit)$("#modalBody select[name=type]").value=a.type||"checking";
+}
+
+function openTransactionModal(prefill={}){
+  if(!S.accounts.length)return toast("Add an account first.","error");
+  showModal("Add transaction",
+    '<form><div class="modal-grid"><div class="field"><label>Type</label><select name="type"><option value="expense">Expense</option><option value="income">Income</option></select></div><div class="field"><label>Amount</label><input name="amount" type="number" min=".01" step=".01" required value="'+esc(prefill.amount||"")+'"></div><div class="field"><label>Account</label><select name="accountId">'+S.accounts.map(a=>'<option value="'+a.id+'">'+esc(a.name)+'</option>').join("")+'</select></div><div class="field"><label>Date</label><input name="date" type="date" value="'+esc(prefill.date||today())+'"></div></div><div class="field"><label>Description</label><input name="description" value="'+esc(prefill.description||"")+'" placeholder="Groceries, paycheck, gas…"></div><div class="field"><label>Category</label><input name="category" value="'+esc(prefill.category||"Other")+'"></div><div class="modal-foot"><button class="btn ghost" type="button" id="cancelModalBtn">Cancel</button><button class="btn primary" type="submit">Save</button></div></form>',
+    async fd=>{await addDoc(subcol("transactions"),{type:fd.get("type"),amount:num(fd.get("amount")),accountId:fd.get("accountId"),date:fd.get("date")||today(),description:fd.get("description").trim(),category:fd.get("category").trim()||"Other",createdAt:serverTimestamp()});toast("Transaction added.")});
+  $("#cancelModalBtn").onclick=closeModal;
+  if(prefill.type)$("#modalBody select[name=type]").value=prefill.type;if(prefill.accountId)$("#modalBody select[name=accountId]").value=prefill.accountId;
+}
+
+function openBillModal(b={}){
+  const isEdit=!!b.id;
+  showModal(isEdit?"Edit bill":"Add bill / obligation",
+    '<form><div class="field"><label>Name</label><input name="name" required value="'+esc(b.name||"")+'" placeholder="Rent, phone, school, insurance…"></div><div class="modal-grid"><div class="field"><label>Amount</label><input name="amount" type="number" min="0" step=".01" required value="'+num(b.amount||0)+'"></div><div class="field"><label>Due date</label><input name="dueDate" type="date" required value="'+esc(b.dueDate||today())+'"></div><div class="field"><label>Recurrence</label><select name="recurrence"><option value="none">One time</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option></select></div><div class="field"><label>Priority</label><select name="priority">'+[3,4,5].map(x=>'<option value="'+x+'" '+(num(b.priority||5)===x?'selected':'')+'>P'+x+'</option>').join("")+'</select></div></div><div class="modal-foot">'+(isEdit?'<button class="btn danger" type="button" id="deleteBillBtn">Delete</button>':'')+'<button class="btn ghost" type="button" id="cancelModalBtn">Cancel</button><button class="btn primary" type="submit">Save</button></div></form>',
+    async fd=>{const data={name:fd.get("name").trim(),amount:num(fd.get("amount")),dueDate:fd.get("dueDate"),recurrence:fd.get("recurrence"),priority:num(fd.get("priority")),status:"open",updatedAt:serverTimestamp()};if(isEdit)await updateDoc(subdoc("bills",b.id),data);else await addDoc(subcol("bills"),{...data,createdAt:serverTimestamp()});toast("Bill saved.")});
+  $("#cancelModalBtn").onclick=closeModal;$("#modalBody select[name=recurrence]").value=b.recurrence||"none";
+  if(isEdit)$("#deleteBillBtn").onclick=async()=>{if(confirm("Delete this bill?")){await deleteDoc(subdoc("bills",b.id));closeModal()}};
+}
+function addPeriod(dateStr,recurrence){
+  const d=new Date(dateStr+"T12:00:00");if(recurrence==="weekly")d.setDate(d.getDate()+7);if(recurrence==="monthly")d.setMonth(d.getMonth()+1);
+  return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+}
+async function payBill(id){
+  const b=S.bills.find(x=>x.id===id);if(!b)return;
+  if(!S.accounts.length)return toast("Add an account before paying a bill.","error");
+  const opts=S.accounts.map(a=>'<option value="'+a.id+'">'+esc(a.name)+' · '+money(balances()[a.id]||0)+'</option>').join("");
+  showModal("Pay "+b.name,'<form><div class="field"><label>Amount</label><input name="amount" type="number" min="0" step=".01" value="'+num(b.amount)+'"></div><div class="field"><label>Pay from</label><select name="accountId">'+opts+'</select></div><div class="field"><label>Payment date</label><input name="date" type="date" value="'+today()+'"></div><div class="modal-foot"><button class="btn ghost" type="button" id="cancelModalBtn">Cancel</button><button class="btn primary" type="submit">Record payment</button></div></form>',
+    async fd=>{
+      const batch=writeBatch(db),txRef=doc(subcol("transactions"));
+      batch.set(txRef,{type:"expense",amount:num(fd.get("amount")),accountId:fd.get("accountId"),date:fd.get("date"),description:b.name,category:"Bills",createdAt:serverTimestamp()});
+      if(b.recurrence&&b.recurrence!=="none")batch.update(subdoc("bills",id),{dueDate:addPeriod(b.dueDate,b.recurrence),lastPaidDate:fd.get("date"),status:"open",updatedAt:serverTimestamp()});
+      else batch.update(subdoc("bills",id),{status:"paid",lastPaidDate:fd.get("date"),updatedAt:serverTimestamp()});
+      await batch.commit();toast("Payment recorded.");
+    });
+  $("#cancelModalBtn").onclick=closeModal;
+}
+
+function openGoalModal(g={}){
+  const isEdit=!!g.id;
+  showModal(isEdit?"Edit goal":"Add goal",
+    '<form><div class="field"><label>Goal</label><input name="name" required value="'+esc(g.name||"")+'" placeholder="Emergency fund, finish project, lose clutter…"></div><div class="modal-grid"><div class="field"><label>Type</label><select name="kind"><option value="money">Money</option><option value="progress">Progress number</option></select></div><div class="field"><label>Priority</label><select name="priority">'+[1,2,3,4,5].map(x=>'<option value="'+x+'" '+(num(g.priority||3)===x?'selected':'')+'>P'+x+'</option>').join("")+'</select></div><div class="field"><label>Current</label><input name="current" type="number" step=".01" value="'+num(g.current)+'"></div><div class="field"><label>Target</label><input name="target" type="number" step=".01" value="'+num(g.target||100)+'"></div><div class="field"><label>Deadline</label><input name="deadline" type="date" value="'+esc(g.deadline||"")+'"></div><div class="field"><label>Next action time (min)</label><input name="nextActionMinutes" type="number" min="1" value="'+num(g.nextActionMinutes||30)+'"></div></div><div class="field"><label>Next physical action</label><input name="nextAction" value="'+esc(g.nextAction||"")+'" placeholder="Transfer $50, code login screen, call office…"></div><div class="modal-foot">'+(isEdit?'<button class="btn danger" type="button" id="deleteGoalBtn">Delete</button>':'')+'<button class="btn ghost" type="button" id="cancelModalBtn">Cancel</button><button class="btn primary" type="submit">Save</button></div></form>',
+    async fd=>{const data={name:fd.get("name").trim(),kind:fd.get("kind"),priority:num(fd.get("priority")),current:num(fd.get("current")),target:num(fd.get("target")),deadline:fd.get("deadline"),nextAction:fd.get("nextAction").trim(),nextActionMinutes:num(fd.get("nextActionMinutes")),status:"open",updatedAt:serverTimestamp()};if(isEdit)await updateDoc(subdoc("goals",g.id),data);else await addDoc(subcol("goals"),{...data,createdAt:serverTimestamp()});toast("Goal saved.")});
+  $("#cancelModalBtn").onclick=closeModal;$("#modalBody select[name=kind]").value=g.kind||"money";
+  if(isEdit)$("#deleteGoalBtn").onclick=async()=>{if(confirm("Delete this goal?")){await deleteDoc(subdoc("goals",g.id));closeModal()}};
+}
+function openGoalProgress(g){
+  showModal("Update "+g.name,'<form><div class="field"><label>Current progress</label><input name="current" type="number" step=".01" value="'+num(g.current)+'"></div><div class="field"><label>Next action</label><input name="nextAction" value="'+esc(g.nextAction||"")+'"></div><div class="modal-foot"><button class="btn ghost" type="button" id="cancelModalBtn">Cancel</button><button class="btn primary" type="submit">Update</button></div></form>',
+    async fd=>{const cur=num(fd.get("current"));await updateDoc(subdoc("goals",g.id),{current:cur,nextAction:fd.get("nextAction").trim(),status:cur>=num(g.target)?"done":"open",updatedAt:serverTimestamp()});toast("Goal updated.")});
+  $("#cancelModalBtn").onclick=closeModal;
+}
+
+function openRoutineModal(r={}){
+  const isEdit=!!r.id,days=Array.isArray(r.days)?r.days.map(Number):[0,1,2,3,4,5,6];
+  const checks=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map((d,i)=>'<label class="pill"><input style="width:auto" type="checkbox" name="day" value="'+i+'" '+(days.includes(i)?'checked':'')+'> '+d+'</label>').join("");
+  showModal(isEdit?"Edit routine":"Add routine",
+    '<form><div class="field"><label>Routine</label><input name="name" required value="'+esc(r.name||"")+'" placeholder="Laundry reset, gym, clean room…"></div><div class="field"><label>Days</label><div style="display:flex;gap:6px;flex-wrap:wrap">'+checks+'</div></div><div class="modal-grid"><div class="field"><label>Minutes</label><input name="estimateMin" type="number" min="1" value="'+num(r.estimateMin||20)+'"></div><div class="field"><label>Priority</label><select name="priority">'+[1,2,3,4,5].map(x=>'<option value="'+x+'" '+(num(r.priority||3)===x?'selected':'')+'>P'+x+'</option>').join("")+'</select></div></div><label class="check"><input name="must" type="checkbox" '+(r.must?'checked':'')+'> HAVE TO when scheduled</label><label class="check"><input name="active" type="checkbox" '+(r.active!==false?'checked':'')+'> Active</label><div class="modal-foot">'+(isEdit?'<button class="btn danger" type="button" id="deleteRoutineBtn">Delete</button>':'')+'<button class="btn ghost" type="button" id="cancelModalBtn">Cancel</button><button class="btn primary" type="submit">Save</button></div></form>',
+    async fd=>{const data={name:fd.get("name").trim(),days:fd.getAll("day").map(Number),estimateMin:num(fd.get("estimateMin")),priority:num(fd.get("priority")),must:fd.get("must")==="on",active:fd.get("active")==="on",updatedAt:serverTimestamp()};if(isEdit)await updateDoc(subdoc("routines",r.id),data);else await addDoc(subcol("routines"),{...data,lastCompletedDate:"",createdAt:serverTimestamp()});toast("Routine saved.")});
+  $("#cancelModalBtn").onclick=closeModal;if(isEdit)$("#deleteRoutineBtn").onclick=async()=>{if(confirm("Delete routine?")){await deleteDoc(subdoc("routines",r.id));closeModal()}};
+}
+
+async function saveInbox(e){
+  e.preventDefault();const input=e.currentTarget.elements.text,text=input.value.trim();if(!text)return;
+  await addDoc(subcol("inbox"),{text,converted:false,date:today(),createdMs:Date.now(),createdAt:serverTimestamp()});input.value="";toast("Captured.");
+}
+function inboxToTask(id){
+  const item=S.inbox.find(x=>x.id===id);if(!item)return;
+  openTaskModal({title:item.text,category:"Inbox",priority:3,estimateMin:30,_inboxId:id});
+  const form=$("#modalBody form"),old=form?.onsubmit;
+  // Conversion is marked after Firestore receives the task through the normal submit handler.
+  const observer=new MutationObserver(()=>{});observer.disconnect();
+  updateDoc(subdoc("inbox",id),{converted:true,convertedAt:serverTimestamp()}).catch(()=>{});
+}
+async function saveSettings(e){
+  e.preventDefault();const fd=new FormData(e.currentTarget);
+  await setDoc(userDoc(),{name:fd.get("name").trim()||"Pier",dailyMinutes:num(fd.get("dailyMinutes")),emergencyReserve:num(fd.get("emergencyReserve")),urgentDays:num(fd.get("urgentDays")),theme:fd.get("theme")},{merge:true});
+  toast("Planner settings saved.");
+}
+function exportData(){
+  const payload={exportedAt:new Date().toISOString(),profile:S.profile,tasks:S.tasks,accounts:S.accounts,transactions:S.transactions,bills:S.bills,goals:S.goals,routines:S.routines,inbox:S.inbox};
+  const blob=new Blob([JSON.stringify(payload,null,2)],{type:"application/json"}),url=URL.createObjectURL(blob),a=document.createElement("a");
+  a.href=url;a.download="pier-life-backup-"+today()+".json";a.click();URL.revokeObjectURL(url);toast("Backup exported.");
+}
+async function requestNotifications(){
+  if(!("Notification" in window))return toast("This browser does not support notifications.","error");
+  const p=await Notification.requestPermission();toast(p==="granted"?"Browser alerts enabled while Pier is open.":"Notification permission was not granted.",p==="granted"?"ok":"error");
+}
+function checkNotifications(){
+  if(Notification?.permission!=="granted")return;
+  const key="pier-notify-"+today();if(localStorage.getItem(key))return;
+  const p=plan(),urgent=p.selected.filter(a=>daysUntil(a.due)<=0||a.must).slice(0,3);if(!urgent.length)return;
+  new Notification("Pier: "+urgent.length+" important item"+(urgent.length>1?"s":""),{body:urgent.map(a=>a.title).join(" · ")});
+  localStorage.setItem(key,"1");
+}
+setInterval(checkNotifications,10*60*1000);
+
+window.addEventListener("online",()=>{if(!S.syncError)setSynced()});
+window.addEventListener("offline",()=>{$("#syncDot").className="dot";$("#syncLabel").textContent="Offline";$("#syncDetail").textContent="Waiting for connection"});
+</script>
+</body>
+</html>

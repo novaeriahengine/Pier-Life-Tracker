@@ -735,14 +735,14 @@ function mustCount(){return openTasks().filter(t=>t.must).length}
 function dueSoonCount(){return openTasks().filter(t=>t.dueAt&&daysUntil(t.dueAt)>=0&&daysUntil(t.dueAt)<=num(S.profile.urgentDays)).length}
 function availableMoney(){return totalBalance()-num(S.profile.emergencyReserve)}
 
-function toTaskAction(t){return {key:"task:"+t.id,type:"task",id:t.id,title:t.title||"Untitled",priority:num(t.priority)||3,must:!!t.must,due:t.dueAt||"",minutes:Math.max(1,num(t.estimateMin)||15),cashCost:Math.max(0,num(t.moneyCost)),category:t.category||"General",requiresDriving:!!t.requiresDriving}}
-function toBillAction(b){return {key:"bill:"+b.id,type:"bill",id:b.id,title:"Pay "+(b.name||"bill"),priority:num(b.priority)||5,must:true,due:b.dueDate||"",minutes:5,cashCost:Math.max(0,num(b.amount)),category:"Bill"}}
+function toTaskAction(t){return {key:"task:"+t.id,type:"task",id:t.id,title:t.title||"Untitled",priority:num(t.priority)||3,must:!!t.must,due:t.dueAt||"",minutes:Math.max(1,num(t.estimateMin)||15),cashCost:Math.max(0,num(t.moneyCost)),category:t.category||"General",requiresDriving:!!t.requiresDriving,lifeGroup:t.lifeGroup||""}}
+function toBillAction(b){return {key:"bill:"+b.id,type:"bill",id:b.id,title:"Pay "+(b.name||"bill"),priority:num(b.priority)||5,must:true,due:b.dueDate||"",minutes:5,cashCost:Math.max(0,num(b.amount)),category:"Bill",lifeGroup:b.lifeGroup||""}}
 function routineDue(r){
   if(!r.active)return false;const day=new Date().getDay();const days=Array.isArray(r.days)?r.days.map(Number):[];
   return (days.length===0||days.includes(day))&&r.lastCompletedDate!==today();
 }
 function toRoutineAction(r){return {key:"routine:"+r.id,type:"routine",id:r.id,title:r.name||"Routine",priority:num(r.priority)||3,must:!!r.must,due:today(),minutes:Math.max(1,num(r.estimateMin)||15),cashCost:0,category:"Routine",preferredTime:r.preferredTime||"",canOverlap:!!r.canOverlap}}
-function toGoalAction(g){return {key:"goal:"+g.id,type:"goal",id:g.id,title:g.nextAction||("Work on "+g.name),priority:num(g.priority)||3,must:false,due:g.deadline||"",minutes:Math.max(1,num(g.nextActionMinutes)||30),cashCost:0,category:"Goal"}}
+function toGoalAction(g){return {key:"goal:"+g.id,type:"goal",id:g.id,title:g.nextAction||("Work on "+g.name),priority:num(g.priority)||3,must:false,due:g.deadline||"",minutes:Math.max(1,num(g.nextActionMinutes)||30),cashCost:0,category:"Goal",lifeGroup:g.lifeGroup||""}}
 function relationshipLastDone(personId=""){
   return S.relationshipPlans.filter(x=>x.status==="done"&&(!personId||x.personId===personId)&&x.completedDate).sort((a,b)=>String(b.completedDate).localeCompare(String(a.completedDate)))[0]||null;
 }
@@ -759,13 +759,30 @@ function toRelationshipAction(r){
   const priority=clamp(2+Math.floor(attention/25)+(d<=3?1:0),1,5);
   return {key:"relationship:"+r.id,type:"relationship",id:r.id,title:r.title||"Relationship plan",priority,must:d<0||attention>=80,due:r.targetDate||"",minutes:Math.max(10,num(r.minutes)||60),cashCost:Math.max(0,num(r.foundPrice||r.budget||0)),category:"Relationship"};
 }
+
+function relationshipMaintenanceAction(){
+  const person=relationshipPerson(),pid=person?.id||"",attention=relationshipAttention(pid),open=S.relationshipPlans.some(r=>r.status!=="done"&&r.status!=="skipped"&&(!pid||r.personId===pid));
+  if(open||attention<45)return null;
+  return {key:"relationshipAuto:"+(pid||"partner"),type:"relationshipAuto",id:pid,title:"Choose or plan something for "+(person?.name||"your partner"),priority:clamp(2+Math.floor(attention/22),2,5),must:attention>=80,due:today(),minutes:30,cashCost:0,category:"Relationship",lifeGroup:"relationship-maintenance"};
+}
+function dedupeDailyActions(actions){
+  const sorted=[...actions].sort((a,b)=>scoreAction(b)-scoreAction(a)),seen=new Set(),out=[];
+  for(const a of sorted){
+    const group=String(a.lifeGroup||"").trim();
+    if(group&&seen.has(group))continue;
+    if(group)seen.add(group);
+    out.push(a);
+  }
+  return out;
+}
 function allActions(){
   return [
     ...openTasks().filter(t=>t.plannerEnabled!==false).map(toTaskAction),
     ...S.bills.filter(b=>b.status!=="paid").map(toBillAction),
     ...S.routines.filter(routineDue).map(toRoutineAction),
     ...S.goals.filter(g=>g.status!=="done"&&g.nextAction&&g.plannerEnabled!==false).map(toGoalAction),
-    ...S.relationshipPlans.filter(r=>r.status!=="done"&&r.status!=="skipped").map(toRelationshipAction)
+    ...S.relationshipPlans.filter(r=>r.status!=="done"&&r.status!=="skipped").map(toRelationshipAction),
+    ...[relationshipMaintenanceAction()].filter(Boolean)
   ];
 }
 function scoreAction(a){
@@ -1569,7 +1586,12 @@ async function ensureDailyDrafts(date,force=false){
   if(date!==today()&&!force)return;
   S.dailyDraftBusy=true;
   try{
-    const rows=autoDaySuggestions(date),existing=dailyDraftsFor(date),sourceSet=new Set(existing.map(x=>x.sourceKey));
+    let existing=dailyDraftsFor(date);
+    if(force){
+      for(const d of existing.filter(x=>x.status==="pending"))await deleteDoc(subdoc("dailyDrafts",d.id));
+      existing=existing.filter(x=>x.status!=="pending");
+    }
+    const rows=autoDaySuggestions(date),sourceSet=new Set(existing.map(x=>x.sourceKey));
     let made=0;
     for(const x of rows){
       if(sourceSet.has(x.autoSourceKey))continue;
@@ -1620,7 +1642,7 @@ function autoDaySuggestions(date){
   if(date===today()){const n=new Date(),now=n.getHours()*60+n.getMinutes();dayStart=Math.max(dayStart,Math.ceil(now/15)*15)}
   const usedKeys=new Set(S.timeBlocks.filter(b=>b.date===date&&b.autoSourceKey).map(b=>b.autoSourceKey));
   const dateMs=new Date(date+"T23:59:59").getTime();
-  const candidates=allActions().filter(a=>{
+  const candidates=dedupeDailyActions(allActions()).filter(a=>{
     if(usedKeys.has(a.key))return false;
     const due=a.due?new Date(String(a.due).length<=10?a.due+"T23:59:59":a.due).getTime():Infinity;
     return a.must||due<=dateMs+7*86400000||scoreAction(a)>=90;
@@ -2392,6 +2414,7 @@ async function completePlanItem(key){
   if(type==="routine"){await updateDoc(subdoc("routines",id),{lastCompletedDate:today(),updatedAt:serverTimestamp()});return toast("Routine completed.")}
   if(type==="goal"){const g=S.goals.find(x=>x.id===id);return g&&openGoalProgress(g)}
   if(type==="relationship")return completeRelationship(id);
+  if(type==="relationshipAuto"){navigate("relationship");return toast("Pick or create a relationship plan, then Pier can schedule the real plan.");}
 }
 
 function openTaskModal(t={}){

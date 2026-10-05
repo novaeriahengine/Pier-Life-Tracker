@@ -1175,10 +1175,27 @@ function calendarEvents(start,end){
   S.appointments.filter(a=>a.dateTime).forEach(a=>ev.push({date:String(a.dateTime).slice(0,10),kind:"appt",title:a.title,meta:a.person||""}));
   S.timeBlocks.forEach(b=>ev.push({date:b.date,kind:"task",title:(b.start?b.start+" ":"")+b.title,meta:b.type||"time block"}));
   S.relationshipPlans.filter(r=>r.targetDate&&r.status!=="done").forEach(r=>ev.push({date:r.targetDate,kind:"appt",title:"♡ "+r.title,meta:relationshipPersonName(r.personId)}));
+  S.dailyDrafts.filter(d=>d.date&&d.status==="pending").forEach(d=>ev.push({date:d.date,kind:"task",title:"GOAP draft · "+d.title,meta:(d.start||"")+"–"+(d.end||"")+" · pending approval"}));
+  const smokeBy={};S.smokeLogs.forEach(x=>{const d=x.date||String(x.startedAt||"").slice(0,10);if(!d)return;(smokeBy[d]||(smokeBy[d]={units:0,sessions:0}));smokeBy[d].units+=num(x.units||1);smokeBy[d].sessions++});
+  Object.entries(smokeBy).forEach(([date,x])=>ev.push({date,kind:"appt",title:"Smoke log · "+x.units+" unit(s)",meta:x.sessions+" session(s)"}));
   relationshipOpportunityDays(3).forEach(x=>ev.push({date:x.date,kind:"appt",title:"♡ Good relationship window",meta:"projected spendable "+money(x.cash)}));
   S.paychecks.forEach(p=>ev.push({date:p.payDate,kind:"pay",title:"Paid "+money(p.netAmount),meta:jobName(p.jobId)}));
   S.jobs.forEach(j=>payDateSeries(j,start,end).forEach(d=>ev.push({date:d,kind:"pay",title:"Expected payday",meta:j.name})));
   return ev.filter(x=>x.date>=start&&x.date<=end).sort((a,b)=>a.date.localeCompare(b.date));
+}
+
+function openCalendarDay(date){
+  const events=calendarEvents(date,date),tx=S.transactions.filter(t=>t.date===date),expenses=tx.filter(t=>t.type==="expense").reduce((n,t)=>n+num(t.amount),0),income=tx.filter(t=>t.type==="income").reduce((n,t)=>n+num(t.amount),0),sm=smokeStats(date),blocks=S.timeBlocks.filter(b=>b.date===date),drafts=S.dailyDrafts.filter(d=>d.date===date);
+  showModal("Day · "+fmtDate(date),'<div class="money-hero">'+metric("Events",events.length,"Calendar items")+metric("Spent",money(expenses),tx.filter(t=>t.type==="expense").length+" expenses")+metric("Income",money(income),tx.filter(t=>t.type==="income").length+" income items")+metric("Smoke units",sm.physical.toFixed(2),sm.rows.length+" logged sessions")+'</div>'+
+    '<section class="card pad" style="margin-top:14px"><div class="card-head"><h3>Timeline</h3><span class="pill">'+events.length+'</span></div><div class="timeline">'+(events.length?events.map(e=>'<div class="timeline-item"><div class="task-title">'+esc(e.title)+'</div><div class="row-meta">'+esc(e.meta||e.kind)+'</div></div>').join(""):'<div class="empty">No calendar events.</div>')+'</div></section>'+
+    '<div class="grid-2" style="margin-top:14px"><section class="card pad"><div class="card-head"><h3>Money that day</h3></div>'+(tx.length?tx.map(t=>'<div class="category-row"><span>'+esc(t.description||t.category||"Transaction")+'<br><span class="small muted">'+esc(t.category||"")+'</span></span><strong>'+(t.type==="income"?"+":"-")+money(t.amount)+'</strong></div>').join(""):'<div class="empty">No money entries.</div>')+'</section><section class="card pad"><div class="card-head"><h3>GOAP / time blocks</h3></div><div class="stack">'+([...blocks.map(b=>({title:b.title,meta:(b.start||"")+"–"+(b.end||"")+" · "+(b.type||"block")})),...drafts.filter(d=>d.status==="pending").map(d=>({title:"Pending · "+d.title,meta:(d.start||"")+"–"+(d.end||"")}))].map(x=>'<div class="task-row"><div class="row-main"><div class="task-title">'+esc(x.title)+'</div><div class="row-meta">'+esc(x.meta)+'</div></div></div>').join("")||'<div class="empty">No blocks.</div>')+'</div></section></div>'+
+    '<div class="toolbar" style="margin-top:15px"><button class="btn primary" id="openThisDayBtn">Open Day Plan</button><button class="btn" id="addExpenseThisDayBtn">Add expense</button><button class="btn" id="logSmokeThisDayBtn">Log smoke</button></div>');
+  $("#openThisDayBtn").onclick=()=>{closeModal();S.dayCursor=new Date(date+"T12:00:00");navigate("day")};
+  $("#addExpenseThisDayBtn").onclick=()=>{closeModal();openTransactionModal({type:"expense",date})};
+  $("#logSmokeThisDayBtn").onclick=()=>{closeModal();logSmokeManualForDate(date)};
+}
+function logSmokeManualForDate(date){
+  showModal("Log smoke · "+fmtDate(date),'<form><div class="modal-grid"><div class="field"><label>Who</label><select name="who"><option value="me">Me</option><option value="together">Me + partner together</option><option value="partner">Partner only</option></select></div><div class="field"><label>Type</label><select name="smokeType"><option value="joint">Joint</option><option value="blunt">Blunt</option><option value="vape">Vape session</option><option value="other">Other</option></select></div><div class="field"><label>Units</label><input name="units" type="number" min=".25" step=".25" value="1"></div></div><div class="field"><label>Note</label><input name="note"></div><div class="modal-foot"><button class="btn ghost" type="button" id="cancelModalBtn">Cancel</button><button class="btn primary" type="submit">Log</button></div></form>',async fd=>{await addDoc(subcol("smokeLogs"),{date,startedAt:date+"T12:00:00",durationMin:0,who:fd.get("who"),smokeType:fd.get("smokeType"),units:num(fd.get("units"))||1,note:fd.get("note").trim(),manual:true,...ctxFields(),createdAt:serverTimestamp()});toast("Smoke use logged for "+fmtDate(date)+".")});$("#cancelModalBtn").onclick=closeModal;
 }
 function renderCalendar(){
   const cur=new Date(S.calendarCursor),year=cur.getFullYear(),month=cur.getMonth(),first=new Date(year,month,1),last=new Date(year,month+1,0);
@@ -1187,10 +1204,10 @@ function renderCalendar(){
   const start=gridStart.toISOString().slice(0,10),end=gridEnd.toISOString().slice(0,10),events=calendarEvents(start,end),by={};
   events.forEach(e=>(by[e.date]||(by[e.date]=[])).push(e));
   const cells=[];for(let i=0;i<42;i++){const d=new Date(gridStart);d.setDate(gridStart.getDate()+i);if(d>gridEnd)break;const key=d.toISOString().slice(0,10),items=by[key]||[];
-    cells.push('<div class="cal-day '+(d.getMonth()!==month?'other ':'')+(key===today()?'today':'')+'"><div class="cal-num">'+d.getDate()+'</div>'+items.slice(0,4).map(e=>'<div class="cal-event '+e.kind+'" title="'+esc(e.title+' '+e.meta)+'">'+esc(e.title)+'</div>').join("")+(items.length>4?'<div class="small muted">+'+(items.length-4)+' more</div>':'')+'</div>');
+    cells.push('<div class="cal-day '+(d.getMonth()!==month?'other ':'')+(key===today()?'today':'')+'" data-action="cal-day-open" data-id="'+key+'"><div class="cal-num">'+d.getDate()+'</div>'+items.slice(0,4).map(e=>'<div class="cal-event '+e.kind+'" title="'+esc(e.title+' '+e.meta)+'">'+esc(e.title)+'</div>').join("")+(items.length>4?'<div class="small muted">+'+(items.length-4)+' more</div>':'')+'</div>');
   }
   const rangeStart=new Date(year,month-2,1).toISOString().slice(0,10),rangeEnd=new Date(year,month+3,0).toISOString().slice(0,10),timeline=calendarEvents(rangeStart,rangeEnd);
-  return '<div class="section-title"><div><h1>Calendar</h1><p>One calendar for shifts, biweekly paydays, bills, task deadlines and family appointments.</p></div><div class="toolbar"><button class="btn" data-action="cal-prev">←</button><button class="btn" data-action="cal-today">Today</button><button class="btn" data-action="cal-next">→</button></div></div>'+
+  return '<div class="section-title"><div><h1>Calendar</h1><p>Tap any day to see work, bills, GOAP drafts, relationship items, smoke logs, spending and the day plan together.</p></div><div class="toolbar"><button class="btn" data-action="cal-prev">←</button><button class="btn" data-action="cal-today">Today</button><button class="btn" data-action="cal-next">→</button></div></div>'+
     '<div class="calendar-shell"><section><div class="card pad"><div class="card-head"><h3>'+cur.toLocaleDateString([],{month:"long",year:"numeric"})+'</h3><span class="pill blue">'+events.length+' events</span></div><div class="calendar-grid">'+["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map(x=>'<div class="cal-head">'+x+'</div>').join("")+cells.join("")+'</div></div></section>'+
     '<aside class="card pad"><div class="card-head"><h3>Past + future timeline</h3><span class="small muted">5-month window</span></div><div class="timeline">'+(timeline.length?timeline.map(e=>'<div class="timeline-item"><div class="timeline-date">'+fmtDate(e.date)+'</div><div class="task-title">'+esc(e.title)+'</div><div class="row-meta">'+esc(e.meta||e.kind)+'</div></div>').join(""):'<div class="empty">No calendar items.</div>')+'</div></aside></div>'+
     renderPayPeriodCalendarCards();
@@ -2344,6 +2361,7 @@ async function handleAction(action,id,el){
   if(action==="remove-market-token")return removeMarketToken();
   if(action==="export-training-data")return exportTrainingData();
   if(action==="replan-now"){S.plan=generatePlan();toast("Plan rebuilt.");return render()}
+  if(action==="cal-day-open")return openCalendarDay(id);
   if(action==="cal-prev"){S.calendarCursor=new Date(S.calendarCursor.getFullYear(),S.calendarCursor.getMonth()-1,1);return render()}
   if(action==="cal-next"){S.calendarCursor=new Date(S.calendarCursor.getFullYear(),S.calendarCursor.getMonth()+1,1);return render()}
   if(action==="cal-today"){S.calendarCursor=new Date();return render()}

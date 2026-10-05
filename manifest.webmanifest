@@ -1,0 +1,16 @@
+{
+  "name": "Pier Life Tracker",
+  "short_name": "Pier",
+  "description": "Personal life, money, work, goals, calendar and GOAP planner.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#07111b",
+  "theme_color": "#08131f",
+  "categories": [
+    "productivity",
+    "finance",
+    "lifestyle"
+  ]
+}

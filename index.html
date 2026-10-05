@@ -698,7 +698,7 @@ function routineDue(r){
   if(!r.active)return false;const day=new Date().getDay();const days=Array.isArray(r.days)?r.days.map(Number):[];
   return (days.length===0||days.includes(day))&&r.lastCompletedDate!==today();
 }
-function toRoutineAction(r){return {key:"routine:"+r.id,type:"routine",id:r.id,title:r.name||"Routine",priority:num(r.priority)||3,must:!!r.must,due:today(),minutes:Math.max(1,num(r.estimateMin)||15),cashCost:0,category:"Routine",preferredTime:r.preferredTime||""}}
+function toRoutineAction(r){return {key:"routine:"+r.id,type:"routine",id:r.id,title:r.name||"Routine",priority:num(r.priority)||3,must:!!r.must,due:today(),minutes:Math.max(1,num(r.estimateMin)||15),cashCost:0,category:"Routine",preferredTime:r.preferredTime||"",canOverlap:!!r.canOverlap}}
 function toGoalAction(g){return {key:"goal:"+g.id,type:"goal",id:g.id,title:g.nextAction||("Work on "+g.name),priority:num(g.priority)||3,must:false,due:g.deadline||"",minutes:Math.max(1,num(g.nextActionMinutes)||30),cashCost:0,category:"Goal"}}
 function relationshipLastDone(personId=""){
   return S.relationshipPlans.filter(x=>x.status==="done"&&(!personId||x.personId===personId)&&x.completedDate).sort((a,b)=>String(b.completedDate).localeCompare(String(a.completedDate)))[0]||null;
@@ -1303,10 +1303,10 @@ function autoDaySuggestions(date){
     return a.must||due<=dateMs+7*86400000||scoreAction(a)>=90;
   }).sort((a,b)=>scoreAction(b)-scoreAction(a)).slice(0,10);
   const out=[],busy=[...occupied];
-  function slot(minutes,preferred=""){
+  function slot(minutes,preferred="",canOverlap=false){
     if(preferred){
       const ps=timeToMin(preferred),pe=ps+minutes;
-      if(ps>=dayStart&&pe<=dayEnd&&!busy.some(b=>ps<b.e&&pe>b.s))return ps;
+      if(ps>=dayStart&&pe<=dayEnd&&(canOverlap||!busy.some(b=>ps<b.e&&pe>b.s)))return ps;
     }
     let t=dayStart;
     const sorted=()=>busy.sort((a,b)=>a.s-b.s);
@@ -1314,7 +1314,7 @@ function autoDaySuggestions(date){
     return t+minutes<=dayEnd?t:null;
   }
   for(const a of candidates){
-    const mins=Math.max(10,Math.min(180,Math.ceil(a.minutes/15)*15)),s=slot(mins,a.preferredTime||"");if(s===null)continue;
+    const mins=Math.max(10,Math.min(180,Math.ceil(a.minutes/15)*15)),s=slot(mins,a.preferredTime||"",a.canOverlap);if(s===null)continue;
     const e=s+mins;busy.push({s,e});out.push({start:minToTime(s),end:minToTime(e),title:a.title,kind:"auto",meta:"AUTO · score "+scoreAction(a)+" · "+whyAction(a),autoSourceKey:a.key,action:a});
   }
   return out;
@@ -2140,8 +2140,8 @@ function openRoutineModal(r={}){
   const isEdit=!!r.id,days=Array.isArray(r.days)?r.days.map(Number):[0,1,2,3,4,5,6];
   const checks=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map((d,i)=>'<label class="pill"><input style="width:auto" type="checkbox" name="day" value="'+i+'" '+(days.includes(i)?'checked':'')+'> '+d+'</label>').join("");
   showModal(isEdit?"Edit routine":"Add routine",
-    '<form><div class="field"><label>Routine</label><input name="name" required value="'+esc(r.name||"")+'" placeholder="Laundry reset, gym, clean room…"></div><div class="field"><label>Days</label><div style="display:flex;gap:6px;flex-wrap:wrap">'+checks+'</div></div><div class="modal-grid"><div class="field"><label>Minutes</label><input name="estimateMin" type="number" min="1" value="'+num(r.estimateMin||20)+'"></div><div class="field"><label>Preferred time</label><input name="preferredTime" type="time" value="'+esc(r.preferredTime||"")+'"></div><div class="field"><label>Priority</label><select name="priority">'+[1,2,3,4,5].map(x=>'<option value="'+x+'" '+(num(r.priority||3)===x?'selected':'')+'>P'+x+'</option>').join("")+'</select></div></div><label class="check"><input name="must" type="checkbox" '+(r.must?'checked':'')+'> HAVE TO when scheduled</label><label class="check"><input name="active" type="checkbox" '+(r.active!==false?'checked':'')+'> Active</label><div class="modal-foot">'+(isEdit?'<button class="btn danger" type="button" id="deleteRoutineBtn">Delete</button>':'')+'<button class="btn ghost" type="button" id="cancelModalBtn">Cancel</button><button class="btn primary" type="submit">Save</button></div></form>',
-    async fd=>{const data={name:fd.get("name").trim(),days:fd.getAll("day").map(Number),estimateMin:num(fd.get("estimateMin")),preferredTime:fd.get("preferredTime")||"",priority:num(fd.get("priority")),must:fd.get("must")==="on",active:fd.get("active")==="on",updatedAt:serverTimestamp()};if(isEdit)await updateDoc(subdoc("routines",r.id),data);else await addDoc(subcol("routines"),{...data,...ctxFields(),lastCompletedDate:"",createdAt:serverTimestamp()});toast("Routine saved.")});
+    '<form><div class="field"><label>Routine</label><input name="name" required value="'+esc(r.name||"")+'" placeholder="Laundry reset, gym, clean room…"></div><div class="field"><label>Days</label><div style="display:flex;gap:6px;flex-wrap:wrap">'+checks+'</div></div><div class="modal-grid"><div class="field"><label>Minutes</label><input name="estimateMin" type="number" min="1" value="'+num(r.estimateMin||20)+'"></div><div class="field"><label>Preferred time</label><input name="preferredTime" type="time" value="'+esc(r.preferredTime||"")+'"></div><div class="field"><label>Priority</label><select name="priority">'+[1,2,3,4,5].map(x=>'<option value="'+x+'" '+(num(r.priority||3)===x?'selected':'')+'>P'+x+'</option>').join("")+'</select></div></div><label class="check"><input name="must" type="checkbox" '+(r.must?'checked':'')+'> HAVE TO when scheduled</label><label class="check"><input name="canOverlap" type="checkbox" '+(r.canOverlap?'checked':'')+'> Can overlap another family/household block</label><label class="check"><input name="active" type="checkbox" '+(r.active!==false?'checked':'')+'> Active</label><div class="modal-foot">'+(isEdit?'<button class="btn danger" type="button" id="deleteRoutineBtn">Delete</button>':'')+'<button class="btn ghost" type="button" id="cancelModalBtn">Cancel</button><button class="btn primary" type="submit">Save</button></div></form>',
+    async fd=>{const data={name:fd.get("name").trim(),days:fd.getAll("day").map(Number),estimateMin:num(fd.get("estimateMin")),preferredTime:fd.get("preferredTime")||"",priority:num(fd.get("priority")),must:fd.get("must")==="on",canOverlap:fd.get("canOverlap")==="on",active:fd.get("active")==="on",updatedAt:serverTimestamp()};if(isEdit)await updateDoc(subdoc("routines",r.id),data);else await addDoc(subcol("routines"),{...data,...ctxFields(),lastCompletedDate:"",createdAt:serverTimestamp()});toast("Routine saved.")});
   $("#cancelModalBtn").onclick=closeModal;if(isEdit)$("#deleteRoutineBtn").onclick=async()=>{if(confirm("Delete routine?")){await deleteDoc(subdoc("routines",r.id));closeModal()}};
 }
 

@@ -290,6 +290,21 @@ tr:last-child td{border-bottom:0}
 .rel-toolbar input,.rel-toolbar select{width:auto;min-width:150px}
 @media(max-width:1100px){.rel-catalog{grid-template-columns:repeat(2,minmax(0,1fr))}.rel-stats{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:650px){.rel-catalog{grid-template-columns:1fr}.rel-stats{grid-template-columns:1fr 1fr}.readiness-grid{grid-template-columns:1fr 1fr}.hour-row{grid-template-columns:58px 1fr}}
+
+/* Pier v2.4: cached market universe, API-thrifty watchlist, auto day planning */
+.market-tabs{display:flex;gap:6px;flex-wrap:wrap;margin:14px 0}
+.market-tab{border:1px solid var(--line);background:var(--panel2);color:var(--muted);padding:8px 11px;border-radius:10px;font-size:11px;font-weight:850}
+.market-tab.active{color:var(--text);border-color:var(--accent2);background:rgba(101,183,255,.10)}
+.universe-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.stock-tile{padding:12px;border:1px solid var(--line);border-radius:13px;background:var(--panel2)}
+.stock-tile .sym{font-size:16px;font-weight:950}.stock-tile .nm{font-size:10px;color:var(--muted);min-height:26px}
+.watch-row{display:grid;grid-template-columns:minmax(100px,1.3fr) .7fr .7fr .7fr auto;gap:8px;align-items:center;padding:10px;border:1px solid var(--line);border-radius:12px;background:var(--panel2)}
+.fresh{font-size:9px;color:var(--muted)}
+.hot-score{font-size:10px;font-weight:900;color:var(--warn)}
+.auto-badge{font-size:9px;font-weight:900;border:1px solid rgba(79,209,165,.35);background:rgba(79,209,165,.08);color:#bff6e3;border-radius:999px;padding:3px 7px}
+.auto-day{border-left:3px solid var(--accent);background:rgba(79,209,165,.06)}
+@media(max-width:1000px){.universe-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.watch-row{grid-template-columns:1fr 1fr}}
+@media(max-width:620px){.universe-grid{grid-template-columns:1fr}.watch-row{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -422,15 +437,16 @@ const DEFAULT_PROFILE={
   theme:"dark",notifications:false,createdAt:null
 };
 
-const DATA_COLLECTIONS=["tasks","accounts","transactions","bills","goals","routines","inbox","jobs","shifts","timeEntries","paychecks","household","appointments","shopping","paperTrades","relationshipPlans","timeBlocks","focusSessions"];
+const DATA_COLLECTIONS=["tasks","accounts","transactions","bills","goals","routines","inbox","jobs","shifts","timeEntries","paychecks","household","appointments","shopping","paperTrades","relationshipPlans","timeBlocks","focusSessions","marketWatch","marketCache"];
 const S={
   user:null,profile:{...DEFAULT_PROFILE},profiles:[],
   tasks:[],accounts:[],transactions:[],bills:[],goals:[],routines:[],inbox:[],
   jobs:[],shifts:[],timeEntries:[],paychecks:[],household:[],appointments:[],shopping:[],paperTrades:[],
-  relationshipPlans:[],timeBlocks:[],focusSessions:[],
+  relationshipPlans:[],timeBlocks:[],focusSessions:[],marketWatch:[],marketCache:[],
+  stockUniverse:[],stockUniverseLoaded:false,stockSearch:"",stockSector:"all",marketTab:"watch",
   all:{},activeProfileId:localStorage.getItem("pierProfile")||"primary",worldMode:localStorage.getItem("pierWorld")||"live",
   unsubs:[],view:"dashboard",syncError:"",taskSearch:"",taskFilter:"open",plan:null,calendarCursor:new Date(),dayCursor:new Date(),relStore:"all",relBudget:550,relSearch:"",
-  market:{symbol:"SPY",quote:null,candles:[],chain:[],rate:null,error:"",loading:false,lastFetch:null,hasToken:null}
+  market:{symbol:"SPY",quote:null,candles:[],chain:[],rate:null,error:"",loading:false,lastFetch:null,hasToken:null,autoBusy:false}
 };
 if(!["live","shadow"].includes(S.worldMode))S.worldMode="live";
 
@@ -468,6 +484,7 @@ async function switchContext(profileId,world){
     const hasShadow=DATA_COLLECTIONS.some(n=>(S.all[n]||[]).some(d=>(d.profileId||"primary")===profileId&&(d.world||"live")==="shadow"));
     const hasLive=DATA_COLLECTIONS.some(n=>(S.all[n]||[]).some(d=>(d.profileId||"primary")===profileId&&(d.world||"live")==="live"));
     if(!hasShadow&&hasLive){await cloneLiveToShadow(profileId,false)}
+    else if(hasLive){await syncShadowMissing(profileId)}
   }
   applyContextData();refresh();
 }
@@ -509,9 +526,17 @@ onAuthStateChanged(auth,async user=>{
   stopListeners();S.user=user;
   if(!user){$("#authScreen").classList.remove("hidden");$("#appShell").classList.add("hidden");return}
   $("#authScreen").classList.add("hidden");$("#appShell").classList.remove("hidden");$("#userEmail").textContent=user.email||"Signed in";
-  await bootstrapUser();startListeners();navigate("dashboard");
+  await bootstrapUser();await loadStockUniverse();startListeners();navigate("dashboard");
 });
 
+
+async function loadStockUniverse(){
+  if(S.stockUniverseLoaded)return;
+  try{
+    const r=await fetch("./stock_universe.json",{cache:"force-cache"});if(!r.ok)throw new Error("stock universe "+r.status);
+    const j=await r.json();S.stockUniverse=Array.isArray(j.stocks)?j.stocks:[];S.stockUniverseLoaded=true;
+  }catch(e){console.warn("stock universe",e);S.stockUniverse=[];S.stockUniverseLoaded=true}
+}
 function userDoc(){return doc(db,"users",S.user.uid)}
 function subcol(name){return collection(db,"users",S.user.uid,name)}
 function subdoc(name,id){return doc(db,"users",S.user.uid,name,id)}
@@ -605,7 +630,7 @@ function render(){
   else if(S.view==="profiles")html=renderProfiles();
   else if(S.view==="inbox")html=renderInbox();
   else html=renderSettings();
-  const shadow=S.worldMode==="shadow"?'<div class="shadow-strip"><div><strong>SHADOW WORLD</strong><div class="small muted">Safe sandbox for '+esc(currentProfile().name||"this profile")+'. Changes here do not change LIVE money, goals, work or tasks.</div></div><button class="btn" data-action="reset-shadow" data-id="'+esc(S.activeProfileId)+'">Reset from LIVE</button></div>':"";
+  const shadow=S.worldMode==="shadow"?'<div class="shadow-strip"><div><strong>SHADOW WORLD</strong><div class="small muted">Safe sandbox copied from LIVE. Real-life account balances are snapshotted here; paper-market cash stays separate.</div></div><div class="toolbar"><button class="btn" data-action="sync-shadow-new" data-id="'+esc(S.activeProfileId)+'">Sync new LIVE items</button><button class="btn" data-action="sync-shadow-money" data-id="'+esc(S.activeProfileId)+'">Sync LIVE money</button><button class="btn" data-action="reset-shadow" data-id="'+esc(S.activeProfileId)+'">Reset all from LIVE</button></div></div>':"";
   root.innerHTML=shadow+html;
   updateContextUI();bindViewInputs();
 }
@@ -1136,24 +1161,58 @@ function completeRelationship(id){
 /* DAY PLAN + FOCUS */
 function dayKey(){return new Date(S.dayCursor).toISOString().slice(0,10)}
 function activeFocus(){return S.focusSessions.find(x=>x.status==="open"&&!x.endAt)}
-function dayEvents(date){
+
+function timeToMin(v){if(!v)return 0;const [h,m]=String(v).split(":").map(Number);return h*60+(m||0)}
+function minToTime(v){v=Math.max(0,Math.min(1439,Math.round(v)));return String(Math.floor(v/60)).padStart(2,"0")+":"+String(v%60).padStart(2,"0")}
+function fixedDayEvents(date){
   const out=[];
-  S.shifts.filter(s=>s.date===date).forEach(s=>out.push({start:s.start,end:s.end,title:jobName(s.jobId),kind:"shift",meta:shiftHours(s).toFixed(1)+"h shift"}));
-  S.appointments.filter(a=>String(a.dateTime||"").slice(0,10)===date).forEach(a=>{const d=new Date(a.dateTime);out.push({start:String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0"),end:"",title:a.title,kind:"appt",meta:a.person||""})});
-  S.timeBlocks.filter(b=>b.date===date).forEach(b=>out.push({start:b.start,end:b.end,title:b.title,kind:"block",meta:b.type||"block"}));
-  S.tasks.filter(t=>String(t.dueAt||"").slice(0,10)===date&&t.status!=="done").forEach(t=>{const d=new Date(t.dueAt);out.push({start:String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0"),end:"",title:t.title,kind:"task",meta:"task deadline"})});
-  S.relationshipPlans.filter(r=>r.targetDate===date&&r.status!=="done").forEach(r=>out.push({start:r.start||"19:00",end:"",title:"♡ "+r.title,kind:"rel",meta:relationshipPersonName(r.personId)}));
+  S.shifts.filter(s=>s.date===date).forEach(s=>out.push({start:s.start,end:s.end,title:jobName(s.jobId),kind:"shift",meta:shiftHours(s).toFixed(1)+"h shift",fixed:true}));
+  S.appointments.filter(a=>String(a.dateTime||"").slice(0,10)===date).forEach(a=>{const d=new Date(a.dateTime),start=String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0");out.push({start,end:minToTime(timeToMin(start)+60),title:a.title,kind:"appt",meta:a.person||"",fixed:true})});
+  S.timeBlocks.filter(b=>b.date===date).forEach(b=>out.push({start:b.start,end:b.end,title:b.title,kind:"block",meta:b.type||"block",fixed:true,autoSourceKey:b.autoSourceKey||""}));
+  S.tasks.filter(t=>String(t.dueAt||"").slice(0,10)===date&&t.status!=="done").forEach(t=>{const d=new Date(t.dueAt);out.push({start:String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0"),end:"",title:t.title,kind:"task",meta:"deadline",fixed:false,deadlineOnly:true})});
+  S.relationshipPlans.filter(r=>r.targetDate===date&&r.status!=="done").forEach(r=>out.push({start:r.start||"19:00",end:minToTime(timeToMin(r.start||"19:00")+Math.max(30,num(r.minutes)||90)),title:"♡ "+r.title,kind:"rel",meta:relationshipPersonName(r.personId),fixed:true}));
   return out.sort((a,b)=>String(a.start||"23:59").localeCompare(String(b.start||"23:59")));
 }
+function autoDaySuggestions(date){
+  const occupied=fixedDayEvents(date).filter(x=>x.fixed&&x.start).map(x=>({s:timeToMin(x.start),e:timeToMin(x.end||minToTime(timeToMin(x.start)+60))})).sort((a,b)=>a.s-b.s);
+  let dayStart=360,dayEnd=1380;
+  if(date===today()){const n=new Date(),now=n.getHours()*60+n.getMinutes();dayStart=Math.max(dayStart,Math.ceil(now/15)*15)}
+  const usedKeys=new Set(S.timeBlocks.filter(b=>b.date===date&&b.autoSourceKey).map(b=>b.autoSourceKey));
+  const dateMs=new Date(date+"T23:59:59").getTime();
+  const candidates=allActions().filter(a=>{
+    if(usedKeys.has(a.key))return false;
+    const due=a.due?new Date(String(a.due).length<=10?a.due+"T23:59:59":a.due).getTime():Infinity;
+    return a.must||due<=dateMs+7*86400000||scoreAction(a)>=90;
+  }).sort((a,b)=>scoreAction(b)-scoreAction(a)).slice(0,10);
+  const out=[],busy=[...occupied];
+  function slot(minutes){
+    let t=dayStart;
+    const sorted=()=>busy.sort((a,b)=>a.s-b.s);
+    for(const b of sorted()){if(t+minutes<=b.s)return t;if(t<b.e)t=b.e+15}
+    return t+minutes<=dayEnd?t:null;
+  }
+  for(const a of candidates){
+    const mins=Math.max(10,Math.min(180,Math.ceil(a.minutes/15)*15)),s=slot(mins);if(s===null)continue;
+    const e=s+mins;busy.push({s,e});out.push({start:minToTime(s),end:minToTime(e),title:a.title,kind:"auto",meta:"AUTO · score "+scoreAction(a)+" · "+whyAction(a),autoSourceKey:a.key,action:a});
+  }
+  return out;
+}
+function dayEvents(date){return [...fixedDayEvents(date),...autoDaySuggestions(date)].sort((a,b)=>String(a.start||"23:59").localeCompare(String(b.start||"23:59")))}
+async function applyAutoDayPlan(){
+  const date=dayKey(),rows=autoDaySuggestions(date);if(!rows.length)return toast("No new auto blocks to apply.");
+  for(const x of rows)await addDoc(subcol("timeBlocks"),{title:x.title,date,start:x.start,end:x.end,type:"AUTO GOAP",autoSourceKey:x.autoSourceKey,autoReason:x.meta,...ctxFields(),createdAt:serverTimestamp()});
+  toast(rows.length+" auto-planned block"+(rows.length===1?"":"s")+" saved.");
+}
 function renderDayPlan(){
-  const key=dayKey(),events=dayEvents(key),focus=activeFocus(),elapsed=focus?Math.max(0,(Date.now()-num(focus.startMs))/60000):0,target=num(focus?.plannedMin||0),remaining=Math.max(0,target-elapsed);
+  const key=dayKey(),events=dayEvents(key),auto=events.filter(x=>x.kind==="auto"),focus=activeFocus(),elapsed=focus?Math.max(0,(Date.now()-num(focus.startMs))/60000):0,target=num(focus?.plannedMin||0),remaining=Math.max(0,target-elapsed);
   const focusToday=S.focusSessions.filter(x=>String(x.startAt||"").slice(0,10)===key&&x.status==="closed"),focusMin=focusToday.reduce((a,x)=>a+num(x.actualMin),0),interruptions=focusToday.reduce((a,x)=>a+num(x.interruptions),0)+(focus&&String(focus.startAt||"").slice(0,10)===key?num(focus.interruptions):0);
-  const hours=[];for(let h=5;h<=23;h++){const hh=String(h).padStart(2,"0"),items=events.filter(x=>(x.start||"").slice(0,2)===hh);hours.push('<div class="hour-row"><div class="hour-label">'+new Date(2000,0,1,h).toLocaleTimeString([],{hour:"numeric"})+'</div><div class="hour-events">'+(items.length?items.map(x=>'<div class="day-event '+x.kind+'"><strong>'+esc(x.title)+'</strong><div class="small muted">'+esc(x.start+(x.end?"–"+x.end:"")+(x.meta?" · "+x.meta:""))+'</div></div>').join(""):'')+'</div></div>')}
-  return '<div class="section-title"><div><h1>Day Plan</h1><p>Hour-by-hour structure from work, appointments, tasks, relationship plans and your own time blocks.</p></div><div class="day-nav"><button class="btn" data-action="day-prev">←</button><button class="btn" data-action="day-today">Today</button><button class="btn" data-action="day-next">→</button><button class="btn primary" data-action="add-time-block">＋ Time block</button></div></div>'+
-    '<div class="grid-2"><div class="focus-card">'+(focus?'<div class="eyebrow">FOCUS ACTIVE · '+esc(focus.label||"Focus")+'</div><div class="focus-time">'+Math.floor(elapsed)+' / '+target+' min</div><div class="row-meta">'+Math.ceil(remaining)+' min remaining · '+num(focus.interruptions)+' tab exits</div><div class="toolbar" style="margin-top:12px"><button class="btn danger" data-action="focus-stop" data-id="'+focus.id+'">Stop focus</button></div>':'<div class="eyebrow">FOCUS MODE</div><div class="focus-time">Ready</div><div class="row-meta">Pier cannot see your whole phone. While this focus timer is running, leaving the Pier tab counts as an interruption so you can see the pattern.</div><div class="toolbar" style="margin-top:12px"><button class="btn primary" data-action="focus-start">Start focus</button></div>')+'</div>'+
-    '<div class="metrics">'+metric("Focused today",Math.round(focusMin)+" min","Closed focus sessions")+metric("Interruptions",interruptions,"Pier tab exits during focus")+metric("Scheduled items",events.length,fmtDate(key))+metric("Open tasks",openTasks().length,"Across this profile")+'</div></div>'+
-    '<section class="card pad" style="margin-top:18px"><div class="card-head"><div><h3>'+fmtDate(key)+'</h3><div class="small muted">Use time blocks to deliberately reserve parts of the day.</div></div><span class="pill blue">'+events.length+' items</span></div><div class="day-timeline">'+hours.join("")+'</div></section>'+
-    '<section class="card pad" style="margin-top:18px"><div class="card-head"><h3>Manual time blocks</h3><span class="small muted">Editable schedule</span></div><div class="stack">'+(S.timeBlocks.filter(b=>b.date===key).length?S.timeBlocks.filter(b=>b.date===key).map(b=>'<div class="task-row"><div class="row-main"><div class="task-title">'+esc(b.title)+'</div><div class="row-meta">'+esc(b.start)+'–'+esc(b.end)+' · '+esc(b.type||"Personal")+'</div></div><button class="btn icon ghost" data-action="delete-time-block" data-id="'+b.id+'">×</button></div>').join(""):'<div class="empty">No manual blocks for this day.</div>')+'</div></section>';
+  const hours=[];for(let h=5;h<=23;h++){const hh=String(h).padStart(2,"0"),items=events.filter(x=>(x.start||"").slice(0,2)===hh);hours.push('<div class="hour-row"><div class="hour-label">'+new Date(2000,0,1,h).toLocaleTimeString([],{hour:"numeric"})+'</div><div class="hour-events">'+(items.length?items.map(x=>'<div class="day-event '+x.kind+' '+(x.kind==="auto"?"auto-day":"")+'"><strong>'+esc(x.title)+'</strong>'+(x.kind==="auto"?'<span class="auto-badge" style="margin-left:7px">AUTO</span>':'')+'<div class="small muted">'+esc(x.start+(x.end?"–"+x.end:"")+(x.meta?" · "+x.meta:""))+'</div></div>').join(""):'')+'</div></div>')}
+  return '<div class="section-title"><div><h1>Day Plan</h1><p>Pier now fills open time automatically from your tasks, bills, routines, goals and relationship plans while respecting shifts, appointments and blocks.</p></div><div class="day-nav"><button class="btn" data-action="day-prev">←</button><button class="btn" data-action="day-today">Today</button><button class="btn" data-action="day-next">→</button><button class="btn" data-action="auto-day-apply">Save auto plan</button><button class="btn primary" data-action="add-time-block">＋ Time block</button></div></div>'+
+    '<div class="grid-2"><div class="focus-card">'+(focus?'<div class="eyebrow">FOCUS ACTIVE · '+esc(focus.label||"Focus")+'</div><div class="focus-time">'+Math.floor(elapsed)+' / '+target+' min</div><div class="row-meta">'+Math.ceil(remaining)+' min remaining · '+num(focus.interruptions)+' tab exits</div><div class="toolbar" style="margin-top:12px"><button class="btn danger" data-action="focus-stop" data-id="'+focus.id+'">Stop focus</button></div>':'<div class="eyebrow">FOCUS MODE</div><div class="focus-time">Ready</div><div class="row-meta">Pier cannot see your whole phone. While this focus timer is running, leaving the Pier tab counts as an interruption.</div><div class="toolbar" style="margin-top:12px"><button class="btn primary" data-action="focus-start">Start focus</button></div>')+'</div>'+
+    '<div class="metrics">'+metric("Focused today",Math.round(focusMin)+" min","Closed focus sessions")+metric("Interruptions",interruptions,"Pier tab exits during focus")+metric("Auto blocks",auto.length,"Generated from your life state")+metric("Open tasks",openTasks().length,"Across this profile")+'</div></div>'+
+    (auto.length?'<section class="card pad" style="margin-top:18px"><div class="card-head"><h3>Auto plan reasoning</h3><span class="pill good">'+auto.length+' suggested</span></div><div class="stack">'+auto.map((x,i)=>'<div class="task-row auto-day"><div class="plan-num">'+(i+1)+'</div><div class="row-main"><div class="task-title">'+esc(x.title)+'</div><div class="row-meta">'+esc(x.start+'–'+x.end+' · '+x.meta)+'</div></div></div>').join("")+'</div></section>':'')+
+    '<section class="card pad" style="margin-top:18px"><div class="card-head"><div><h3>'+fmtDate(key)+'</h3><div class="small muted">AUTO blocks are previews until you press Save auto plan. In SHADOW you can experiment freely.</div></div><span class="pill blue">'+events.length+' items</span></div><div class="day-timeline">'+hours.join("")+'</div></section>'+
+    '<section class="card pad" style="margin-top:18px"><div class="card-head"><h3>Saved time blocks</h3><span class="small muted">Manual + applied auto blocks</span></div><div class="stack">'+(S.timeBlocks.filter(b=>b.date===key).length?S.timeBlocks.filter(b=>b.date===key).map(b=>'<div class="task-row"><div class="row-main"><div class="task-title">'+esc(b.title)+(b.autoSourceKey?' <span class="auto-badge">AUTO</span>':'')+'</div><div class="row-meta">'+esc(b.start)+'–'+esc(b.end)+' · '+esc(b.type||"Personal")+'</div></div><button class="btn icon ghost" data-action="delete-time-block" data-id="'+b.id+'">×</button></div>').join(""):'<div class="empty">No saved blocks for this day.</div>')+'</div></section>';
 }
 function openTimeBlockModal(){
   showModal("Add time block",'<form><div class="field"><label>Title</label><input name="title" required placeholder="Engine work, clean room, family time, study…"></div><div class="modal-grid"><div class="field"><label>Date</label><input name="date" type="date" value="'+dayKey()+'"></div><div class="field"><label>Type</label><select name="type"><option>Focus</option><option>Personal</option><option>Family</option><option>Errand</option><option>Rest</option><option>Project</option></select></div><div class="field"><label>Start</label><input name="start" type="time" required></div><div class="field"><label>End</label><input name="end" type="time" required></div></div><div class="modal-foot"><button class="btn ghost" type="button" id="cancelModalBtn">Cancel</button><button class="btn primary" type="submit">Add block</button></div></form>',async fd=>{await addDoc(subcol("timeBlocks"),{title:fd.get("title").trim(),date:fd.get("date"),type:fd.get("type"),start:fd.get("start"),end:fd.get("end"),...ctxFields(),createdAt:serverTimestamp()});toast("Time block added.")});$("#cancelModalBtn").onclick=closeModal;
@@ -1189,8 +1248,50 @@ function openProfileModal(){
   $("#cancelModalBtn").onclick=closeModal;
 }
 function cloneDataObject(d,pid,world){
-  const x={...d};delete x.id;delete x.createdAt;delete x.updatedAt;delete x.completedAt;delete x.convertedAt;
-  x.profileId=pid;x.world=world;x.updatedAt=serverTimestamp();x.createdAt=serverTimestamp();return x;
+  const x={...d},sourceId=d.id;delete x.id;delete x.createdAt;delete x.updatedAt;delete x.completedAt;delete x.convertedAt;
+  x.profileId=pid;x.world=world;if(world==="shadow"&&sourceId)x.sourceLiveId=sourceId;
+  x.updatedAt=serverTimestamp();x.createdAt=serverTimestamp();return x;
+}
+function shadowIdentity(name,d){
+  if(d.sourceLiveId)return "src:"+d.sourceLiveId;
+  if(name==="tasks")return "task:"+(d.title||"")+"|"+(d.dueAt||"");
+  if(name==="bills")return "bill:"+(d.name||"")+"|"+(d.dueDate||"");
+  if(name==="goals")return "goal:"+(d.name||"");
+  if(name==="routines")return "routine:"+(d.name||"");
+  if(name==="appointments")return "appt:"+(d.title||"")+"|"+(d.dateTime||"");
+  if(name==="shifts")return "shift:"+(d.date||"")+"|"+(d.start||"")+"|"+(d.end||"")+"|"+(d.jobId||"");
+  if(name==="relationshipPlans")return "rel:"+(d.title||"")+"|"+(d.targetDate||"");
+  if(name==="timeBlocks")return "block:"+(d.title||"")+"|"+(d.date||"")+"|"+(d.start||"");
+  if(name==="household")return "person:"+(d.name||"")+"|"+(d.relation||"");
+  if(name==="jobs")return "job:"+(d.name||"");
+  return "";
+}
+async function syncShadowMissing(pid){
+  const names=["tasks","bills","goals","routines","appointments","shifts","relationshipPlans","timeBlocks","household","jobs","shopping"];
+  let added=0;
+  for(const name of names){
+    const live=(S.all[name]||[]).filter(d=>(d.profileId||"primary")===pid&&(d.world||"live")==="live");
+    const shadow=(S.all[name]||[]).filter(d=>(d.profileId||"primary")===pid&&(d.world||"live")==="shadow");
+    const ids=new Set(shadow.map(d=>d.sourceLiveId?"src:"+d.sourceLiveId:shadowIdentity(name,d)).filter(Boolean));
+    for(const d of live){
+      const key="src:"+d.id,legacy=shadowIdentity(name,d);
+      if(ids.has(key)||ids.has(legacy))continue;
+      await addDoc(subcol(name),cloneDataObject(d,pid,"shadow"));added++;
+    }
+  }
+  if(added)toast(added+" new LIVE item"+(added===1?"":"s")+" copied into SHADOW.");
+}
+async function syncShadowMoney(pid){
+  const oldAccounts=(S.all.accounts||[]).filter(d=>(d.profileId||"primary")===pid&&(d.world||"live")==="shadow");
+  const oldTx=(S.all.transactions||[]).filter(d=>(d.profileId||"primary")===pid&&(d.world||"live")==="shadow");
+  for(const d of oldTx)await deleteDoc(subdoc("transactions",d.id));
+  for(const d of oldAccounts)await deleteDoc(subdoc("accounts",d.id));
+  const accountMap={};
+  const liveAccounts=(S.all.accounts||[]).filter(d=>(d.profileId||"primary")===pid&&(d.world||"live")==="live");
+  for(const d of liveAccounts){const r=await addDoc(subcol("accounts"),cloneDataObject(d,pid,"shadow"));accountMap[d.id]=r.id}
+  const liveTx=(S.all.transactions||[]).filter(d=>(d.profileId||"primary")===pid&&(d.world||"live")==="live");
+  for(const d of liveTx){const x=cloneDataObject(d,pid,"shadow");if(accountMap[x.accountId])x.accountId=accountMap[x.accountId];await addDoc(subcol("transactions"),x)}
+  toast("SHADOW money refreshed from LIVE.");
 }
 async function cloneLiveToShadow(pid,ask=true){
   if(ask&&!confirm("Reset this profile's SHADOW world from LIVE? Current shadow changes will be erased."))return;
@@ -1213,7 +1314,7 @@ async function cloneLiveToShadow(pid,ask=true){
     }
   }
   const p=S.profiles.find(x=>x.id===pid);
-  if(p)await setDoc(subdoc("profiles",pid),{paperCashShadow:num(p.paperCashLive||10000)},{merge:true});
+  if(p)await setDoc(subdoc("profiles",pid),{paperWalletMode:p.paperWalletMode||"mirror"},{merge:true});
   toast("Shadow refreshed from LIVE.");
 }
 async function deleteProfile(id){
@@ -1405,7 +1506,7 @@ async function fetchMarketQuote(symbol){
     const from=new Date(Date.now()-45*86400000).toISOString().slice(0,10);
     const candlesRaw=await marketFetch("/v1/stocks/candles/D/"+encodeURIComponent(S.market.symbol)+"/",{from,to:today()});
     S.market.candles=normalizeCandles(candlesRaw);
-    S.market.lastFetch=new Date();await saveMarketSample("stock_quote",S.market.symbol,S.market.quote,{rate:S.market.rate});await saveMarketSample("stock_candles",S.market.symbol,S.market.candles,{resolution:"D"});
+    S.market.lastFetch=new Date();await saveMarketCache(S.market.symbol,{quote:S.market.quote,candles:S.market.candles,quoteFetchedMs:Date.now(),quoteFetchedIso:new Date().toISOString(),candlesFetchedMs:Date.now()});await saveMarketSample("stock_quote",S.market.symbol,S.market.quote,{rate:S.market.rate});await saveMarketSample("stock_candles",S.market.symbol,S.market.candles,{resolution:"D"});
   }catch(e){S.market.error=e.message||String(e);toast(S.market.error,"error")}finally{S.market.loading=false;render()}
 }
 async function fetchMarketOptions(symbol){
@@ -1413,7 +1514,7 @@ async function fetchMarketOptions(symbol){
   try{
     const raw=await marketFetch("/v1/options/chain/"+encodeURIComponent(S.market.symbol)+"/",{dte:"30",strikeLimit:"3"});
     S.market.chain=normalizeChain(raw);S.market.lastFetch=new Date();
-    await saveMarketSample("option_chain",S.market.symbol,S.market.chain,{dte:30,strikeLimit:3,rate:S.market.rate});
+    await saveMarketCache(S.market.symbol,{chain:S.market.chain,optionsFetchedMs:Date.now(),optionsFetchedIso:new Date().toISOString()});await saveMarketSample("option_chain",S.market.symbol,S.market.chain,{dte:30,strikeLimit:3,rate:S.market.rate});
   }catch(e){S.market.error=e.message||String(e);toast(S.market.error,"error")}finally{S.market.loading=false;render()}
 }
 function marketCandleChart(rows){
@@ -1422,16 +1523,87 @@ function marketCandleChart(rows){
   const pts=rows.map((x,i)=>((p+i*(w-2*p)/Math.max(1,rows.length-1)).toFixed(1)+","+(h-p-(x.c-min)/span*(h-2*p)).toFixed(1))).join(" ");
   return '<svg viewBox="0 0 '+w+' '+h+'" preserveAspectRatio="none"><polyline points="'+pts+'" fill="none" stroke="currentColor" stroke-width="3" vector-effect="non-scaling-stroke"/><text x="'+p+'" y="15" fill="currentColor" opacity=".65" font-size="10">'+money(max)+'</text><text x="'+p+'" y="'+(h-3)+'" fill="currentColor" opacity=".65" font-size="10">'+money(min)+'</text></svg>';
 }
+
+const MARKET_TIER_MS={manual:0,"5m":5*60000,"30m":30*60000,"1h":60*60000,"24h":24*60*60000};
+function marketCacheId(symbol){return idSafe(S.activeProfileId+"_"+S.worldMode+"_"+String(symbol||"").toUpperCase())}
+function cachedMarket(symbol){return S.marketCache.find(x=>String(x.symbol||"").toUpperCase()===String(symbol||"").toUpperCase())||null}
+async function saveMarketCache(symbol,patch){
+  symbol=String(symbol||"").toUpperCase();await setDoc(subdoc("marketCache",marketCacheId(symbol)),{symbol,...ctxFields(),...patch,updatedAtIso:new Date().toISOString(),updatedAt:serverTimestamp()},{merge:true});
+}
+function quoteAgeText(x){if(!x)return "never";const ms=Date.now()-num(x.quoteFetchedMs);if(ms<60000)return "just now";if(ms<3600000)return Math.floor(ms/60000)+"m ago";if(ms<86400000)return Math.floor(ms/3600000)+"h ago";return Math.floor(ms/86400000)+"d ago"}
+function marketAutoCount(){
+  const key="pier-market-auto-"+today();return {key,count:num(localStorage.getItem(key)||0)}
+}
+function addMarketAutoCount(){const x=marketAutoCount();localStorage.setItem(x.key,String(x.count+1))}
+function autoBudgetLimit(){return Math.max(1,num(S.profile.marketAutoDailyLimit||90))}
+function watchDue(w){
+  const ms=MARKET_TIER_MS[w.tier||"1h"]||0;if(!ms)return false;const cache=cachedMarket(w.symbol);return !cache?.quoteFetchedMs||Date.now()-num(cache.quoteFetchedMs)>=ms;
+}
+function hotStockRows(){
+  return S.marketCache.filter(x=>x.quote).map(x=>{const q=x.quote,score=Math.abs(num(q.changePct)*100)*(1+Math.log10(Math.max(10,num(q.volume)))) ;return {...x,hotScore:score}}).sort((a,b)=>b.hotScore-a.hotScore).slice(0,12);
+}
+function hotOptionRows(){
+  const rows=[];S.marketCache.forEach(x=>(x.chain||[]).forEach(o=>rows.push({...o,underlying:x.symbol,hotScore:num(o.volume)*2+num(o.openInterest)*.15+Math.abs(num(o.delta))*25})));
+  return rows.sort((a,b)=>b.hotScore-a.hotScore).slice(0,20);
+}
+async function lightRefreshWatch(w){
+  const x=marketAutoCount();if(x.count>=autoBudgetLimit())return;
+  const secret=await marketSecret();if(!secret.token)return;
+  try{
+    const raw=await marketFetch("/v1/stocks/quotes/"+encodeURIComponent(w.symbol)+"/",{"52week":"false"}),q=normalizeStockQuote(raw,w.symbol);
+    await saveMarketCache(w.symbol,{quote:q,quoteFetchedMs:Date.now(),quoteFetchedIso:new Date().toISOString()});
+    addMarketAutoCount();
+  }catch(e){console.warn("auto quote",w.symbol,e)}
+}
+async function autoRefreshWatchlist(){
+  if(S.market.autoBusy||!S.user||!S.marketWatch.length)return;
+  const x=marketAutoCount();if(x.count>=autoBudgetLimit())return;
+  const due=S.marketWatch.filter(w=>w.active!==false&&watchDue(w)).sort((a,b)=>num(a.rank||99)-num(b.rank||99)).slice(0,1);
+  if(!due.length)return;S.market.autoBusy=true;try{await lightRefreshWatch(due[0])}finally{S.market.autoBusy=false}
+}
+async function addMarketWatch(symbol,tier="1h"){
+  symbol=String(symbol||"").toUpperCase();if(!symbol)return;
+  if(S.marketWatch.some(x=>x.symbol===symbol))return toast(symbol+" is already tracked.");
+  if(S.marketWatch.filter(x=>x.active!==false).length>=10)return toast("Pier limits auto-tracking to 10 active symbols to protect API credits.","error");
+  const item=S.stockUniverse.find(x=>x.symbol===symbol)||{};
+  await addDoc(subcol("marketWatch"),{symbol,name:item.name||symbol,sector:item.sector||"",tier,active:true,rank:S.marketWatch.length+1,...ctxFields(),createdAt:serverTimestamp()});toast(symbol+" added to tracked stocks.");
+}
+function editMarketWatch(w){
+  showModal("Tracked stock · "+w.symbol,'<form><div class="field"><label>Refresh tier</label><select name="tier"><option value="manual">Manual only</option><option value="5m">Every 5 minutes</option><option value="30m">Every 30 minutes</option><option value="1h">Every hour</option><option value="24h">Every 24 hours</option></select></div><label class="check"><input name="active" type="checkbox" '+(w.active!==false?'checked':'')+'> Include in automatic refresh</label><div class="small muted">5-minute refresh can consume hundreds of quote calls per day. Pier stops automatic calls at your daily guard ('+autoBudgetLimit()+').</div><div class="modal-foot"><button class="btn danger" type="button" id="removeWatchBtn">Remove</button><button class="btn ghost" type="button" id="cancelModalBtn">Cancel</button><button class="btn primary" type="submit">Save</button></div></form>',async fd=>{await updateDoc(subdoc("marketWatch",w.id),{tier:fd.get("tier"),active:fd.get("active")==="on",updatedAt:serverTimestamp()});toast("Tracking updated.")});
+  $("#modalBody select[name=tier]").value=w.tier||"1h";$("#cancelModalBtn").onclick=closeModal;$("#removeWatchBtn").onclick=async()=>{await deleteDoc(subdoc("marketWatch",w.id));closeModal();toast("Removed from tracking.")};
+}
+function openCachedSymbol(symbol){
+  const x=cachedMarket(symbol);S.market.symbol=String(symbol).toUpperCase();S.market.error="";
+  if(x){S.market.quote=x.quote||null;S.market.candles=x.candles||[];S.market.chain=x.chain||[]}
+  navigate("market");
+}
+function filteredUniverse(){
+  const q=(S.stockSearch||"").toLowerCase(),sector=S.stockSector;
+  return S.stockUniverse.filter(x=>(sector==="all"||x.sector===sector)&&(!q||(x.symbol+" "+x.name+" "+x.sector+" "+x.industry).toLowerCase().includes(q))).slice(0,80);
+}
+function renderMarketWatchPanel(){
+  const used=marketAutoCount().count,rows=S.marketWatch.slice().sort((a,b)=>num(a.rank)-num(b.rank));
+  return '<section class="card pad"><div class="card-head"><div><h3>Tracked 1–10</h3><div class="small muted">Automatic quote refresh uses cache and only calls the API when a symbol is due.</div></div><span class="pill blue">'+rows.length+'/10 · '+used+'/'+autoBudgetLimit()+' auto calls today</span></div><div class="stack">'+(rows.length?rows.map(w=>{const x=cachedMarket(w.symbol),q=x?.quote;return '<div class="watch-row"><div><strong>'+esc(w.symbol)+'</strong><div class="fresh">'+esc(w.name||"")+'</div></div><div>'+(q?money(q.last||q.mid):"No cache")+'<div class="fresh">'+quoteAgeText(x)+'</div></div><div class="'+(num(q?.changePct)>=0?"market-up":"market-down")+'">'+(q?((num(q.changePct)*100).toFixed(2)+"%"):"—")+'</div><div><span class="pill">'+esc(w.tier||"1h")+'</span></div><div class="row-actions"><button class="btn ghost" data-action="market-open-cache" data-id="'+esc(w.symbol)+'">Open</button><button class="btn icon ghost" data-action="market-watch-edit" data-id="'+w.id+'">⚙</button></div></div>'}).join(""):'<div class="empty">Pick stocks from Known Stocks below. Pier will never auto-refresh more than 10.</div>')+'</div></section>';
+}
+function renderKnownStocksPanel(){
+  const sectors=["all",...Array.from(new Set(S.stockUniverse.map(x=>x.sector))).sort()],rows=filteredUniverse();
+  return '<section class="card pad"><div class="card-head"><div><h3>Known Stocks</h3><div class="small muted">'+S.stockUniverse.length+' symbols loaded locally. Searching this list costs zero API credits.</div></div><span class="pill good">STATIC JSON</span></div><div class="rel-toolbar"><input id="stockUniverseSearch" value="'+esc(S.stockSearch)+'" placeholder="Ticker, company, industry…"><select id="stockSector">'+sectors.map(x=>'<option value="'+esc(x)+'">'+esc(x==="all"?"All sectors":x)+'</option>').join("")+'</select></div><div class="universe-grid" style="margin-top:12px">'+rows.map(x=>'<div class="stock-tile"><div class="sym">'+esc(x.symbol)+'</div><div class="nm">'+esc(x.name)+'</div><div class="store-tags"><span class="store-tag">'+esc(x.sector)+'</span></div><div class="toolbar" style="margin-top:7px"><button class="btn ghost" data-action="market-open-cache" data-id="'+esc(x.symbol)+'">Open cached</button><button class="btn primary" data-action="market-watch-add" data-id="'+esc(x.symbol)+'">Track</button></div></div>').join("")+'</div></section>';
+}
+function renderHotMarketPanel(){
+  const hs=hotStockRows(),ho=hotOptionRows();
+  return '<div class="grid-2"><section class="card pad"><div class="card-head"><h3>Hot stocks from your cache</h3><span class="pill urgent">NO EXTRA CALLS</span></div><div class="stack">'+(hs.length?hs.map(x=>'<div class="task-row"><div class="row-main"><div class="task-title">'+esc(x.symbol)+' · '+money(x.quote.last||x.quote.mid)+'</div><div class="row-meta">'+((num(x.quote.changePct)*100).toFixed(2))+'% · volume '+num(x.quote.volume).toLocaleString()+' · cached '+quoteAgeText(x)+'</div></div><div class="hot-score">HOT '+x.hotScore.toFixed(1)+'</div></div>').join(""):'<div class="empty">Track and refresh a few stocks first.</div>')+'</div></section><section class="card pad"><div class="card-head"><h3>Hot options from cached chains</h3><span class="pill urgent">NO EXTRA CALLS</span></div><div class="stack">'+(ho.length?ho.map(o=>'<div class="task-row"><div class="row-main"><div class="task-title">'+esc(o.underlying)+' '+esc(o.side||"")+' $'+esc(o.strike)+'</div><div class="row-meta">'+esc(o.expiration||"")+' · vol '+num(o.volume).toLocaleString()+' · OI '+num(o.openInterest).toLocaleString()+' · Δ '+num(o.delta).toFixed(2)+'</div></div><button class="btn ghost" data-action="paper-hot-option" data-id="'+esc(o.optionSymbol||"")+'">Paper</button></div>').join(""):'<div class="empty">Load option chains for tracked symbols to rank them here.</div>')+'</div></section></div>';
+}
+
 function renderMarket(){
-  const q=S.market.quote,rate=S.market.rate||{},chain=S.market.chain||[],pct=q?num(q.changePct)*100:0;
-  const has=S.market.hasToken;
+  const q=S.market.quote,rate=S.market.rate||{},chain=S.market.chain||[],pct=q?num(q.changePct)*100:0,has=S.market.hasToken;
   if(has===null)setTimeout(()=>marketHasToken().then(()=>{if(S.view==="market")render()}),0);
-  return '<div class="section-title"><div><h1>Market Data</h1><p>Authenticated market information for your personal Pier account. API secrets are not hard-coded into GitHub.</p></div><button class="btn" data-view="paper">Open paper portfolio →</button></div>'+
-    '<section class="card pad"><div class="market-search"><input id="marketSymbolInput" value="'+esc(S.market.symbol||"SPY")+'" placeholder="Ticker: SPY, AAPL, NVDA…"><button class="btn primary" data-action="market-stock">'+(S.market.loading?"Loading…":"Stock quote")+'</button><button class="btn" data-action="market-options">Options chain</button></div><div class="small muted" style="margin-top:9px">'+(has===false?'No API token saved. Go to Settings → Market data API.':has===true?'MarketData.app token is connected to this Firebase login.':'Checking API setup…')+(rate.remaining!==null&&rate.remaining!==undefined?' · credits '+esc(rate.remaining)+' / '+esc(rate.limit||"?"):'')+'</div>'+(S.market.error?'<div class="pill must" style="margin-top:10px">'+esc(S.market.error)+'</div>':'')+'</section>'+
-    '<div class="market-grid" style="margin-top:18px"><section class="card pad"><div class="card-head"><h3>'+esc(q?.symbol||S.market.symbol||"Ticker")+'</h3><span class="pill blue">'+(q?.updated?'provider timestamp '+esc(String(q.updated)):'not loaded')+'</span></div>'+(q?'<div class="quote-hero">'+money(q.last||q.mid)+'</div><div class="quote-change '+(pct>=0?'up':'down')+'">'+(pct>=0?"+":"")+pct.toFixed(2)+'% · '+(q.change>=0?"+":"")+money(q.change)+'</div><div class="grid-3" style="margin-top:15px">'+metric("Bid",money(q.bid),"")+metric("Ask",money(q.ask),"")+metric("Volume",Math.round(q.volume).toLocaleString(),"")+'</div>':'<div class="empty">Enter a ticker and fetch a stock quote.</div>')+'</section>'+
-    '<section class="card pad"><div class="card-head"><h3>Historical chart</h3><span class="small muted">'+S.market.candles.length+' saved points</span></div><div class="chart-wrap">'+marketCandleChart(S.market.candles)+'</div></section></div>'+
-    '<section class="card pad" style="margin-top:18px"><div class="card-head"><h3>Options around ~30 DTE</h3><span class="pill blue">'+chain.length+' contracts loaded</span></div>'+(chain.length?'<div class="table-wrap option-table"><table><thead><tr><th>Contract</th><th>Exp</th><th>Side</th><th>Strike</th><th>Bid</th><th>Ask</th><th>IV</th><th>Delta</th><th>OI</th></tr></thead><tbody>'+chain.map(x=>'<tr><td class="mono">'+esc(x.optionSymbol||"")+'</td><td>'+esc(String(x.expiration||""))+'</td><td>'+esc(String(x.side||""))+'</td><td>'+money(x.strike)+'</td><td>'+money(x.bid)+'</td><td>'+money(x.ask)+'</td><td>'+((num(x.iv)*100)||0).toFixed(1)+'%</td><td>'+num(x.delta).toFixed(3)+'</td><td>'+Math.round(num(x.openInterest)).toLocaleString()+'</td></tr>').join("")+'</tbody></table></div>':'<div class="empty">Press Options chain after entering a ticker.</div>')+'</section>'+
-    '<div class="training-note" style="margin-top:14px">Every successful quote/candle/option-chain fetch is also saved as structured Firebase marketSamples data for your future Q-learning/research pipeline. Free MarketData.app accounts currently provide 100 API credits/day, up to 1 year of history, and delayed stock/options data; Pier displays the provider data as-is rather than pretending it is real-time.</div>';
+  const tabs='<div class="market-tabs"><button class="market-tab '+(S.marketTab==="watch"?"active":"")+'" data-action="market-tab" data-id="watch">Watch & cache</button><button class="market-tab '+(S.marketTab==="universe"?"active":"")+'" data-action="market-tab" data-id="universe">Known Stocks</button><button class="market-tab '+(S.marketTab==="hot"?"active":"")+'" data-action="market-tab" data-id="hot">Hot cached</button></div>';
+  return '<div class="section-title"><div><h1>Market Data</h1><p>Pick from a local 500+ stock universe, cache what you fetch, and spend API calls only on the symbols you actually care about.</p></div><div class="toolbar"><button class="btn" data-view="learn">Stocks & Options 101</button><button class="btn" data-view="paper">Paper portfolio →</button></div></div>'+
+    '<section class="card pad"><div class="market-search"><input id="marketSymbolInput" value="'+esc(S.market.symbol||"SPY")+'" placeholder="Ticker: SPY, AAPL, NVDA…"><button class="btn primary" data-action="market-stock">'+(S.market.loading?"Loading…":"Full refresh")+'</button><button class="btn" data-action="market-options">Options chain</button></div><div class="small muted" style="margin-top:9px">'+(has===false?'No token saved. Settings → Market data API.':has===true?'MarketData.app connected. Full refresh fetches quote + candles; automatic tracking fetches quote only.':'Checking API setup…')+(rate.remaining!==null&&rate.remaining!==undefined?' · provider credits '+esc(rate.remaining)+' / '+esc(rate.limit||"?"):'')+'</div>'+(S.market.error?'<div class="pill must" style="margin-top:10px">'+esc(S.market.error)+'</div>':'')+'</section>'+
+    (q?'<div class="market-grid" style="margin-top:18px"><section class="card pad"><div class="card-head"><h3>'+esc(q.symbol||S.market.symbol)+'</h3><div class="toolbar"><span class="pill blue">cached + Firebase</span><button class="btn primary" data-action="paper-from-stock" data-id="'+esc(q.symbol||S.market.symbol)+'">Paper trade</button></div></div><div class="quote-hero">'+money(q.last||q.mid)+'</div><div class="quote-change '+(pct>=0?'up':'down')+'">'+(pct>=0?"+":"")+pct.toFixed(2)+'% · '+(q.change>=0?"+":"")+money(q.change)+'</div><div class="grid-3" style="margin-top:15px">'+metric("Bid",money(q.bid),"")+metric("Ask",money(q.ask),"")+metric("Volume",Math.round(q.volume).toLocaleString(),"")+'</div></section><section class="card pad"><div class="card-head"><h3>Historical chart</h3><span class="small muted">'+S.market.candles.length+' points</span></div><div class="chart-wrap">'+marketCandleChart(S.market.candles)+'</div></section></div>':'')+
+    (chain.length?'<section class="card pad" style="margin-top:18px"><div class="card-head"><h3>Options around ~30 DTE</h3><span class="pill blue">'+chain.length+' contracts</span></div><div class="table-wrap option-table"><table><thead><tr><th>Contract</th><th>Exp</th><th>Side</th><th>Strike</th><th>Bid</th><th>Ask</th><th>IV</th><th>Delta</th><th>OI</th><th></th></tr></thead><tbody>'+chain.map(x=>'<tr><td class="mono">'+esc(x.optionSymbol||"")+'</td><td>'+esc(String(x.expiration||""))+'</td><td>'+esc(String(x.side||""))+'</td><td>'+money(x.strike)+'</td><td>'+money(x.bid)+'</td><td>'+money(x.ask)+'</td><td>'+((num(x.iv)*100)||0).toFixed(1)+'%</td><td>'+num(x.delta).toFixed(3)+'</td><td>'+Math.round(num(x.openInterest)).toLocaleString()+'</td><td><button class="btn ghost" data-action="paper-chain-option" data-id="'+esc(x.optionSymbol||"")+'">Paper</button></td></tr>').join("")+'</tbody></table></div></section>':'')+
+    tabs+(S.marketTab==="watch"?renderMarketWatchPanel():S.marketTab==="universe"?renderKnownStocksPanel():renderHotMarketPanel())+
+    '<div class="training-note" style="margin-top:14px">Known Stocks comes from stock_universe.json and uses zero market credits. Watchlist auto-refresh is capped at '+autoBudgetLimit()+' quote calls/day and one due symbol per minute. Hot lists rank your cached data only—they do not secretly burn API calls.</div>';
 }
 function renderTrainingData(){
   return '<div class="section-title"><div><h1>Training Data</h1><p>Pier is building clean event data you can reuse later instead of scraping your own UI.</p></div><button class="btn primary" data-action="export-training-data">Download dataset JSON</button></div>'+
@@ -1448,7 +1620,12 @@ async function exportTrainingData(){
   for(const name of names){const snap=await getDocs(subcol(name));out.collections[name]=snap.docs.map(d=>({id:d.id,...d.data()}))}
   const blob=new Blob([JSON.stringify(out,null,2)],{type:"application/json"}),url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download="pier-training-data-"+today()+".json";a.click();URL.revokeObjectURL(url);toast("Training dataset exported.");
 }
-function paperStartingCash(){const p=currentProfile();return num(S.worldMode==="shadow"?(p.paperCashShadow??10000):(p.paperCashLive??10000))}
+function paperStartingCash(){
+  const p=currentProfile(),field=S.worldMode==="shadow"?"paperCashShadow":"paperCashLive";
+  if(p.paperWalletMode==="custom"&&Number.isFinite(Number(p[field])))return Math.max(0,num(p[field]));
+  return Math.max(0,availableMoney());
+}
+function paperWalletLabel(){return currentProfile().paperWalletMode==="custom"?"Custom paper wallet":"Mirrors current spendable cash snapshot"}
 function paperKey(t){
   const s=String(t.symbol||"").toUpperCase();
   if((t.instrument||"stock")==="option")return "OPT:"+s+":"+String(t.expiration||"")+":"+String(t.optionType||"call").toUpperCase()+":"+num(t.strike);
@@ -1484,8 +1661,8 @@ function paperChart(series){
 function renderPaper(){
   const p=paperState(),focus=p.positions[0],series=focus?paperSeries(focus.key):[];
   const examples=["SPY","QQQ","AAPL","NVDA","TSLA"];
-  return '<div class="section-title"><div><h1>Paper Stocks & Options</h1><p>Realistic manual simulator: stock shares and option contracts, 100× contract multiplier, price marks and P/L. Still no real orders.</p></div><div class="toolbar"><button class="btn" data-action="set-paper-cash">Set paper cash</button><button class="btn primary" data-action="paper-trade">＋ Trade / mark</button></div></div>'+
-    '<div class="paper-hero">'+metric("Paper equity",money(p.equity),"Cash + marked positions")+metric("Paper cash",money(p.cash),"Starting "+money(paperStartingCash()))+metric("Market value",money(p.market),p.positions.length+" open positions")+metric("Paper P/L",money(p.pnl),p.pnl>=0?"Profit vs starting equity":"Loss vs starting equity")+'</div>'+
+  return '<div class="section-title"><div><h1>Paper Stocks & Options</h1><p>Paper trading is isolated from your life money. By default its starting wallet mirrors your current spendable cash so the simulation stays realistic.</p></div><div class="toolbar"><button class="btn" data-action="paper-use-real-cash">Mirror real spendable cash</button><button class="btn" data-action="set-paper-cash">Use custom paper cash</button><button class="btn primary" data-action="paper-trade">＋ Trade / mark</button></div></div>'+
+    '<div class="paper-hero">'+metric("Paper equity",money(p.equity),"Cash + marked positions")+metric("Paper cash",money(p.cash),paperWalletLabel()+" · start "+money(paperStartingCash()))+metric("Market value",money(p.market),p.positions.length+" open positions")+metric("Paper P/L",money(p.pnl),p.pnl>=0?"Profit vs starting equity":"Loss vs starting equity")+'</div>'+
     '<section class="card pad" style="margin-bottom:18px"><div class="card-head"><h3>Quick examples</h3><span class="small muted">These buttons only prefill a manual ticket; they are not live quotes.</span></div><div class="watchlist">'+examples.map(s=>'<button class="watch-btn" data-action="paper-sample-stock" data-id="'+s+'">'+s+' stock</button>').join("")+'<button class="watch-btn" data-action="paper-sample-option" data-id="SPY">SPY option</button><button class="watch-btn" data-action="paper-sample-option" data-id="QQQ">QQQ option</button></div></section>'+
     '<div class="grid-2"><section class="card pad"><div class="card-head"><h3>Open positions</h3><span class="pill blue">STOCK + OPTIONS</span></div>'+(p.positions.length?'<div class="table-wrap"><table><thead><tr><th>Position</th><th>Qty</th><th>Avg</th><th>Mark</th><th class="right">Value</th><th class="right">P/L</th></tr></thead><tbody>'+p.positions.map(x=>'<tr><td><strong>'+esc(x.label)+'</strong><div class="contract">'+(x.instrument==="option"?"1 contract = 100 shares":"Stock shares")+'</div></td><td>'+x.qty.toFixed(x.instrument==="option"?0:4)+'</td><td>'+money(x.avg)+'</td><td>'+money(x.lastPrice)+'</td><td class="right">'+money(x.value)+'</td><td class="right '+(x.pnl>=0?"market-up":"market-down")+'">'+money(x.pnl)+'</td></tr>').join("")+'</tbody></table></div>':'<div class="empty">No open paper positions.</div>')+'</section>'+
     '<section class="card pad"><div class="card-head"><h3>'+esc(focus?focus.label:"Intraday/manual chart")+'</h3><span class="small muted">'+series.length+' stored prices</span></div><div class="chart-wrap">'+paperChart(series)+'</div><div class="small muted" style="margin-top:9px">Chart uses the prices you record in Pier. Add MARK entries during the day to build a real record of your simulation.</div></section></div>'+
@@ -1510,7 +1687,7 @@ function openPaperTradeModal(prefill={}){
 }
 function setPaperCashModal(){
   const field=S.worldMode==="shadow"?"paperCashShadow":"paperCashLive";
-  showModal("Set paper starting cash",'<form><div class="field"><label>Starting paper cash</label><input name="amount" type="number" min="0" step=".01" value="'+paperStartingCash()+'"></div><div class="small muted">This resets the baseline used for paper P/L. Existing trades remain unless you delete them.</div><div class="modal-foot"><button class="btn ghost" type="button" id="cancelModalBtn">Cancel</button><button class="btn primary" type="submit">Save</button></div></form>',async fd=>{await setDoc(subdoc("profiles",S.activeProfileId),{[field]:num(fd.get("amount"))},{merge:true});toast("Paper cash updated.")});$("#cancelModalBtn").onclick=closeModal;
+  showModal("Set custom paper starting cash",'<form><div class="field"><label>Starting paper cash</label><input name="amount" type="number" min="0" step=".01" value="'+paperStartingCash()+'"></div><div class="small muted">This is only the paper-market wallet. It never changes Money, bills or your real SHADOW/LIVE cash.</div><div class="modal-foot"><button class="btn ghost" type="button" id="cancelModalBtn">Cancel</button><button class="btn primary" type="submit">Save custom paper wallet</button></div></form>',async fd=>{await setDoc(subdoc("profiles",S.activeProfileId),{[field]:num(fd.get("amount")),paperWalletMode:"custom"},{merge:true});toast("Custom paper wallet saved.")});$("#cancelModalBtn").onclick=closeModal;
 }
 function renderSettings(){
   return '<div class="section-title"><div><h1>Settings</h1><p>These values change how Pier decides what comes first.</p></div></div>'+
@@ -1519,6 +1696,7 @@ function renderSettings(){
       '<div class="setting-row"><div><strong>Daily action time</strong><div class="small muted">Minutes Pier may schedule per day</div></div><input name="dailyMinutes" type="number" min="30" step="15" value="'+num(S.profile.dailyMinutes)+'"></div>'+
       '<div class="setting-row"><div><strong>Emergency reserve</strong><div class="small muted">Money the planner treats as untouchable</div></div><input name="emergencyReserve" type="number" min="0" step="1" value="'+num(S.profile.emergencyReserve)+'"></div>'+
       '<div class="setting-row"><div><strong>Urgent window</strong><div class="small muted">Deadline becomes urgent this many days out</div></div><input name="urgentDays" type="number" min="0" max="30" value="'+num(S.profile.urgentDays)+'"></div>'+
+      '<div class="setting-row"><div><strong>Market auto-call guard</strong><div class="small muted">Maximum automatic quote calls per day</div></div><input name="marketAutoDailyLimit" type="number" min="1" max="500" value="'+num(S.profile.marketAutoDailyLimit||90)+'"></div>'+
       '<div class="setting-row"><div><strong>Theme</strong></div><select name="theme"><option value="dark">Dark</option><option value="light">Light</option></select></div>'+
       '<div style="margin-top:16px"><button class="btn primary" type="submit">Save planner settings</button></div></form></section>'+
     '<section class="card pad"><div class="card-head"><h3>Firebase / account</h3></div>'+
@@ -1527,7 +1705,7 @@ function renderSettings(){
       '<div class="split-line"></div><div class="small muted" style="line-height:1.55">If Firestore says permission denied: Firebase Console → Authentication → Sign-in method → enable Email/Password. Then Firestore → Rules → publish the contents of <span class="mono">firestore.rules</span> from this repository.</div>'+
       '<div class="split-line"></div><div class="toolbar"><button class="btn" data-action="export-data">Export JSON</button><button class="btn" data-action="request-notifications">Browser alerts</button><button class="btn danger" data-action="sign-out">Sign out</button></div>'+
     '</section></div>'+
-    '<section class="card pad" style="margin-top:18px"><div class="card-head"><h3>Market data API</h3><span class="pill blue">MARKETDATA.APP</span></div><div class="grid-2"><div><div class="api-box"><div class="field"><label>API token</label><input id="marketTokenInput" type="password" autocomplete="off" placeholder="Paste your personal MarketData.app token"></div><div class="toolbar"><button class="btn primary" data-action="save-market-token">Save token</button><button class="btn" data-action="test-market-token">Test with AAPL</button><button class="btn danger" data-action="remove-market-token">Remove</button></div></div></div><div><div class="small muted" style="line-height:1.65">The token is saved under your authenticated Firebase account, not inside this public GitHub source. Because Pier runs in your browser, a signed-in person can still inspect their own network requests, so do not share your Pier login. The free provider plan is useful for building/training data but is delayed; the Market Data page shows freshness instead of labeling it live.</div><div style="margin-top:12px"><a class="btn" target="_blank" rel="noopener noreferrer" href="https://www.marketdata.app/">Create / manage MarketData.app account ↗</a></div></div></div></section>'+
+    '<section class="card pad" style="margin-top:18px"><div class="card-head"><h3>Market data API</h3><span class="pill blue">MARKETDATA.APP</span></div><div class="grid-2"><div><div class="api-box"><div class="field"><label>API token</label><input id="marketTokenInput" type="password" autocomplete="off" placeholder="Paste your personal MarketData.app token"></div><div class="toolbar"><button class="btn primary" data-action="save-market-token">Save token</button><button class="btn" data-action="test-market-token">Test with AAPL</button><button class="btn danger" data-action="remove-market-token">Remove</button></div></div></div><div><div class="small muted" style="line-height:1.65">The token is saved under your authenticated Firebase account, not inside this public GitHub source. Never paste market API tokens into chat, GitHub issues or code. Because Pier runs in your browser, a signed-in person can inspect their own network requests, so do not share your Pier login. The free provider plan is useful for building/training data but is delayed; the Market Data page shows freshness instead of labeling it live.</div><div style="margin-top:12px"><a class="btn" target="_blank" rel="noopener noreferrer" href="https://www.marketdata.app/">Create / manage MarketData.app account ↗</a></div></div></div></section>'+
     '<section class="card pad" style="margin-top:18px"><div class="card-head"><h3>Data ownership</h3><span class="pill good">YOUR FIREBASE</span></div><div class="toolbar"><button class="btn" data-action="export-training-data">Export market/training dataset</button><button class="btn" data-view="data">Open Training Data</button></div><div class="small muted" style="margin-top:10px">API secrets are excluded from exports.</div></section>'+
     '<section class="card pad" style="margin-top:18px"><div class="card-head"><h3>How Pier ranks your life</h3><span class="pill blue">DETERMINISTIC GOAP</span></div><div class="small muted" style="line-height:1.7">Pier builds actions from open tasks, unpaid bills, due routines and goal next-actions. Each action has preconditions (time and spendable cash), effects (uses minutes/cash), and a score from priority, HAVE TO status and deadline pressure. Overdue and mandatory actions rise hardest. Your emergency reserve is removed before money actions are considered. If an urgent action cannot fit, it is shown as a blocker instead of silently disappearing.</div></section>';
 }
@@ -1540,6 +1718,8 @@ function bindViewInputs(){
   const rs=$("#relSearch");if(rs)rs.oninput=e=>{S.relSearch=e.target.value;render()};
   const rst=$("#relStore");if(rst){rst.value=S.relStore;rst.onchange=e=>{S.relStore=e.target.value;render()}};
   const rb=$("#relBudget");if(rb){rb.value=String(S.relBudget);rb.onchange=e=>{S.relBudget=num(e.target.value);render()}};
+  const sus=$("#stockUniverseSearch");if(sus)sus.oninput=e=>{S.stockSearch=e.target.value;render()};
+  const ss=$("#stockSector");if(ss){ss.value=S.stockSector;ss.onchange=e=>{S.stockSector=e.target.value;render()}};
 }
 
 async function handleAction(action,id,el){
@@ -1566,6 +1746,13 @@ async function handleAction(action,id,el){
   if(action==="complete-plan")return completePlanItem(id);
   if(action==="export-data")return exportData();
   if(action==="request-notifications")return requestNotifications();
+  if(action==="market-tab"){S.marketTab=id;return render()}
+  if(action==="market-open-cache")return openCachedSymbol(id);
+  if(action==="market-watch-add")return addMarketWatch(id,"1h");
+  if(action==="market-watch-edit")return editMarketWatch(S.marketWatch.find(x=>x.id===id)||{});
+  if(action==="paper-from-stock"){const x=cachedMarket(id),q=x?.quote||S.market.quote;return openPaperTradeModal({instrument:"stock",symbol:id,qty:1,price:q?.ask||q?.last||q?.mid||""})}
+  if(action==="paper-chain-option"){const o=S.market.chain.find(x=>(x.optionSymbol||"")===id);if(o)return openPaperTradeModal({instrument:"option",symbol:S.market.symbol,optionType:o.side,strike:o.strike,expiration:o.expiration,price:o.ask||o.last||o.mid||"",qty:1})}
+  if(action==="paper-hot-option"){let o=null;for(const x of S.marketCache){o=(x.chain||[]).find(y=>(y.optionSymbol||"")===id);if(o){o={...o,underlying:x.symbol};break}}if(o)return openPaperTradeModal({instrument:"option",symbol:o.underlying,optionType:o.side,strike:o.strike,expiration:o.expiration,price:o.ask||o.last||o.mid||"",qty:1})}
   if(action==="market-stock")return fetchMarketQuote($("#marketSymbolInput")?.value||S.market.symbol);
   if(action==="market-options")return fetchMarketOptions($("#marketSymbolInput")?.value||S.market.symbol);
   if(action==="save-market-token"){const v=$("#marketTokenInput")?.value||"";if(!v.trim())return toast("Paste a token first.","error");return saveMarketToken(v)}
@@ -1580,6 +1767,8 @@ async function handleAction(action,id,el){
   if(action==="use-live")return switchContext(id,"live");
   if(action==="use-shadow")return switchContext(id,"shadow");
   if(action==="reset-shadow")return cloneLiveToShadow(id||S.activeProfileId,true);
+  if(action==="sync-shadow-new")return syncShadowMissing(id||S.activeProfileId);
+  if(action==="sync-shadow-money")return syncShadowMoney(id||S.activeProfileId);
   if(action==="delete-profile")return deleteProfile(id);
   if(action==="add-job")return openJobModal();
   if(action==="edit-job")return openJobModal(S.jobs.find(x=>x.id===id));
@@ -1599,6 +1788,7 @@ async function handleAction(action,id,el){
   if(action==="day-prev"){S.dayCursor=new Date(S.dayCursor.getFullYear(),S.dayCursor.getMonth(),S.dayCursor.getDate()-1);return render()}
   if(action==="day-next"){S.dayCursor=new Date(S.dayCursor.getFullYear(),S.dayCursor.getMonth(),S.dayCursor.getDate()+1);return render()}
   if(action==="day-today"){S.dayCursor=new Date();return render()}
+  if(action==="auto-day-apply")return applyAutoDayPlan();
   if(action==="add-time-block")return openTimeBlockModal();
   if(action==="delete-time-block")return removeDoc("timeBlocks",id,"Delete this time block?");
   if(action==="focus-start")return startFocusModal();
@@ -1613,6 +1803,7 @@ async function handleAction(action,id,el){
   if(action==="paper-trade")return openPaperTradeModal();
   if(action==="paper-sample-stock")return openPaperTradeModal({instrument:"stock",symbol:id,qty:1});
   if(action==="paper-sample-option")return openPaperTradeModal({instrument:"option",symbol:id,optionType:"call",qty:1});
+  if(action==="paper-use-real-cash"){await setDoc(subdoc("profiles",S.activeProfileId),{paperWalletMode:"mirror"},{merge:true});toast("Paper wallet now mirrors current spendable cash.");return render()}
   if(action==="set-paper-cash")return setPaperCashModal();
   if(action==="delete-paper-trade")return removeDoc("paperTrades",id,"Delete this paper trade?");
   if(action==="sign-out")return signOut(auth);
@@ -1738,7 +1929,7 @@ function inboxToTask(id){
 }
 async function saveSettings(e){
   e.preventDefault();const fd=new FormData(e.currentTarget);
-  await setDoc(userDoc(),{name:fd.get("name").trim()||"Pier",dailyMinutes:num(fd.get("dailyMinutes")),emergencyReserve:num(fd.get("emergencyReserve")),urgentDays:num(fd.get("urgentDays")),theme:fd.get("theme")},{merge:true});
+  await setDoc(userDoc(),{name:fd.get("name").trim()||"Pier",dailyMinutes:num(fd.get("dailyMinutes")),emergencyReserve:num(fd.get("emergencyReserve")),urgentDays:num(fd.get("urgentDays")),marketAutoDailyLimit:num(fd.get("marketAutoDailyLimit"))||90,theme:fd.get("theme")},{merge:true});
   toast("Planner settings saved.");
 }
 function exportData(){
@@ -1758,6 +1949,8 @@ function checkNotifications(){
   localStorage.setItem(key,"1");
 }
 setInterval(checkNotifications,10*60*1000);
+setInterval(autoRefreshWatchlist,60*1000);
+setTimeout(autoRefreshWatchlist,8000);
 
 document.addEventListener("visibilitychange",async()=>{
   if(!document.hidden)return;

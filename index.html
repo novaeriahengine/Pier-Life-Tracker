@@ -1067,39 +1067,88 @@ function openAdminModal(x={}){
   const edit=!!x.id;showModal(edit?"Edit obligation":"Add obligation",'<form><div class="field"><label>Title</label><input name="title" required value="'+esc(x.title||"")+'"></div><div class="modal-grid"><div class="field"><label>Jurisdiction / source</label><input name="jurisdiction" value="'+esc(x.jurisdiction||"")+'"></div><div class="field"><label>Status</label><select name="status"><option value="open">Open</option><option value="payment_plan">Payment plan</option><option value="blocked">Blocked</option><option value="resolved">Resolved</option></select></div><div class="field"><label>Amount remaining</label><input name="amountRemaining" type="number" min="0" step=".01" value="'+num(x.amountRemaining??x.amount??0)+'"></div><div class="field"><label>Priority</label><select name="priority">'+[1,2,3,4,5].map(n=>'<option value="'+n+'">P'+n+'</option>').join("")+'</select></div><div class="field"><label>Due date</label><input name="dueDate" type="date" value="'+esc(x.dueDate||"")+'"></div></div><div class="field"><label>Next action</label><input name="nextAction" value="'+esc(x.nextAction||"")+'"></div><div class="field"><label>Notes</label><textarea name="notes">'+esc(x.notes||"")+'</textarea></div><div class="modal-foot">'+(edit?'<button class="btn danger" type="button" id="deleteAdminBtn">Delete</button>':'')+'<button class="btn ghost" type="button" id="cancelModalBtn">Cancel</button><button class="btn primary" type="submit">Save</button></div></form>',async fd=>{const data={title:fd.get("title").trim(),jurisdiction:fd.get("jurisdiction").trim(),status:fd.get("status"),amountRemaining:num(fd.get("amountRemaining")),priority:num(fd.get("priority")),dueDate:fd.get("dueDate"),nextAction:fd.get("nextAction").trim(),notes:fd.get("notes").trim(),updatedAt:serverTimestamp()};if(edit)await updateDoc(subdoc("legalObligations",x.id),data);else await addDoc(subcol("legalObligations"),{...data,...ctxFields(),createdAt:serverTimestamp()});toast("Obligation saved.")});
   $("#cancelModalBtn").onclick=closeModal;$("#modalBody select[name=status]").value=x.status||"open";$("#modalBody select[name=priority]").value=String(x.priority||3);if(edit)$("#deleteAdminBtn").onclick=async()=>{if(confirm("Delete this obligation?")){await deleteDoc(subdoc("legalObligations",x.id));closeModal()}};
 }
-async function importPrivateSetup(payload){
-  if(!payload||!payload.collections)throw new Error("This is not a Pier private setup file.");
-  const pid=S.activeProfileId,world="live",jobMap={},assetMap={};
-  const order=["household","assets","legalObligations","jobs","bills","goals","tasks","routines","appointments","relationshipPlans","timeBlocks","assetEvents"];
+
+function normalizeLifePayload(payload){
+  if(!payload||typeof payload!=="object")throw new Error("JSON must contain an object.");
+  const source=payload.collections&&typeof payload.collections==="object"?payload.collections:
+    payload.data&&typeof payload.data==="object"?payload.data:{};
+  const normalized={version:payload.version||payload.schemaVersion||1,profile:payload.profile||payload.account||{},profiles:Array.isArray(payload.profiles)?payload.profiles:[],collections:{}};
+  for(const name of DATA_COLLECTIONS)if(Array.isArray(source[name]))normalized.collections[name]=source[name];
+  const aliases={people:"household",devices:"assets",cars:"assets",legal:"legalObligations",schedule:"timeBlocks",workShifts:"shifts",dailyTasks:"tasks"};
+  for(const [from,to] of Object.entries(aliases))if(Array.isArray(source[from])&&!normalized.collections[to])normalized.collections[to]=source[from];
+  return normalized;
+}
+function stableImportKey(name,row,index){
+  if(row.importKey)return row.importKey;
+  if(row.id)return "doc-"+row.id;
+  const base=row.name||row.title||row.item||row.symbol||row.date||row.dueDate||row.startedAt||String(index);
+  return idSafe("json-"+name+"-"+base+"-"+(row.targetDate||row.dateTime||row.dueAt||row.start||""));
+}
+function importPayloadSummary(payload){
+  const p=normalizeLifePayload(payload),entries=Object.entries(p.collections).filter(([,v])=>Array.isArray(v)&&v.length);
+  return {payload:p,collections:entries.length,records:entries.reduce((n,[,v])=>n+v.length,0),names:entries.map(([k,v])=>k+" "+v.length)};
+}
+async function importPrivateSetup(payload,opts={}){
+  const normalized=normalizeLifePayload(payload),pid=S.activeProfileId,world=opts.world||"live";
+  const jobMap={},assetMap={},personMap={},accountMap={};
+  const order=["household","assets","legalObligations","jobs","accounts","transactions","bills","goals","tasks","routines","appointments","relationshipPlans","shopping","shifts","timeEntries","paychecks","timeBlocks","assetEvents","sessionLogs","marketWatch","marketCache","learningProgress","goapFeedback","dailyDrafts"];
   let created=0,updated=0;
   for(const name of order){
-    const rows=Array.isArray(payload.collections[name])?payload.collections[name]:[];
-    for(const row of rows){
-      const data={...row,profileId:pid,world,privateImported:true,privateImportVersion:payload.version||1,updatedAt:serverTimestamp()};
-      if(name==="jobs"){
-        const existing=(S.all.jobs||[]).find(d=>d.importKey&&d.importKey===row.importKey&&(d.profileId||"primary")===pid&&(d.world||"live")==="live");
-        let ref;if(existing){await updateDoc(subdoc("jobs",existing.id),data);ref=existing.id;updated++}else{const r=await addDoc(subcol("jobs"),{...data,createdAt:serverTimestamp()});ref=r.id;created++}
-        if(row.importKey)jobMap[row.importKey]=ref;continue;
-      }
-      if(name==="assets"){
-        const existing=(S.all.assets||[]).find(d=>d.importKey&&d.importKey===row.importKey&&(d.profileId||"primary")===pid&&(d.world||"live")==="live");
-        let ref;if(existing){await updateDoc(subdoc("assets",existing.id),data);ref=existing.id;updated++}else{const r=await addDoc(subcol("assets"),{...data,createdAt:serverTimestamp()});ref=r.id;created++}
-        if(row.importKey)assetMap[row.importKey]=ref;continue;
-      }
+    const rows=Array.isArray(normalized.collections[name])?normalized.collections[name]:[];
+    for(let i=0;i<rows.length;i++){
+      const row={...rows[i]},importKey=stableImportKey(name,row,i);
+      delete row.id;delete row.createdAt;delete row.updatedAt;
+      const data={...row,importKey,profileId:pid,world,privateImported:true,privateImportVersion:normalized.version,updatedAt:serverTimestamp()};
       if(data.jobImportKey){data.jobId=jobMap[data.jobImportKey]||(S.all.jobs||[]).find(j=>j.importKey===data.jobImportKey)?.id||"";delete data.jobImportKey}
       if(data.assetImportKey){data.assetId=assetMap[data.assetImportKey]||(S.all.assets||[]).find(a=>a.importKey===data.assetImportKey)?.id||"";delete data.assetImportKey}
-      const existing=(S.all[name]||[]).find(d=>d.importKey&&d.importKey===row.importKey&&(d.profileId||"primary")===pid&&(d.world||"live")==="live");
-      if(existing){await updateDoc(subdoc(name,existing.id),data);updated++}else{await addDoc(subcol(name),{...data,createdAt:serverTimestamp()});created++}
+      if(data.personImportKey){data.personId=personMap[data.personImportKey]||(S.all.household||[]).find(p=>p.importKey===data.personImportKey)?.id||"";delete data.personImportKey}
+      if(data.accountImportKey){data.accountId=accountMap[data.accountImportKey]||(S.all.accounts||[]).find(a=>a.importKey===data.accountImportKey)?.id||"";delete data.accountImportKey}
+      const pool=S.all[name]||[];
+      const existing=pool.find(d=>d.importKey===importKey&&(d.profileId||"primary")===pid&&(d.world||"live")===world);
+      if(existing){
+        await updateDoc(subdoc(name,existing.id),data);updated++;
+        if(name==="jobs")jobMap[importKey]=existing.id;
+        if(name==="assets")assetMap[importKey]=existing.id;
+        if(name==="household")personMap[importKey]=existing.id;
+        if(name==="accounts")accountMap[importKey]=existing.id;
+      }else{
+        const ref=await addDoc(subcol(name),{...data,createdAt:serverTimestamp()});created++;
+        if(name==="jobs")jobMap[importKey]=ref.id;
+        if(name==="assets")assetMap[importKey]=ref.id;
+        if(name==="household")personMap[importKey]=ref.id;
+        if(name==="accounts")accountMap[importKey]=ref.id;
+      }
     }
   }
-  if(payload.profile)await setDoc(userDoc(),payload.profile,{merge:true});
-  toast("Private setup imported: "+created+" created, "+updated+" updated.");
-  setTimeout(()=>syncShadowMissing(pid),1200);
+  if(normalized.profile&&Object.keys(normalized.profile).length){
+    await setDoc(userDoc(),{...normalized.profile,lastPrivateImportAt:new Date().toISOString(),lastPrivateImportRecords:created+updated},{merge:true});
+  }
+  if(opts.resetShadow&&world==="live")setTimeout(()=>cloneLiveToShadow(pid,false),900);
+  else if(opts.syncShadow!==false&&world==="live")setTimeout(()=>syncShadowMissing(pid),900);
+  setTimeout(()=>ensureDailyDrafts(today(),true),1400);
+  toast("Life JSON → Firebase: "+created+" created · "+updated+" updated.");
+  return {created,updated};
+}
+function previewImportText(text){
+  const el=$("#privateImportPreview");if(!el)return null;
+  try{
+    const s=importPayloadSummary(JSON.parse(text));
+    el.innerHTML='<div class="import-summary"><div class="import-stat"><strong>'+s.collections+'</strong>collections</div><div class="import-stat"><strong>'+s.records+'</strong>records</div><div class="import-stat"><strong>'+esc(String(s.payload.version))+'</strong>schema</div><div class="import-stat"><strong>UPSERT</strong>merge/update</div></div><div class="small muted" style="margin-top:8px">'+esc(s.names.join(" · "))+'</div>';
+    return s;
+  }catch(e){el.innerHTML='<div class="pill must">Invalid JSON: '+esc(e.message)+'</div>';return null}
 }
 function openPrivateImport(){
-  showModal("Import private Pier setup",'<form><div class="import-zone"><div class="field"><label>Private setup JSON file</label><input id="privateSetupFile" type="file" accept=".json,application/json"></div><div class="small muted">The file is read in your browser and its records are written directly to your authenticated Firebase user. It is not uploaded to GitHub.</div></div><div class="field"><label>Or paste JSON</label><textarea id="privateSetupText" style="min-height:130px" placeholder="{ ... }"></textarea></div><div class="modal-foot"><button class="btn ghost" type="button" id="cancelModalBtn">Cancel</button><button class="btn primary" type="submit">Import to Firebase</button></div></form>',async()=>{
-    let text=$("#privateSetupText").value.trim(),file=$("#privateSetupFile").files?.[0];if(file)text=await file.text();if(!text)throw new Error("Choose the private setup JSON file.");await importPrivateSetup(JSON.parse(text));
-  });$("#cancelModalBtn").onclick=closeModal;
+  showModal("Upload Life JSON → Firebase",'<form><div class="import-zone"><div class="field"><label>Life setup / Pier backup JSON</label><input id="privateSetupFile" type="file" accept=".json,application/json"></div><div class="small muted">The file is read locally in your browser. Pier validates it and writes the records directly under your signed-in Firebase UID. The JSON is not uploaded to this public GitHub repository.</div></div><div class="field"><label>Or paste JSON</label><textarea id="privateSetupText" style="min-height:170px" placeholder="{ &quot;profile&quot;: {...}, &quot;collections&quot;: { &quot;tasks&quot;: [...], &quot;goals&quot;: [...], &quot;assets&quot;: [...] } }"></textarea></div><div id="privateImportPreview" class="small muted">Choose a file to preview exactly what Pier will update.</div><label class="check"><input id="privateImportShadow" type="checkbox" checked> Sync imported LIVE records into SHADOW</label><label class="check"><input id="privateImportResetShadow" type="checkbox"> Reset SHADOW completely from LIVE after import</label><label class="check"><input id="privateImportDrafts" type="checkbox" checked> Generate today&#39;s Firebase GOAP draft after import</label><div class="modal-foot"><button class="btn ghost" type="button" id="cancelModalBtn">Cancel</button><button class="btn primary" type="submit">Apply to Firebase</button></div></form>',async()=>{
+    let text=$("#privateSetupText").value.trim(),file=$("#privateSetupFile").files?.[0];if(file)text=await file.text();
+    if(!text)throw new Error("Choose a JSON file or paste JSON.");
+    const summary=previewImportText(text);if(!summary)throw new Error("Fix the JSON errors first.");
+    await importPrivateSetup(JSON.parse(text),{syncShadow:$("#privateImportShadow").checked,resetShadow:$("#privateImportResetShadow").checked});
+    if($("#privateImportDrafts").checked)setTimeout(()=>ensureDailyDrafts(today(),true),900);
+  });
+  $("#cancelModalBtn").onclick=closeModal;
+  const file=$("#privateSetupFile"),ta=$("#privateSetupText");
+  if(file)file.onchange=async()=>{const x=file.files?.[0];if(x){const text=await x.text();ta.value=text;previewImportText(text)}};
+  if(ta)ta.oninput=()=>{const t=ta.value.trim();if(t)previewImportText(t)};
 }
 const REL_IDEA_ROWS=[
 ["Fresh flowers + handwritten card","gift",12,35,"Walmart,CVS,Target"],
@@ -2031,11 +2080,12 @@ function renderSettings(){
       '<div class="setting-row"><div><strong>Signed in</strong><div class="small muted">'+esc(S.user?.email||"")+'</div></div><span class="pill good">AUTH</span></div>'+
       '<div class="setting-row"><div><strong>Firestore</strong><div class="small muted">'+(S.syncError?esc(S.syncError):"Realtime sync active")+'</div></div><span class="pill '+(S.syncError?'must':'good')+'">'+(S.syncError?"SETUP":"LIVE")+'</span></div>'+
       '<div class="split-line"></div><div class="small muted" style="line-height:1.55">If Firestore says permission denied: Firebase Console → Authentication → Sign-in method → enable Email/Password. Then Firestore → Rules → publish the contents of <span class="mono">firestore.rules</span> from this repository.</div>'+
-      '<div class="split-line"></div><div class="toolbar"><button class="btn primary" data-action="private-import">Import private setup</button><button class="btn" data-action="export-data">Export JSON</button><button class="btn" data-action="request-notifications">Browser alerts</button><button class="btn danger" data-action="sign-out">Sign out</button></div>'+
+      '<div class="split-line"></div><div class="import-zone"><strong>Life JSON → Firebase</strong><div class="small muted" style="margin-top:5px">Upload one JSON file to merge/update tasks, goals, devices, vehicles, household, work, bills, legal/admin, routines, schedules, relationship plans and GOAP memory across the whole site. Same importKey = update, not duplicate.</div><div class="toolbar" style="margin-top:10px"><button class="btn primary" data-action="private-import">Upload / update Life JSON</button><button class="btn" data-action="daily-regenerate">Generate today&#39;s GOAP draft</button></div></div><div class="split-line"></div><div class="toolbar"><button class="btn" data-action="export-data">Export JSON</button><button class="btn" data-action="request-notifications">Browser alerts</button><button class="btn danger" data-action="sign-out">Sign out</button></div>'+
     '</section></div>'+
     '<section class="card pad" style="margin-top:18px"><div class="card-head"><h3>Market data API</h3><span class="pill blue">MARKETDATA.APP</span></div><div class="grid-2"><div><div class="api-box"><div class="field"><label>API token</label><input id="marketTokenInput" type="password" autocomplete="off" placeholder="Paste your personal MarketData.app token"></div><div class="toolbar"><button class="btn primary" data-action="save-market-token">Save token</button><button class="btn" data-action="test-market-token">Test with AAPL</button><button class="btn danger" data-action="remove-market-token">Remove</button></div></div></div><div><div class="small muted" style="line-height:1.65">The token is saved under your authenticated Firebase account, not inside this public GitHub source. Never paste market API tokens into chat, GitHub issues or code. Because Pier runs in your browser, a signed-in person can inspect their own network requests, so do not share your Pier login. The free provider plan is useful for building/training data but is delayed; the Market Data page shows freshness instead of labeling it live.</div><div style="margin-top:12px"><a class="btn" target="_blank" rel="noopener noreferrer" href="https://www.marketdata.app/">Create / manage MarketData.app account ↗</a></div></div></div></section>'+
     '<section class="card pad" style="margin-top:18px"><div class="card-head"><h3>Data ownership</h3><span class="pill good">YOUR FIREBASE</span></div><div class="toolbar"><button class="btn" data-action="export-training-data">Export market/training dataset</button><button class="btn" data-view="data">Open Training Data</button></div><div class="small muted" style="margin-top:10px">API secrets are excluded from exports.</div></section>'+
-    '<section class="card pad" style="margin-top:18px"><div class="card-head"><h3>How Pier ranks your life</h3><span class="pill blue">DETERMINISTIC GOAP</span></div><div class="small muted" style="line-height:1.7">Pier builds actions from open tasks, unpaid bills, due routines and goal next-actions. Each action has preconditions (time and spendable cash), effects (uses minutes/cash), and a score from priority, HAVE TO status and deadline pressure. Overdue and mandatory actions rise hardest. Your emergency reserve is removed before money actions are considered. If an urgent action cannot fit, it is shown as a blocker instead of silently disappearing.</div></section>';
+    '<section class="card pad" style="margin-top:18px"><div class="card-head"><h3>GOAP learning memory</h3><span class="pill blue">FIREBASE</span></div><div class="goap-memory"><div class="import-stat"><strong>'+S.goapFeedback.length+'</strong>learned actions</div><div class="import-stat"><strong>'+S.goapFeedback.reduce((n,x)=>n+num(x.approvedCount),0)+'</strong>approvals</div><div class="import-stat"><strong>'+S.goapFeedback.reduce((n,x)=>n+num(x.correctedCount),0)+'</strong>corrections</div><div class="import-stat"><strong>'+S.goapFeedback.reduce((n,x)=>n+num(x.rejectedCount),0)+'</strong>rejections</div></div><div class="small muted" style="margin-top:10px;line-height:1.6">Pier stores approve/correct/reject choices in Firebase. Future daily drafts for the same source task, goal or routine move toward the time and duration you actually accepted and get penalized if you repeatedly reject them.</div></section>'+
+    '<section class="card pad" style="margin-top:18px"><div class="card-head"><h3>How Pier ranks your life</h3><span class="pill blue">DETERMINISTIC GOAP</span></div><div class="small muted" style="line-height:1.7">Pier builds actions from open tasks, unpaid bills, due routines and goal next-actions. Each action has preconditions (time and spendable cash), effects (uses minutes/cash), and a score from priority, HAVE TO status and deadline pressure. Overdue and mandatory actions rise hardest. Your emergency reserve is removed before money actions are considered. Daily drafts persist to Firebase for approval, and your corrections become scheduling memory for future days.</div></section>';
 }
 
 function bindViewInputs(){

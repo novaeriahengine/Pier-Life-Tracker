@@ -767,8 +767,17 @@ function relationshipMaintenanceAction(){
 }
 function dedupeDailyActions(actions){
   const sorted=[...actions].sort((a,b)=>scoreAction(b)-scoreAction(a)),seen=new Set(),out=[];
+  const fallback=a=>{
+    const t=String((a.title||"")+" "+(a.category||"")).toLowerCase();
+    if(/license|ticket|dmv/.test(t)&&/pay|payment|installment|down payment/.test(t))return "auto-license-payment";
+    if(/license|reinstat/.test(t))return "auto-license-reinstatement";
+    if(/concierge|more shifts|more work hours/.test(t))return "auto-work-hours";
+    if(/iphone|phone upgrade|replace samsung/.test(t))return "auto-phone-upgrade";
+    if(/apartment reset|room reset/.test(t))return "auto-home-reset";
+    return "";
+  };
   for(const a of sorted){
-    const group=String(a.lifeGroup||"").trim();
+    const group=String(a.lifeGroup||fallback(a)||"").trim();
     if(group&&seen.has(group))continue;
     if(group)seen.add(group);
     out.push(a);

@@ -741,7 +741,7 @@ function routineDue(r){
   if(!r.active)return false;const day=new Date().getDay();const days=Array.isArray(r.days)?r.days.map(Number):[];
   return (days.length===0||days.includes(day))&&r.lastCompletedDate!==today();
 }
-function toRoutineAction(r){return {key:"routine:"+r.id,type:"routine",id:r.id,title:r.name||"Routine",priority:num(r.priority)||3,must:!!r.must,due:today(),minutes:Math.max(1,num(r.estimateMin)||15),cashCost:0,category:"Routine",preferredTime:r.preferredTime||"",canOverlap:!!r.canOverlap}}
+function toRoutineAction(r){return {key:"routine:"+r.id,type:"routine",id:r.id,title:r.name||"Routine",priority:num(r.priority)||3,must:!!r.must,due:today(),minutes:Math.max(1,num(r.estimateMin)||15),cashCost:0,category:"Routine",preferredTime:r.preferredTime||"",canOverlap:!!r.canOverlap,lifeGroup:r.lifeGroup||""}}
 function toGoalAction(g){return {key:"goal:"+g.id,type:"goal",id:g.id,title:g.nextAction||("Work on "+g.name),priority:num(g.priority)||3,must:false,due:g.deadline||"",minutes:Math.max(1,num(g.nextActionMinutes)||30),cashCost:0,category:"Goal",lifeGroup:g.lifeGroup||""}}
 function relationshipLastDone(personId=""){
   return S.relationshipPlans.filter(x=>x.status==="done"&&(!personId||x.personId===personId)&&x.completedDate).sort((a,b)=>String(b.completedDate).localeCompare(String(a.completedDate)))[0]||null;

@@ -345,6 +345,25 @@ tr:last-child td{border-bottom:0}
 .learned-chip{font-size:9px;font-weight:900;padding:3px 7px;border:1px solid rgba(180,140,255,.4);border-radius:999px;color:#dbcaff;background:rgba(160,110,255,.08)}
 .goap-memory{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:9px}
 @media(max-width:800px){.import-summary,.goap-memory{grid-template-columns:repeat(2,1fr)}}
+
+/* Pier v2.8: My Life, savings, smoke reduction tracker, richer calendar */
+.life-hero{padding:22px;border:1px solid var(--line);border-radius:19px;background:linear-gradient(135deg,rgba(101,183,255,.10),rgba(180,140,255,.07)),var(--panel)}
+.life-name{font-size:34px;font-weight:950;letter-spacing:-.04em}
+.life-summary{font-size:12px;line-height:1.7;color:var(--muted);max-width:900px;margin-top:9px}
+.life-section{padding:15px;border:1px solid var(--line);border-radius:15px;background:var(--panel2)}
+.life-list{display:grid;gap:7px;margin-top:9px}
+.life-line{display:flex;justify-content:space-between;gap:12px;border-bottom:1px solid var(--line);padding:7px 0;font-size:11px}
+.life-line:last-child{border-bottom:0}
+.license-box{border:1px solid var(--line);border-radius:15px;padding:15px;background:var(--panel2)}
+.license-number{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.10em}
+.smoke-metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.smoke-bar{height:10px;background:var(--panel3);border-radius:999px;overflow:hidden}
+.smoke-bar>div{height:100%;background:currentColor;border-radius:999px}
+.saving-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.category-row{display:grid;grid-template-columns:1fr auto;gap:10px;padding:8px 0;border-bottom:1px solid var(--line)}
+.cal-day{cursor:pointer}
+.cal-day:hover{outline:1px solid rgba(101,183,255,.35)}
+@media(max-width:850px){.smoke-metrics,.saving-grid{grid-template-columns:repeat(2,1fr)}}
 </style>
 </head>
 <body>
@@ -372,8 +391,10 @@ tr:last-child td{border-bottom:0}
     <div class="logo"><div class="logo-mark">P</div><span>Pier</span></div>
     <nav class="nav" id="sideNav">
       <button class="nav-btn active" data-view="dashboard"><span class="nav-icon">⌂</span>Dashboard</button>
+      <button class="nav-btn" data-view="mylife"><span class="nav-icon">✦</span>My Life</button>
       <button class="nav-btn" data-view="tasks"><span class="nav-icon">✓</span>Tasks</button>
       <button class="nav-btn" data-view="money"><span class="nav-icon">$</span>Money</button>
+      <button class="nav-btn" data-view="savings"><span class="nav-icon">⌁</span>Savings</button>
       <button class="nav-btn" data-view="coach"><span class="nav-icon">⇅</span>What to Pay</button>
       <button class="nav-btn" data-view="goals"><span class="nav-icon">◎</span>Goals</button>
       <button class="nav-btn" data-view="routines"><span class="nav-icon">↻</span>Routines</button>
@@ -384,6 +405,7 @@ tr:last-child td{border-bottom:0}
       <button class="nav-btn" data-view="admin"><span class="nav-icon">!</span>Admin / Legal</button>
       <button class="nav-btn" data-view="assets"><span class="nav-icon">▣</span>Devices & Cars</button>
       <button class="nav-btn" data-view="sessions"><span class="nav-icon">◉</span>Sessions</button>
+      <button class="nav-btn" data-view="smoking"><span class="nav-icon">◌</span>Smoke Tracker</button>
       <button class="nav-btn" data-view="relationship"><span class="nav-icon">♡</span>Relationship</button>
       <button class="nav-btn" data-view="day"><span class="nav-icon">◫</span>Day Plan</button>
       <button class="nav-btn" data-view="market"><span class="nav-icon">⌁</span>Market Data</button>
@@ -476,17 +498,20 @@ const daysUntil=v=>{if(!v)return 9999;const d=new Date(v.length<=10?v+"T23:59:59
 const fmtDate=v=>{if(!v)return "No deadline";const d=new Date(v.length<=10?v+"T12:00:00":v);return d.toLocaleDateString([], {month:"short",day:"numeric",year:d.getFullYear()!==new Date().getFullYear()?"numeric":undefined})+(v.includes("T")?" · "+d.toLocaleTimeString([],{hour:"numeric",minute:"2-digit"}):"")};
 const idSafe=v=>String(v||"").replace(/[^a-zA-Z0-9_-]/g,"");
 
+
+const EXPENSE_CATEGORIES=["Housing / Rent","Utilities","Groceries","Food / Restaurants","Gas / Fuel","Car / Repairs","Car / Insurance","Transportation","Childcare / School","Medical / Pharmacy","Phone / Internet","Legal / DMV / Court","Debt / Credit","Smoking / Cannabis","Smoke Shop","Personal Care","Clothing","Household","Entertainment","Subscriptions","Business","Education","Gifts / Relationship","Family","Travel","Cash Withdrawal","Fees","Taxes","Savings Transfer","Other"];
+const INCOME_CATEGORIES=["Paycheck","Overtime / Extra Shift","Business Income","Side Gig","Refund","Gift","Sale","Other Income"];
 const DEFAULT_PROFILE={
   name:"Pier",dailyMinutes:240,emergencyReserve:300,urgentDays:3,
   theme:"dark",notifications:false,createdAt:null
 };
 
-const DATA_COLLECTIONS=["tasks","accounts","transactions","bills","goals","routines","inbox","jobs","shifts","timeEntries","paychecks","household","appointments","shopping","paperTrades","relationshipPlans","timeBlocks","focusSessions","marketWatch","marketCache","learningProgress","legalObligations","assets","assetEvents","sessionLogs","dailyDrafts","goapFeedback"];
+const DATA_COLLECTIONS=["tasks","accounts","transactions","bills","goals","routines","inbox","jobs","shifts","timeEntries","paychecks","household","appointments","shopping","paperTrades","relationshipPlans","timeBlocks","focusSessions","marketWatch","marketCache","learningProgress","legalObligations","assets","assetEvents","sessionLogs","dailyDrafts","goapFeedback","smokeLogs"];
 const S={
   user:null,profile:{...DEFAULT_PROFILE},profiles:[],
   tasks:[],accounts:[],transactions:[],bills:[],goals:[],routines:[],inbox:[],
   jobs:[],shifts:[],timeEntries:[],paychecks:[],household:[],appointments:[],shopping:[],paperTrades:[],
-  relationshipPlans:[],timeBlocks:[],focusSessions:[],marketWatch:[],marketCache:[],learningProgress:[],legalObligations:[],assets:[],assetEvents:[],sessionLogs:[],dailyDrafts:[],goapFeedback:[],
+  relationshipPlans:[],timeBlocks:[],focusSessions:[],marketWatch:[],marketCache:[],learningProgress:[],legalObligations:[],assets:[],assetEvents:[],sessionLogs:[],dailyDrafts:[],goapFeedback:[],smokeLogs:[],
   stockUniverse:[],stockUniverseLoaded:false,stockSearch:"",stockSector:"all",marketTab:"watch",learnTab:"stocks",
   all:{},activeProfileId:localStorage.getItem("pierProfile")||"primary",worldMode:localStorage.getItem("pierWorld")||"live",
   unsubs:[],view:"dashboard",syncError:"",taskSearch:"",taskFilter:"open",plan:null,calendarCursor:new Date(),dayCursor:new Date(),relStore:"all",relBudget:550,relSearch:"",
@@ -631,6 +656,7 @@ function sortData(name){
   if(name==="sessionLogs")S.sessionLogs.sort((a,b)=>num(b.startMs)-num(a.startMs));
   if(name==="dailyDrafts")S.dailyDrafts.sort((a,b)=>String(a.date||"").localeCompare(String(b.date||""))||String(a.start||"").localeCompare(String(b.start||"")));
   if(name==="goapFeedback")S.goapFeedback.sort((a,b)=>String(a.sourceKey||"").localeCompare(String(b.sourceKey||"")));
+  if(name==="smokeLogs")S.smokeLogs.sort((a,b)=>String(b.startedAt||b.date||"").localeCompare(String(a.startedAt||a.date||"")));
 }
 function setSynced(){
   if(S.syncError)return;$("#syncDot").className="dot ok";$("#syncLabel").textContent="Synced";$("#syncDetail").textContent=esc(currentProfile().name||"Profile")+" · "+S.worldMode.toUpperCase();
@@ -643,7 +669,7 @@ function setSyncError(err){
 function applyTheme(){document.documentElement.dataset.theme=S.profile.theme==="light"?"light":"dark"}
 
 function navigate(view){
-  S.view=view;const titles={dashboard:"Dashboard",tasks:"Tasks",money:"Money",coach:"What to Pay",goals:"Goals",routines:"Routines",planner:"Planner / Why",calendar:"Calendar",work:"Work & Pay",life:"Family & Life",admin:"Admin / Legal",assets:"Devices & Cars",sessions:"Sessions",relationship:"Relationship",day:"Day Plan",market:"Market Data",learn:"Stocks & Options 101",paper:"Paper Markets",data:"Training Data",profiles:"Profiles",inbox:"Inbox",settings:"Settings"};
+  S.view=view;const titles={dashboard:"Dashboard",mylife:"My Life",tasks:"Tasks",money:"Money",savings:"Savings",coach:"What to Pay",goals:"Goals",routines:"Routines",planner:"Planner / Why",calendar:"Calendar",work:"Work & Pay",life:"Family & Life",admin:"Admin / Legal",assets:"Devices & Cars",sessions:"Sessions",smoking:"Smoke Tracker",relationship:"Relationship",day:"Day Plan",market:"Market Data",learn:"Stocks & Options 101",paper:"Paper Markets",data:"Training Data",profiles:"Profiles",inbox:"Inbox",settings:"Settings"};
   $("#pageTitle").textContent=titles[view]||"Pier";
   $$("[data-view]").forEach(b=>b.classList.toggle("active",b.dataset.view===view));
   render();
@@ -664,8 +690,10 @@ function render(){
   const root=$("#viewRoot");if(!root)return;
   let html="";
   if(S.view==="dashboard")html=renderDashboard();
+  else if(S.view==="mylife")html=renderMyLife();
   else if(S.view==="tasks")html=renderTasks();
   else if(S.view==="money")html=renderMoney();
+  else if(S.view==="savings")html=renderSavings();
   else if(S.view==="coach")html=renderPayCoach();
   else if(S.view==="goals")html=renderGoals();
   else if(S.view==="routines")html=renderRoutines();
@@ -676,6 +704,7 @@ function render(){
   else if(S.view==="admin")html=renderAdmin();
   else if(S.view==="assets")html=renderAssets();
   else if(S.view==="sessions")html=renderSessions();
+  else if(S.view==="smoking")html=renderSmoking();
   else if(S.view==="relationship")html=renderRelationship();
   else if(S.view==="day")html=renderDayPlan();
   else if(S.view==="market")html=renderMarket();

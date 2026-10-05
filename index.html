@@ -319,6 +319,21 @@ tr:last-child td{border-bottom:0}
 .concept-graph svg{width:100%;height:100%}
 .level-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
 @media(max-width:850px){.learn-grid{grid-template-columns:1fr}}
+
+/* Pier v2.6: private import, legal/admin, assets, persistent sessions */
+.admin-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.admin-card{padding:15px;border:1px solid var(--line);border-radius:15px;background:var(--panel2)}
+.admin-card.critical{border-color:rgba(255,107,107,.45);background:rgba(255,107,107,.05)}
+.asset-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.asset-card{padding:15px;border:1px solid var(--line);border-radius:15px;background:var(--panel2)}
+.asset-icon{width:42px;height:42px;border-radius:13px;background:var(--panel3);display:grid;place-items:center;font-size:19px}
+.session-hero{padding:20px;border-radius:18px;border:1px solid var(--line);background:linear-gradient(135deg,rgba(101,183,255,.09),rgba(79,209,165,.06)),var(--panel)}
+.session-time{font-size:44px;font-weight:950;letter-spacing:-.05em}
+.quick-session{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
+.import-zone{border:1px dashed var(--line);border-radius:14px;padding:16px;background:var(--panel2)}
+.status-strip{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+@media(max-width:1050px){.admin-grid,.asset-grid{grid-template-columns:repeat(2,1fr)}.quick-session{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:650px){.admin-grid,.asset-grid{grid-template-columns:1fr}.quick-session{grid-template-columns:repeat(2,1fr)}}
 </style>
 </head>
 <body>
@@ -355,6 +370,9 @@ tr:last-child td{border-bottom:0}
       <button class="nav-btn" data-view="calendar"><span class="nav-icon">▦</span>Calendar</button>
       <button class="nav-btn" data-view="work"><span class="nav-icon">◷</span>Work & Pay</button>
       <button class="nav-btn" data-view="life"><span class="nav-icon">⌂</span>Family & Life</button>
+      <button class="nav-btn" data-view="admin"><span class="nav-icon">!</span>Admin / Legal</button>
+      <button class="nav-btn" data-view="assets"><span class="nav-icon">▣</span>Devices & Cars</button>
+      <button class="nav-btn" data-view="sessions"><span class="nav-icon">◉</span>Sessions</button>
       <button class="nav-btn" data-view="relationship"><span class="nav-icon">♡</span>Relationship</button>
       <button class="nav-btn" data-view="day"><span class="nav-icon">◫</span>Day Plan</button>
       <button class="nav-btn" data-view="market"><span class="nav-icon">⌁</span>Market Data</button>
@@ -452,12 +470,12 @@ const DEFAULT_PROFILE={
   theme:"dark",notifications:false,createdAt:null
 };
 
-const DATA_COLLECTIONS=["tasks","accounts","transactions","bills","goals","routines","inbox","jobs","shifts","timeEntries","paychecks","household","appointments","shopping","paperTrades","relationshipPlans","timeBlocks","focusSessions","marketWatch","marketCache","learningProgress"];
+const DATA_COLLECTIONS=["tasks","accounts","transactions","bills","goals","routines","inbox","jobs","shifts","timeEntries","paychecks","household","appointments","shopping","paperTrades","relationshipPlans","timeBlocks","focusSessions","marketWatch","marketCache","learningProgress","legalObligations","assets","assetEvents","sessionLogs"];
 const S={
   user:null,profile:{...DEFAULT_PROFILE},profiles:[],
   tasks:[],accounts:[],transactions:[],bills:[],goals:[],routines:[],inbox:[],
   jobs:[],shifts:[],timeEntries:[],paychecks:[],household:[],appointments:[],shopping:[],paperTrades:[],
-  relationshipPlans:[],timeBlocks:[],focusSessions:[],marketWatch:[],marketCache:[],learningProgress:[],
+  relationshipPlans:[],timeBlocks:[],focusSessions:[],marketWatch:[],marketCache:[],learningProgress:[],legalObligations:[],assets:[],assetEvents:[],sessionLogs:[],
   stockUniverse:[],stockUniverseLoaded:false,stockSearch:"",stockSector:"all",marketTab:"watch",learnTab:"stocks",
   all:{},activeProfileId:localStorage.getItem("pierProfile")||"primary",worldMode:localStorage.getItem("pierWorld")||"live",
   unsubs:[],view:"dashboard",syncError:"",taskSearch:"",taskFilter:"open",plan:null,calendarCursor:new Date(),dayCursor:new Date(),relStore:"all",relBudget:550,relSearch:"",
@@ -595,6 +613,10 @@ function sortData(name){
   if(name==="relationshipPlans")S.relationshipPlans.sort((a,b)=>String(a.targetDate||"9999").localeCompare(String(b.targetDate||"9999")));
   if(name==="timeBlocks")S.timeBlocks.sort((a,b)=>(String(a.date||"")+String(a.start||"")).localeCompare(String(b.date||"")+String(b.start||"")));
   if(name==="focusSessions")S.focusSessions.sort((a,b)=>num(b.startMs)-num(a.startMs));
+  if(name==="legalObligations")S.legalObligations.sort((a,b)=>num(b.priority)-num(a.priority)||String(a.dueDate||"9999").localeCompare(String(b.dueDate||"9999")));
+  if(name==="assets")S.assets.sort((a,b)=>String(a.kind||"").localeCompare(String(b.kind||""))||String(a.name||"").localeCompare(String(b.name||"")));
+  if(name==="assetEvents")S.assetEvents.sort((a,b)=>String(b.date||"").localeCompare(String(a.date||"")));
+  if(name==="sessionLogs")S.sessionLogs.sort((a,b)=>num(b.startMs)-num(a.startMs));
 }
 function setSynced(){
   if(S.syncError)return;$("#syncDot").className="dot ok";$("#syncLabel").textContent="Synced";$("#syncDetail").textContent=esc(currentProfile().name||"Profile")+" · "+S.worldMode.toUpperCase();
@@ -607,7 +629,7 @@ function setSyncError(err){
 function applyTheme(){document.documentElement.dataset.theme=S.profile.theme==="light"?"light":"dark"}
 
 function navigate(view){
-  S.view=view;const titles={dashboard:"Dashboard",tasks:"Tasks",money:"Money",coach:"What to Pay",goals:"Goals",routines:"Routines",planner:"Planner / Why",calendar:"Calendar",work:"Work & Pay",life:"Family & Life",relationship:"Relationship",day:"Day Plan",market:"Market Data",learn:"Stocks & Options 101",paper:"Paper Markets",data:"Training Data",profiles:"Profiles",inbox:"Inbox",settings:"Settings"};
+  S.view=view;const titles={dashboard:"Dashboard",tasks:"Tasks",money:"Money",coach:"What to Pay",goals:"Goals",routines:"Routines",planner:"Planner / Why",calendar:"Calendar",work:"Work & Pay",life:"Family & Life",admin:"Admin / Legal",assets:"Devices & Cars",sessions:"Sessions",relationship:"Relationship",day:"Day Plan",market:"Market Data",learn:"Stocks & Options 101",paper:"Paper Markets",data:"Training Data",profiles:"Profiles",inbox:"Inbox",settings:"Settings"};
   $("#pageTitle").textContent=titles[view]||"Pier";
   $$("[data-view]").forEach(b=>b.classList.toggle("active",b.dataset.view===view));
   render();
@@ -637,6 +659,9 @@ function render(){
   else if(S.view==="calendar")html=renderCalendar();
   else if(S.view==="work")html=renderWork();
   else if(S.view==="life")html=renderLife();
+  else if(S.view==="admin")html=renderAdmin();
+  else if(S.view==="assets")html=renderAssets();
+  else if(S.view==="sessions")html=renderSessions();
   else if(S.view==="relationship")html=renderRelationship();
   else if(S.view==="day")html=renderDayPlan();
   else if(S.view==="market")html=renderMarket();
@@ -667,13 +692,13 @@ function mustCount(){return openTasks().filter(t=>t.must).length}
 function dueSoonCount(){return openTasks().filter(t=>t.dueAt&&daysUntil(t.dueAt)>=0&&daysUntil(t.dueAt)<=num(S.profile.urgentDays)).length}
 function availableMoney(){return totalBalance()-num(S.profile.emergencyReserve)}
 
-function toTaskAction(t){return {key:"task:"+t.id,type:"task",id:t.id,title:t.title||"Untitled",priority:num(t.priority)||3,must:!!t.must,due:t.dueAt||"",minutes:Math.max(1,num(t.estimateMin)||15),cashCost:Math.max(0,num(t.moneyCost)),category:t.category||"General"}}
+function toTaskAction(t){return {key:"task:"+t.id,type:"task",id:t.id,title:t.title||"Untitled",priority:num(t.priority)||3,must:!!t.must,due:t.dueAt||"",minutes:Math.max(1,num(t.estimateMin)||15),cashCost:Math.max(0,num(t.moneyCost)),category:t.category||"General",requiresDriving:!!t.requiresDriving}}
 function toBillAction(b){return {key:"bill:"+b.id,type:"bill",id:b.id,title:"Pay "+(b.name||"bill"),priority:num(b.priority)||5,must:true,due:b.dueDate||"",minutes:5,cashCost:Math.max(0,num(b.amount)),category:"Bill"}}
 function routineDue(r){
   if(!r.active)return false;const day=new Date().getDay();const days=Array.isArray(r.days)?r.days.map(Number):[];
   return (days.length===0||days.includes(day))&&r.lastCompletedDate!==today();
 }
-function toRoutineAction(r){return {key:"routine:"+r.id,type:"routine",id:r.id,title:r.name||"Routine",priority:num(r.priority)||3,must:!!r.must,due:today(),minutes:Math.max(1,num(r.estimateMin)||15),cashCost:0,category:"Routine"}}
+function toRoutineAction(r){return {key:"routine:"+r.id,type:"routine",id:r.id,title:r.name||"Routine",priority:num(r.priority)||3,must:!!r.must,due:today(),minutes:Math.max(1,num(r.estimateMin)||15),cashCost:0,category:"Routine",preferredTime:r.preferredTime||""}}
 function toGoalAction(g){return {key:"goal:"+g.id,type:"goal",id:g.id,title:g.nextAction||("Work on "+g.name),priority:num(g.priority)||3,must:false,due:g.deadline||"",minutes:Math.max(1,num(g.nextActionMinutes)||30),cashCost:0,category:"Goal"}}
 function relationshipLastDone(personId=""){
   return S.relationshipPlans.filter(x=>x.status==="done"&&(!personId||x.personId===personId)&&x.completedDate).sort((a,b)=>String(b.completedDate).localeCompare(String(a.completedDate)))[0]||null;
@@ -759,6 +784,7 @@ function generatePlan(){
     if(!worth)continue;
     const fail=[];
     if(a.cashCost>world.cash)fail.push("needs "+money(a.cashCost)+" but spendable cash is "+money(world.cash));
+    if(a.requiresDriving&&String(S.profile.licenseStatus||"active").toLowerCase()==="suspended")fail.push("requires driving but license status is suspended");
     if(a.minutes>world.minutes)fail.push("needs "+a.minutes+" min but only "+world.minutes+" min remain");
     if(fail.length){
       if(a.must||urgent)blocked.push({...a,reason:fail.join("; "),score:scoreAction(a)});
@@ -793,6 +819,7 @@ function renderDashboard(){
       '<section class="card pad"><div class="card-head"><h3>Quick brain dump</h3><span class="small muted">Capture first. Organize second.</span></div><form id="dashInboxForm" class="quick-capture"><input name="text" maxlength="240" placeholder="Anything you do not want to forget…"><button class="btn blue">Capture</button></form><div class="small muted" style="margin-top:10px">Tip: use Tasks for something actionable; Inbox is for messy thoughts.</div></section>'+
     '</div>'+
     '<section class="card pad" style="margin-top:18px"><div class="card-head"><h3>What should I pay?</h3><button class="btn ghost" data-view="coach">See full pay plan →</button></div>'+renderPayCoachMini()+'</section>'+
+    '<div class="grid-2" style="margin-top:18px"><section class="card pad"><div class="card-head"><h3>Admin status</h3><button class="btn ghost" data-view="admin">Open →</button></div><div class="status-strip"><span class="pill '+(String(S.profile.licenseStatus||"active")==="suspended"?"must":"good")+'">LICENSE '+esc(String(S.profile.licenseStatus||"active").toUpperCase())+'</span><span class="pill">'+S.legalObligations.filter(x=>x.status!=="resolved").length+' open admin items</span></div></section><section class="card pad"><div class="card-head"><h3>Active session</h3><button class="btn ghost" data-view="sessions">Open →</button></div>'+(activeSession()?'<div class="inline-stat"><b>'+Math.floor(sessionElapsed(activeSession()))+' min</b><span class="muted"> · '+esc(activeSession().label||sessionLabel(activeSession().type))+'</span></div>':'<div class="small muted">No timer running.</div>')+'</section></div>'+
     '<div class="grid-2" style="margin-top:18px"><section class="card pad"><div class="card-head"><h3>Relationship check</h3><button class="btn ghost" data-view="relationship">Open →</button></div><div class="inline-stat"><b>'+relationshipAttention(relationshipPerson()?.id||"")+'</b><span class="muted"> / 100 attention pressure</span></div><div class="small muted" style="margin-top:6px">'+relationshipDaysSince(relationshipPerson()?.id||"")+' days since a completed plan. This rises with time and drops when you complete something.</div></section><section class="card pad"><div class="card-head"><h3>Today schedule</h3><button class="btn ghost" data-view="day">Open day →</button></div><div class="inline-stat"><b>'+dayEvents(today()).length+'</b><span class="muted"> scheduled items</span></div><div class="small muted" style="margin-top:6px">Work, tasks, appointments, relationship plans and manual time blocks.</div></section></div>';
 }
 function greeting(){const h=new Date().getHours();return h<12?"Good morning":h<18?"Good afternoon":"Good evening"}
@@ -980,6 +1007,81 @@ function renderPayPeriodCalendarCards(){
   return '<section class="card pad" style="margin-top:18px"><div class="card-head"><h3>Pay periods</h3><span class="pill good">CALENDAR-AWARE</span></div><div class="profile-grid">'+S.jobs.map(j=>{const d=nextPayDate(j),w=payWindow(j),e=estimatePay(j);return '<div class="account-card"><div class="name">'+esc(j.name)+'</div><div class="amount">'+money(e.net)+'</div><strong>Estimated next net</strong><div class="row-meta">Payday '+(d?fmtDate(d):"not set")+'<br>Work period '+(w.start?fmtDate(w.start):"?")+' → '+(w.end?fmtDate(w.end):"?")+'<br>'+e.hours.toFixed(2)+' actual h · '+e.scheduled.toFixed(2)+' scheduled h</div></div>'}).join("")+'</div></section>';
 }
 
+
+function activeSession(){return S.sessionLogs.find(x=>x.status==="open"&&!x.endAt)}
+function sessionElapsed(s){if(!s)return 0;return Math.max(0,(Date.now()-num(s.startMs||Date.parse(s.startedAt)))/60000)}
+function sessionLabel(type){return ({smoke:"Smoke session",manga:"Manga / manhua",baby_sleep:"Baby sleep / nap",family:"Family time",custom:"Custom session"})[type]||type||"Session"}
+async function startSession(type,label=""){
+  if(activeSession())return toast("Stop the current session first.","error");
+  const now=new Date();await addDoc(subcol("sessionLogs"),{type,label:label||sessionLabel(type),startedAt:now.toISOString(),startMs:now.getTime(),status:"open",...ctxFields(),createdAt:serverTimestamp()});toast((label||sessionLabel(type))+" started.");
+}
+async function stopSession(id){
+  const s=S.sessionLogs.find(x=>x.id===id);if(!s)return;const end=new Date(),mins=Math.max(0,(end-num(s.startMs||Date.parse(s.startedAt)))/60000);
+  await updateDoc(subdoc("sessionLogs",id),{endAt:end.toISOString(),durationMin:mins,status:"closed",updatedAt:serverTimestamp()});toast(sessionLabel(s.type)+" saved · "+Math.round(mins)+" min.");
+}
+function renderSessions(){
+  const active=activeSession(),elapsed=sessionElapsed(active),recent=S.sessionLogs.filter(x=>x.status==="closed").slice(0,30);
+  return '<div class="section-title"><div><h1>Sessions</h1><p>Persistent timers for things you actually do. Start time is saved to Firebase, so closing Pier does not lose the session.</p></div></div>'+
+    '<div class="session-hero">'+(active?'<div class="eyebrow">RUNNING · '+esc(active.label||sessionLabel(active.type))+'</div><div class="session-time">'+Math.floor(elapsed)+' min</div><div class="row-meta">Started '+new Date(active.startedAt).toLocaleString()+'. You can close the site; elapsed time is calculated from the saved timestamp when you return.</div><button class="btn danger" style="margin-top:13px" data-action="session-stop" data-id="'+active.id+'">Stop session</button>':'<div class="eyebrow">NO ACTIVE SESSION</div><div class="session-time">Ready</div><div class="row-meta">Pick a quick session below.</div>')+'</div>'+
+    '<section class="card pad" style="margin-top:18px"><div class="card-head"><h3>Quick start</h3><span class="pill blue">FIREBASE TIMER</span></div><div class="quick-session"><button class="btn" data-action="session-start" data-id="smoke">Smoke session</button><button class="btn" data-action="session-start" data-id="manga">Manga / manhua</button><button class="btn" data-action="session-start" data-id="baby_sleep">Baby sleep</button><button class="btn" data-action="session-start" data-id="family">Family time</button><button class="btn primary" data-action="session-custom">Custom</button></div></section>'+
+    '<section class="card pad" style="margin-top:18px"><div class="card-head"><h3>Recent sessions</h3><span class="pill">'+recent.length+'</span></div><div class="table-wrap"><table><thead><tr><th>Type</th><th>Started</th><th>Minutes</th><th>Note</th></tr></thead><tbody>'+recent.map(s=>'<tr><td>'+esc(sessionLabel(s.type))+'</td><td>'+new Date(s.startedAt).toLocaleString()+'</td><td>'+Math.round(num(s.durationMin))+'</td><td>'+esc(s.note||"")+'</td></tr>').join("")+'</tbody></table></div></section>';
+}
+function openCustomSession(){
+  showModal("Start custom session",'<form><div class="field"><label>Name</label><input name="label" required placeholder="Anything you want to time"></div><div class="modal-foot"><button class="btn ghost" type="button" id="cancelModalBtn">Cancel</button><button class="btn primary" type="submit">Start</button></div></form>',async fd=>startSession("custom",fd.get("label").trim()));$("#cancelModalBtn").onclick=closeModal;
+}
+function assetIcon(a){return a.kind==="vehicle"?"🚙":a.kind==="phone"?"📱":a.kind==="laptop"?"💻":"▣"}
+function renderAssets(){
+  return '<div class="section-title"><div><h1>Devices & Cars</h1><p>What you own, what is wrong with it, maintenance history and what you may replace next.</p></div><button class="btn primary" data-action="asset-add">＋ Asset</button></div>'+
+    '<div class="asset-grid">'+(S.assets.length?S.assets.map(a=>'<article class="asset-card"><div style="display:flex;gap:11px;align-items:center"><div class="asset-icon">'+assetIcon(a)+'</div><div class="row-main"><div class="task-title">'+esc(a.name)+'</div><div class="row-meta">'+esc(a.owner||"Me")+' · '+esc(a.kind||"device")+' · '+esc(a.status||"owned")+'</div></div><button class="btn icon ghost" data-action="asset-edit" data-id="'+a.id+'">✎</button></div>'+(a.specs?'<div class="reason-box" style="margin-top:11px">'+esc(a.specs)+'</div>':'')+(a.condition?'<div class="row-meta" style="margin-top:8px"><strong>Condition:</strong> '+esc(a.condition)+'</div>':'')+(a.mileage?'<div class="row-meta"><strong>Mileage:</strong> '+num(a.mileage).toLocaleString()+'</div>':'')+(a.upgradePlan?'<div class="row-meta"><strong>Upgrade:</strong> '+esc(a.upgradePlan)+'</div>':'')+(a.targetBudget?'<div class="row-meta"><strong>Target budget:</strong> '+money(a.targetBudget)+'</div>':'')+'<div class="toolbar" style="margin-top:11px"><button class="btn ghost" data-action="asset-event" data-id="'+a.id+'">＋ History</button></div></article>').join(""):'<div class="empty">Import your private setup or add devices/cars manually.</div>')+'</div>'+
+    '<section class="card pad" style="margin-top:18px"><div class="card-head"><h3>Recent asset history</h3><span class="pill">'+S.assetEvents.length+'</span></div><div class="stack">'+(S.assetEvents.slice(0,20).map(e=>'<div class="task-row"><div class="row-main"><div class="task-title">'+esc(e.title)+'</div><div class="row-meta">'+fmtDate(e.date||today())+' · '+esc(S.assets.find(a=>a.id===e.assetId)?.name||e.assetName||"Asset")+(e.cost?' · '+money(e.cost):'')+'</div><div class="small muted">'+esc(e.notes||"")+'</div></div></div>').join("")||'<div class="empty">No asset history.</div>')+'</div></section>';
+}
+function openAssetModal(a={}){
+  const edit=!!a.id;
+  showModal(edit?"Edit asset":"Add asset",'<form><div class="modal-grid"><div class="field"><label>Type</label><select name="kind"><option value="phone">Phone</option><option value="laptop">Laptop</option><option value="vehicle">Vehicle</option><option value="other">Other</option></select></div><div class="field"><label>Owner</label><input name="owner" value="'+esc(a.owner||"Me")+'"></div></div><div class="field"><label>Name / model</label><input name="name" required value="'+esc(a.name||"")+'"></div><div class="field"><label>Specs</label><textarea name="specs">'+esc(a.specs||"")+'</textarea></div><div class="field"><label>Condition / current problems</label><textarea name="condition">'+esc(a.condition||"")+'</textarea></div><div class="modal-grid"><div class="field"><label>Mileage (vehicles)</label><input name="mileage" type="number" min="0" value="'+num(a.mileage||0)+'"></div><div class="field"><label>Target upgrade budget</label><input name="targetBudget" type="number" min="0" step=".01" value="'+num(a.targetBudget||0)+'"></div></div><div class="field"><label>Upgrade / future plan</label><textarea name="upgradePlan">'+esc(a.upgradePlan||"")+'</textarea></div><div class="modal-foot">'+(edit?'<button class="btn danger" type="button" id="deleteAssetBtn">Delete</button>':'')+'<button class="btn ghost" type="button" id="cancelModalBtn">Cancel</button><button class="btn primary" type="submit">Save</button></div></form>',async fd=>{const data={kind:fd.get("kind"),owner:fd.get("owner").trim(),name:fd.get("name").trim(),specs:fd.get("specs").trim(),condition:fd.get("condition").trim(),mileage:num(fd.get("mileage")),targetBudget:num(fd.get("targetBudget")),upgradePlan:fd.get("upgradePlan").trim(),status:"owned",updatedAt:serverTimestamp()};if(edit)await updateDoc(subdoc("assets",a.id),data);else await addDoc(subcol("assets"),{...data,...ctxFields(),createdAt:serverTimestamp()});toast("Asset saved.")});
+  $("#cancelModalBtn").onclick=closeModal;$("#modalBody select[name=kind]").value=a.kind||"phone";if(edit)$("#deleteAssetBtn").onclick=async()=>{if(confirm("Delete this asset?")){await deleteDoc(subdoc("assets",a.id));closeModal()}};
+}
+function openAssetEvent(a){
+  if(!a)return;showModal("Add history · "+a.name,'<form><div class="modal-grid"><div class="field"><label>Date</label><input name="date" type="date" value="'+today()+'"></div><div class="field"><label>Cost</label><input name="cost" type="number" min="0" step=".01"></div></div><div class="field"><label>What happened?</label><input name="title" required placeholder="Alternator replaced, screen cracked, battery changed…"></div><div class="field"><label>Notes</label><textarea name="notes"></textarea></div><div class="modal-foot"><button class="btn ghost" type="button" id="cancelModalBtn">Cancel</button><button class="btn primary" type="submit">Save event</button></div></form>',async fd=>{await addDoc(subcol("assetEvents"),{assetId:a.id,assetName:a.name,date:fd.get("date"),cost:num(fd.get("cost")),title:fd.get("title").trim(),notes:fd.get("notes").trim(),...ctxFields(),createdAt:serverTimestamp()});toast("History added.")});$("#cancelModalBtn").onclick=closeModal;
+}
+function renderAdmin(){
+  const total=S.legalObligations.filter(x=>x.status!=="resolved").reduce((a,x)=>a+num(x.amountRemaining??x.amount),0);
+  return '<div class="section-title"><div><h1>Admin / Legal</h1><p>Tickets, license issues, court/admin obligations and other things that cannot be allowed to disappear into the background.</p></div><button class="btn primary" data-action="admin-add">＋ Obligation</button></div>'+
+    '<div class="money-hero">'+metric("Open amount",money(total),S.legalObligations.filter(x=>x.status!=="resolved").length+" open items")+metric("License",String(S.profile.licenseStatus||"unknown").toUpperCase(),"Driving tasks respect this status")+metric("Critical",S.legalObligations.filter(x=>x.status!=="resolved"&&num(x.priority)>=5).length,"Priority 5 admin items")+metric("Blocked",S.legalObligations.filter(x=>x.status==="blocked").length,"Needs money/info/action first")+'</div>'+
+    '<div class="admin-grid">'+(S.legalObligations.length?S.legalObligations.map(x=>'<article class="admin-card '+(num(x.priority)>=5&&x.status!=="resolved"?"critical":"")+'"><div class="card-head"><div><div class="task-title">'+esc(x.title)+'</div><div class="row-meta">'+esc(x.jurisdiction||"")+' · '+esc(x.status||"open")+' · P'+num(x.priority||3)+'</div></div><button class="btn icon ghost" data-action="admin-edit" data-id="'+x.id+'">✎</button></div><div class="inline-stat"><b>'+money(x.amountRemaining??x.amount)+'</b><span class="muted"> remaining</span></div>'+(x.dueDate?'<div class="row-meta">Due '+fmtDate(x.dueDate)+'</div>':'')+(x.nextAction?'<div class="reason-box" style="margin-top:9px"><strong>Next:</strong> '+esc(x.nextAction)+'</div>':'')+(x.notes?'<div class="small muted" style="margin-top:8px">'+esc(x.notes)+'</div>':'')+'</article>').join(""):'<div class="empty">No admin/legal obligations recorded.</div>')+'</div>';
+}
+function openAdminModal(x={}){
+  const edit=!!x.id;showModal(edit?"Edit obligation":"Add obligation",'<form><div class="field"><label>Title</label><input name="title" required value="'+esc(x.title||"")+'"></div><div class="modal-grid"><div class="field"><label>Jurisdiction / source</label><input name="jurisdiction" value="'+esc(x.jurisdiction||"")+'"></div><div class="field"><label>Status</label><select name="status"><option value="open">Open</option><option value="payment_plan">Payment plan</option><option value="blocked">Blocked</option><option value="resolved">Resolved</option></select></div><div class="field"><label>Amount remaining</label><input name="amountRemaining" type="number" min="0" step=".01" value="'+num(x.amountRemaining??x.amount??0)+'"></div><div class="field"><label>Priority</label><select name="priority">'+[1,2,3,4,5].map(n=>'<option value="'+n+'">P'+n+'</option>').join("")+'</select></div><div class="field"><label>Due date</label><input name="dueDate" type="date" value="'+esc(x.dueDate||"")+'"></div></div><div class="field"><label>Next action</label><input name="nextAction" value="'+esc(x.nextAction||"")+'"></div><div class="field"><label>Notes</label><textarea name="notes">'+esc(x.notes||"")+'</textarea></div><div class="modal-foot">'+(edit?'<button class="btn danger" type="button" id="deleteAdminBtn">Delete</button>':'')+'<button class="btn ghost" type="button" id="cancelModalBtn">Cancel</button><button class="btn primary" type="submit">Save</button></div></form>',async fd=>{const data={title:fd.get("title").trim(),jurisdiction:fd.get("jurisdiction").trim(),status:fd.get("status"),amountRemaining:num(fd.get("amountRemaining")),priority:num(fd.get("priority")),dueDate:fd.get("dueDate"),nextAction:fd.get("nextAction").trim(),notes:fd.get("notes").trim(),updatedAt:serverTimestamp()};if(edit)await updateDoc(subdoc("legalObligations",x.id),data);else await addDoc(subcol("legalObligations"),{...data,...ctxFields(),createdAt:serverTimestamp()});toast("Obligation saved.")});
+  $("#cancelModalBtn").onclick=closeModal;$("#modalBody select[name=status]").value=x.status||"open";$("#modalBody select[name=priority]").value=String(x.priority||3);if(edit)$("#deleteAdminBtn").onclick=async()=>{if(confirm("Delete this obligation?")){await deleteDoc(subdoc("legalObligations",x.id));closeModal()}};
+}
+async function importPrivateSetup(payload){
+  if(!payload||!payload.collections)throw new Error("This is not a Pier private setup file.");
+  const pid=S.activeProfileId,world="live",jobMap={};
+  const order=["household","assets","legalObligations","jobs","bills","goals","tasks","routines","appointments","relationshipPlans","timeBlocks","assetEvents"];
+  let created=0,updated=0;
+  for(const name of order){
+    const rows=Array.isArray(payload.collections[name])?payload.collections[name]:[];
+    for(const row of rows){
+      const data={...row,profileId:pid,world,privateImported:true,privateImportVersion:payload.version||1,updatedAt:serverTimestamp()};
+      if(name==="jobs"){
+        const existing=(S.all.jobs||[]).find(d=>d.importKey&&d.importKey===row.importKey&&(d.profileId||"primary")===pid&&(d.world||"live")==="live");
+        let ref;if(existing){await updateDoc(subdoc("jobs",existing.id),data);ref=existing.id;updated++}else{const r=await addDoc(subcol("jobs"),{...data,createdAt:serverTimestamp()});ref=r.id;created++}
+        if(row.importKey)jobMap[row.importKey]=ref;continue;
+      }
+      if(data.jobImportKey){data.jobId=jobMap[data.jobImportKey]||(S.all.jobs||[]).find(j=>j.importKey===data.jobImportKey)?.id||"";delete data.jobImportKey}
+      if(data.assetImportKey){data.assetId=(S.all.assets||[]).find(a=>a.importKey===data.assetImportKey)?.id||""}
+      const existing=(S.all[name]||[]).find(d=>d.importKey&&d.importKey===row.importKey&&(d.profileId||"primary")===pid&&(d.world||"live")==="live");
+      if(existing){await updateDoc(subdoc(name,existing.id),data);updated++}else{await addDoc(subcol(name),{...data,createdAt:serverTimestamp()});created++}
+    }
+  }
+  if(payload.profile)await setDoc(userDoc(),payload.profile,{merge:true});
+  toast("Private setup imported: "+created+" created, "+updated+" updated.");
+  setTimeout(()=>syncShadowMissing(pid),1200);
+}
+function openPrivateImport(){
+  showModal("Import private Pier setup",'<form><div class="import-zone"><div class="field"><label>Private setup JSON file</label><input id="privateSetupFile" type="file" accept=".json,application/json"></div><div class="small muted">The file is read in your browser and its records are written directly to your authenticated Firebase user. It is not uploaded to GitHub.</div></div><div class="field"><label>Or paste JSON</label><textarea id="privateSetupText" style="min-height:130px" placeholder="{ ... }"></textarea></div><div class="modal-foot"><button class="btn ghost" type="button" id="cancelModalBtn">Cancel</button><button class="btn primary" type="submit">Import to Firebase</button></div></form>',async()=>{
+    let text=$("#privateSetupText").value.trim(),file=$("#privateSetupFile").files?.[0];if(file)text=await file.text();if(!text)throw new Error("Choose the private setup JSON file.");await importPrivateSetup(JSON.parse(text));
+  });$("#cancelModalBtn").onclick=closeModal;
+}
 const REL_IDEA_ROWS=[
 ["Fresh flowers + handwritten card","gift",12,35,"Walmart,CVS,Target"],
 ["Favorite candy/snack bundle","gift",8,25,"Walmart,CVS,Target"],
@@ -1201,14 +1303,18 @@ function autoDaySuggestions(date){
     return a.must||due<=dateMs+7*86400000||scoreAction(a)>=90;
   }).sort((a,b)=>scoreAction(b)-scoreAction(a)).slice(0,10);
   const out=[],busy=[...occupied];
-  function slot(minutes){
+  function slot(minutes,preferred=""){
+    if(preferred){
+      const ps=timeToMin(preferred),pe=ps+minutes;
+      if(ps>=dayStart&&pe<=dayEnd&&!busy.some(b=>ps<b.e&&pe>b.s))return ps;
+    }
     let t=dayStart;
     const sorted=()=>busy.sort((a,b)=>a.s-b.s);
     for(const b of sorted()){if(t+minutes<=b.s)return t;if(t<b.e)t=b.e+15}
     return t+minutes<=dayEnd?t:null;
   }
   for(const a of candidates){
-    const mins=Math.max(10,Math.min(180,Math.ceil(a.minutes/15)*15)),s=slot(mins);if(s===null)continue;
+    const mins=Math.max(10,Math.min(180,Math.ceil(a.minutes/15)*15)),s=slot(mins,a.preferredTime||"");if(s===null)continue;
     const e=s+mins;busy.push({s,e});out.push({start:minToTime(s),end:minToTime(e),title:a.title,kind:"auto",meta:"AUTO · score "+scoreAction(a)+" · "+whyAction(a),autoSourceKey:a.key,action:a});
   }
   return out;
@@ -1801,13 +1907,14 @@ function renderSettings(){
       '<div class="setting-row"><div><strong>Emergency reserve</strong><div class="small muted">Money the planner treats as untouchable</div></div><input name="emergencyReserve" type="number" min="0" step="1" value="'+num(S.profile.emergencyReserve)+'"></div>'+
       '<div class="setting-row"><div><strong>Urgent window</strong><div class="small muted">Deadline becomes urgent this many days out</div></div><input name="urgentDays" type="number" min="0" max="30" value="'+num(S.profile.urgentDays)+'"></div>'+
       '<div class="setting-row"><div><strong>Market auto-call guard</strong><div class="small muted">Maximum automatic quote calls per day</div></div><input name="marketAutoDailyLimit" type="number" min="1" max="500" value="'+num(S.profile.marketAutoDailyLimit||90)+'"></div>'+
+      '<div class="setting-row"><div><strong>Driver license status</strong><div class="small muted">Pier blocks tasks specifically marked “requires driving” while suspended.</div></div><select name="licenseStatus"><option value="active">Active</option><option value="suspended">Suspended</option><option value="restricted">Restricted</option><option value="unknown">Unknown</option></select></div>'+
       '<div class="setting-row"><div><strong>Theme</strong></div><select name="theme"><option value="dark">Dark</option><option value="light">Light</option></select></div>'+
       '<div style="margin-top:16px"><button class="btn primary" type="submit">Save planner settings</button></div></form></section>'+
     '<section class="card pad"><div class="card-head"><h3>Firebase / account</h3></div>'+
       '<div class="setting-row"><div><strong>Signed in</strong><div class="small muted">'+esc(S.user?.email||"")+'</div></div><span class="pill good">AUTH</span></div>'+
       '<div class="setting-row"><div><strong>Firestore</strong><div class="small muted">'+(S.syncError?esc(S.syncError):"Realtime sync active")+'</div></div><span class="pill '+(S.syncError?'must':'good')+'">'+(S.syncError?"SETUP":"LIVE")+'</span></div>'+
       '<div class="split-line"></div><div class="small muted" style="line-height:1.55">If Firestore says permission denied: Firebase Console → Authentication → Sign-in method → enable Email/Password. Then Firestore → Rules → publish the contents of <span class="mono">firestore.rules</span> from this repository.</div>'+
-      '<div class="split-line"></div><div class="toolbar"><button class="btn" data-action="export-data">Export JSON</button><button class="btn" data-action="request-notifications">Browser alerts</button><button class="btn danger" data-action="sign-out">Sign out</button></div>'+
+      '<div class="split-line"></div><div class="toolbar"><button class="btn primary" data-action="private-import">Import private setup</button><button class="btn" data-action="export-data">Export JSON</button><button class="btn" data-action="request-notifications">Browser alerts</button><button class="btn danger" data-action="sign-out">Sign out</button></div>'+
     '</section></div>'+
     '<section class="card pad" style="margin-top:18px"><div class="card-head"><h3>Market data API</h3><span class="pill blue">MARKETDATA.APP</span></div><div class="grid-2"><div><div class="api-box"><div class="field"><label>API token</label><input id="marketTokenInput" type="password" autocomplete="off" placeholder="Paste your personal MarketData.app token"></div><div class="toolbar"><button class="btn primary" data-action="save-market-token">Save token</button><button class="btn" data-action="test-market-token">Test with AAPL</button><button class="btn danger" data-action="remove-market-token">Remove</button></div></div></div><div><div class="small muted" style="line-height:1.65">The token is saved under your authenticated Firebase account, not inside this public GitHub source. Never paste market API tokens into chat, GitHub issues or code. Because Pier runs in your browser, a signed-in person can inspect their own network requests, so do not share your Pier login. The free provider plan is useful for building/training data but is delayed; the Market Data page shows freshness instead of labeling it live.</div><div style="margin-top:12px"><a class="btn" target="_blank" rel="noopener noreferrer" href="https://www.marketdata.app/">Create / manage MarketData.app account ↗</a></div></div></div></section>'+
     '<section class="card pad" style="margin-top:18px"><div class="card-head"><h3>Data ownership</h3><span class="pill good">YOUR FIREBASE</span></div><div class="toolbar"><button class="btn" data-action="export-training-data">Export market/training dataset</button><button class="btn" data-view="data">Open Training Data</button></div><div class="small muted" style="margin-top:10px">API secrets are excluded from exports.</div></section>'+
@@ -1818,7 +1925,7 @@ function bindViewInputs(){
   const search=$("#taskSearch");if(search){search.oninput=e=>{S.taskSearch=e.target.value;render()};$("#taskFilter").value=S.taskFilter;$("#taskFilter").onchange=e=>{S.taskFilter=e.target.value;render()}}
   const inbox=$("#inboxForm");if(inbox)inbox.onsubmit=saveInbox;
   const dash=$("#dashInboxForm");if(dash)dash.onsubmit=saveInbox;
-  const sf=$("#settingsForm");if(sf){sf.theme.value=S.profile.theme||"dark";sf.onsubmit=saveSettings}
+  const sf=$("#settingsForm");if(sf){sf.theme.value=S.profile.theme||"dark";if(sf.licenseStatus)sf.licenseStatus.value=S.profile.licenseStatus||"active";sf.onsubmit=saveSettings}
   const rs=$("#relSearch");if(rs)rs.oninput=e=>{S.relSearch=e.target.value;render()};
   const rst=$("#relStore");if(rst){rst.value=S.relStore;rst.onchange=e=>{S.relStore=e.target.value;render()}};
   const rb=$("#relBudget");if(rb){rb.value=String(S.relBudget);rb.onchange=e=>{S.relBudget=num(e.target.value);render()}};
@@ -1889,6 +1996,15 @@ async function handleAction(action,id,el){
   if(action==="delete-time")return removeDoc("timeEntries",id,"Delete this time entry?");
   if(action==="add-paycheck")return openPaycheckModal();
   if(action==="delete-paycheck")return removeDoc("paychecks",id,"Delete this paycheck record?");
+  if(action==="private-import")return openPrivateImport();
+  if(action==="admin-add")return openAdminModal();
+  if(action==="admin-edit")return openAdminModal(S.legalObligations.find(x=>x.id===id)||{});
+  if(action==="asset-add")return openAssetModal();
+  if(action==="asset-edit")return openAssetModal(S.assets.find(x=>x.id===id)||{});
+  if(action==="asset-event")return openAssetEvent(S.assets.find(x=>x.id===id));
+  if(action==="session-start")return startSession(id);
+  if(action==="session-stop")return stopSession(id);
+  if(action==="session-custom")return openCustomSession();
   if(action==="rel-custom")return openRelationshipPlanModal({});
   if(action==="rel-custom-date")return openRelationshipPlanModal({targetDate:id});
   if(action==="rel-plan-idea"){const x=relationshipIdeaCatalog().find(v=>v.id===id);if(x)return openRelationshipPlanModal({catalogId:x.id,title:x.title,category:x.category,budget:x.max,store:x.stores[0]})}
@@ -1937,11 +2053,11 @@ function openTaskModal(t={}){
     '<div class="field"><label>Deadline</label><input name="dueAt" type="datetime-local" value="'+esc(t.dueAt||"")+'"></div>'+
     '<div class="field"><label>Time needed (minutes)</label><input name="estimateMin" type="number" min="1" value="'+num(t.estimateMin||30)+'"></div>'+
     '<div class="field"><label>Money required</label><input name="moneyCost" type="number" min="0" step=".01" value="'+num(t.moneyCost||0)+'"></div></div>'+
-    '<label class="check"><input name="must" type="checkbox" '+(t.must?'checked':'')+'> <strong>HAVE TO</strong> — treat this as mandatory</label>'+
+    '<label class="check"><input name="must" type="checkbox" '+(t.must?'checked':'')+'> <strong>HAVE TO</strong> — treat this as mandatory</label><label class="check"><input name="requiresDriving" type="checkbox" '+(t.requiresDriving?'checked':'')+'> Requires me to drive myself</label>'+
     '<div class="field"><label>Notes</label><textarea name="notes" placeholder="Anything you need when you come back to this…">'+esc(t.notes||"")+'</textarea></div>'+
     '<div class="modal-foot">'+(isEdit?'<button class="btn danger" type="button" id="deleteTaskBtn">Delete</button>':'')+'<button class="btn ghost" type="button" id="cancelModalBtn">Cancel</button><button class="btn primary" type="submit">Save</button></div></form>',
     async fd=>{
-      const data={title:fd.get("title").trim(),priority:num(fd.get("priority")),category:fd.get("category").trim()||"General",dueAt:fd.get("dueAt")||"",estimateMin:num(fd.get("estimateMin"))||30,moneyCost:num(fd.get("moneyCost")),must:fd.get("must")==="on",notes:fd.get("notes").trim(),updatedAt:serverTimestamp()};
+      const data={title:fd.get("title").trim(),priority:num(fd.get("priority")),category:fd.get("category").trim()||"General",dueAt:fd.get("dueAt")||"",estimateMin:num(fd.get("estimateMin"))||30,moneyCost:num(fd.get("moneyCost")),must:fd.get("must")==="on",requiresDriving:fd.get("requiresDriving")==="on",notes:fd.get("notes").trim(),updatedAt:serverTimestamp()};
       if(isEdit)await updateDoc(subdoc("tasks",t.id),data);else await addDoc(subcol("tasks"),{...data,...ctxFields(),status:"open",createdAt:serverTimestamp()});
       toast(isEdit?"Task updated.":"Task added.");
     });
@@ -2019,8 +2135,8 @@ function openRoutineModal(r={}){
   const isEdit=!!r.id,days=Array.isArray(r.days)?r.days.map(Number):[0,1,2,3,4,5,6];
   const checks=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map((d,i)=>'<label class="pill"><input style="width:auto" type="checkbox" name="day" value="'+i+'" '+(days.includes(i)?'checked':'')+'> '+d+'</label>').join("");
   showModal(isEdit?"Edit routine":"Add routine",
-    '<form><div class="field"><label>Routine</label><input name="name" required value="'+esc(r.name||"")+'" placeholder="Laundry reset, gym, clean room…"></div><div class="field"><label>Days</label><div style="display:flex;gap:6px;flex-wrap:wrap">'+checks+'</div></div><div class="modal-grid"><div class="field"><label>Minutes</label><input name="estimateMin" type="number" min="1" value="'+num(r.estimateMin||20)+'"></div><div class="field"><label>Priority</label><select name="priority">'+[1,2,3,4,5].map(x=>'<option value="'+x+'" '+(num(r.priority||3)===x?'selected':'')+'>P'+x+'</option>').join("")+'</select></div></div><label class="check"><input name="must" type="checkbox" '+(r.must?'checked':'')+'> HAVE TO when scheduled</label><label class="check"><input name="active" type="checkbox" '+(r.active!==false?'checked':'')+'> Active</label><div class="modal-foot">'+(isEdit?'<button class="btn danger" type="button" id="deleteRoutineBtn">Delete</button>':'')+'<button class="btn ghost" type="button" id="cancelModalBtn">Cancel</button><button class="btn primary" type="submit">Save</button></div></form>',
-    async fd=>{const data={name:fd.get("name").trim(),days:fd.getAll("day").map(Number),estimateMin:num(fd.get("estimateMin")),priority:num(fd.get("priority")),must:fd.get("must")==="on",active:fd.get("active")==="on",updatedAt:serverTimestamp()};if(isEdit)await updateDoc(subdoc("routines",r.id),data);else await addDoc(subcol("routines"),{...data,...ctxFields(),lastCompletedDate:"",createdAt:serverTimestamp()});toast("Routine saved.")});
+    '<form><div class="field"><label>Routine</label><input name="name" required value="'+esc(r.name||"")+'" placeholder="Laundry reset, gym, clean room…"></div><div class="field"><label>Days</label><div style="display:flex;gap:6px;flex-wrap:wrap">'+checks+'</div></div><div class="modal-grid"><div class="field"><label>Minutes</label><input name="estimateMin" type="number" min="1" value="'+num(r.estimateMin||20)+'"></div><div class="field"><label>Preferred time</label><input name="preferredTime" type="time" value="'+esc(r.preferredTime||"")+'"></div><div class="field"><label>Priority</label><select name="priority">'+[1,2,3,4,5].map(x=>'<option value="'+x+'" '+(num(r.priority||3)===x?'selected':'')+'>P'+x+'</option>').join("")+'</select></div></div><label class="check"><input name="must" type="checkbox" '+(r.must?'checked':'')+'> HAVE TO when scheduled</label><label class="check"><input name="active" type="checkbox" '+(r.active!==false?'checked':'')+'> Active</label><div class="modal-foot">'+(isEdit?'<button class="btn danger" type="button" id="deleteRoutineBtn">Delete</button>':'')+'<button class="btn ghost" type="button" id="cancelModalBtn">Cancel</button><button class="btn primary" type="submit">Save</button></div></form>',
+    async fd=>{const data={name:fd.get("name").trim(),days:fd.getAll("day").map(Number),estimateMin:num(fd.get("estimateMin")),preferredTime:fd.get("preferredTime")||"",priority:num(fd.get("priority")),must:fd.get("must")==="on",active:fd.get("active")==="on",updatedAt:serverTimestamp()};if(isEdit)await updateDoc(subdoc("routines",r.id),data);else await addDoc(subcol("routines"),{...data,...ctxFields(),lastCompletedDate:"",createdAt:serverTimestamp()});toast("Routine saved.")});
   $("#cancelModalBtn").onclick=closeModal;if(isEdit)$("#deleteRoutineBtn").onclick=async()=>{if(confirm("Delete routine?")){await deleteDoc(subdoc("routines",r.id));closeModal()}};
 }
 
@@ -2038,7 +2154,7 @@ function inboxToTask(id){
 }
 async function saveSettings(e){
   e.preventDefault();const fd=new FormData(e.currentTarget);
-  await setDoc(userDoc(),{name:fd.get("name").trim()||"Pier",dailyMinutes:num(fd.get("dailyMinutes")),emergencyReserve:num(fd.get("emergencyReserve")),urgentDays:num(fd.get("urgentDays")),marketAutoDailyLimit:num(fd.get("marketAutoDailyLimit"))||90,theme:fd.get("theme")},{merge:true});
+  await setDoc(userDoc(),{name:fd.get("name").trim()||"Pier",dailyMinutes:num(fd.get("dailyMinutes")),emergencyReserve:num(fd.get("emergencyReserve")),urgentDays:num(fd.get("urgentDays")),marketAutoDailyLimit:num(fd.get("marketAutoDailyLimit"))||90,licenseStatus:fd.get("licenseStatus")||"active",theme:fd.get("theme")},{merge:true});
   toast("Planner settings saved.");
 }
 function exportData(){
@@ -2059,6 +2175,7 @@ function checkNotifications(){
 }
 setInterval(checkNotifications,10*60*1000);
 setInterval(autoRefreshWatchlist,60*1000);
+setInterval(()=>{if(S.view==="sessions"&&activeSession())render()},30*1000);
 setTimeout(autoRefreshWatchlist,8000);
 
 document.addEventListener("visibilitychange",async()=>{

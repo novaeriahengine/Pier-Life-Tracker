@@ -305,6 +305,20 @@ tr:last-child td{border-bottom:0}
 .auto-day{border-left:3px solid var(--accent);background:rgba(79,209,165,.06)}
 @media(max-width:1000px){.universe-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.watch-row{grid-template-columns:1fr 1fr}}
 @media(max-width:620px){.universe-grid{grid-template-columns:1fr}.watch-row{grid-template-columns:1fr}}
+
+/* Pier v2.5: Stocks & Options 101 */
+.learn-tabs{display:flex;gap:6px;flex-wrap:wrap;margin:12px 0 18px}
+.learn-card{padding:16px;border:1px solid var(--line);border-radius:15px;background:var(--panel2)}
+.learn-card.done{border-color:rgba(79,209,165,.42);background:rgba(79,209,165,.05)}
+.learn-num{width:34px;height:34px;border-radius:11px;background:var(--panel3);display:grid;place-items:center;font-size:11px;font-weight:950;flex:0 0 auto}
+.learn-body{font-size:12px;line-height:1.62;color:var(--muted)}
+.learn-example{margin-top:9px;padding:10px;border-left:3px solid var(--accent2);background:var(--panel);border-radius:8px;font-size:11px;line-height:1.5}
+.learn-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.practice-lock{padding:16px;border:1px dashed var(--line);border-radius:14px;color:var(--muted)}
+.concept-graph{height:190px;border:1px solid var(--line);border-radius:14px;background:var(--panel2);overflow:hidden}
+.concept-graph svg{width:100%;height:100%}
+.level-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+@media(max-width:850px){.learn-grid{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -344,6 +358,7 @@ tr:last-child td{border-bottom:0}
       <button class="nav-btn" data-view="relationship"><span class="nav-icon">♡</span>Relationship</button>
       <button class="nav-btn" data-view="day"><span class="nav-icon">◫</span>Day Plan</button>
       <button class="nav-btn" data-view="market"><span class="nav-icon">⌁</span>Market Data</button>
+      <button class="nav-btn" data-view="learn"><span class="nav-icon">◈</span>Stocks & Options 101</button>
       <button class="nav-btn" data-view="paper"><span class="nav-icon">↗</span>Paper Markets</button>
       <button class="nav-btn" data-view="data"><span class="nav-icon">▤</span>Training Data</button>
       <button class="nav-btn" data-view="profiles"><span class="nav-icon">◉</span>Profiles</button>
@@ -437,13 +452,13 @@ const DEFAULT_PROFILE={
   theme:"dark",notifications:false,createdAt:null
 };
 
-const DATA_COLLECTIONS=["tasks","accounts","transactions","bills","goals","routines","inbox","jobs","shifts","timeEntries","paychecks","household","appointments","shopping","paperTrades","relationshipPlans","timeBlocks","focusSessions","marketWatch","marketCache"];
+const DATA_COLLECTIONS=["tasks","accounts","transactions","bills","goals","routines","inbox","jobs","shifts","timeEntries","paychecks","household","appointments","shopping","paperTrades","relationshipPlans","timeBlocks","focusSessions","marketWatch","marketCache","learningProgress"];
 const S={
   user:null,profile:{...DEFAULT_PROFILE},profiles:[],
   tasks:[],accounts:[],transactions:[],bills:[],goals:[],routines:[],inbox:[],
   jobs:[],shifts:[],timeEntries:[],paychecks:[],household:[],appointments:[],shopping:[],paperTrades:[],
-  relationshipPlans:[],timeBlocks:[],focusSessions:[],marketWatch:[],marketCache:[],
-  stockUniverse:[],stockUniverseLoaded:false,stockSearch:"",stockSector:"all",marketTab:"watch",
+  relationshipPlans:[],timeBlocks:[],focusSessions:[],marketWatch:[],marketCache:[],learningProgress:[],
+  stockUniverse:[],stockUniverseLoaded:false,stockSearch:"",stockSector:"all",marketTab:"watch",learnTab:"stocks",
   all:{},activeProfileId:localStorage.getItem("pierProfile")||"primary",worldMode:localStorage.getItem("pierWorld")||"live",
   unsubs:[],view:"dashboard",syncError:"",taskSearch:"",taskFilter:"open",plan:null,calendarCursor:new Date(),dayCursor:new Date(),relStore:"all",relBudget:550,relSearch:"",
   market:{symbol:"SPY",quote:null,candles:[],chain:[],rate:null,error:"",loading:false,lastFetch:null,hasToken:null,autoBusy:false}
@@ -592,7 +607,7 @@ function setSyncError(err){
 function applyTheme(){document.documentElement.dataset.theme=S.profile.theme==="light"?"light":"dark"}
 
 function navigate(view){
-  S.view=view;const titles={dashboard:"Dashboard",tasks:"Tasks",money:"Money",coach:"What to Pay",goals:"Goals",routines:"Routines",planner:"Planner / Why",calendar:"Calendar",work:"Work & Pay",life:"Family & Life",relationship:"Relationship",day:"Day Plan",market:"Market Data",paper:"Paper Markets",data:"Training Data",profiles:"Profiles",inbox:"Inbox",settings:"Settings"};
+  S.view=view;const titles={dashboard:"Dashboard",tasks:"Tasks",money:"Money",coach:"What to Pay",goals:"Goals",routines:"Routines",planner:"Planner / Why",calendar:"Calendar",work:"Work & Pay",life:"Family & Life",relationship:"Relationship",day:"Day Plan",market:"Market Data",learn:"Stocks & Options 101",paper:"Paper Markets",data:"Training Data",profiles:"Profiles",inbox:"Inbox",settings:"Settings"};
   $("#pageTitle").textContent=titles[view]||"Pier";
   $$("[data-view]").forEach(b=>b.classList.toggle("active",b.dataset.view===view));
   render();
@@ -625,6 +640,7 @@ function render(){
   else if(S.view==="relationship")html=renderRelationship();
   else if(S.view==="day")html=renderDayPlan();
   else if(S.view==="market")html=renderMarket();
+  else if(S.view==="learn")html=renderLearn();
   else if(S.view==="paper")html=renderPaper();
   else if(S.view==="data")html=renderTrainingData();
   else if(S.view==="profiles")html=renderProfiles();
@@ -1605,6 +1621,94 @@ function renderMarket(){
     tabs+(S.marketTab==="watch"?renderMarketWatchPanel():S.marketTab==="universe"?renderKnownStocksPanel():renderHotMarketPanel())+
     '<div class="training-note" style="margin-top:14px">Known Stocks comes from stock_universe.json and uses zero market credits. Watchlist auto-refresh is capped at '+autoBudgetLimit()+' quote calls/day and one due symbol per minute. Hot lists rank your cached data only—they do not secretly burn API calls.</div>';
 }
+
+const STOCK_LESSONS=[
+["What a stock actually is","A stock share is a fractional ownership claim on a company. Your return comes from price changes, dividends, or both; the price can move far faster than the underlying business value.","If you buy 5 shares at $100, you control $500 of market value. A move to $110 changes that market value to $550 before fees/taxes."],
+["Ticker, exchange, bid and ask","The ticker identifies the security. The bid is the highest displayed buying price and the ask is the lowest displayed selling price; the gap is the spread. Liquid stocks usually have tighter spreads.","A $50.00 bid and $50.03 ask is a $0.03 spread. Crossing the spread with a market order costs part of that immediately."],
+["Market, limit and stop orders","A market order prioritizes execution, not price. A limit order sets the worst price you will accept. Stop orders activate after a trigger and can still fill away from the trigger in fast markets.","For a stock asking $25.10, a buy limit at $25.00 may not fill. A market buy likely fills quickly but could be above $25.10."],
+["Price vs value","Price is what the market currently agrees on; value is your estimate of what the business is worth. Good analysis separates narrative from measurable earnings, cash flow, debt, growth and competitive position.","A company can report record revenue while the stock falls because the market expected even more."],
+["Market capitalization","Market cap equals share price × shares outstanding. It helps compare company size, but it does not tell you whether a stock is cheap or expensive.","A $20 stock with 5 billion shares is a $100B company; a $500 stock with 10 million shares is only $5B."],
+["Volume and liquidity","Volume shows how many shares traded. Liquidity is broader: how easily you can enter or exit without moving price. Thin liquidity creates wider spreads and more slippage.","A stock trading 50M shares/day is usually easier to enter than one trading 30k shares/day."],
+["Trend, support and resistance","A trend describes the direction of successive highs/lows. Support and resistance are zones where order flow previously changed behavior; they are areas, not magic exact lines.","Higher highs + higher lows suggest an uptrend until that structure breaks."],
+["Candles and timeframes","A candle summarizes open, high, low and close for one interval. A 5-minute chart can look bullish while the daily trend is bearish, so timeframe context matters.","Use daily/weekly charts for context and shorter charts for entry timing rather than treating every 1-minute move as a new trend."],
+["Volatility and ATR","Volatility measures how much price moves. ATR estimates typical recent range and helps set realistic stops/targets instead of using the same dollar distance on every stock.","A stock with $8 daily ATR needs different risk sizing than a stock with $0.80 ATR."],
+["Position sizing","Position size converts an idea into controlled risk. Decide how much you can lose first, then use entry-to-stop distance to calculate shares.","If you accept $20 risk and your stop is $1 below entry, 20 shares risks about $20 before slippage."],
+["P/L, drawdown and expectancy","Profit percentage alone is not enough. Track average win, average loss, win rate, maximum drawdown and expectancy. A system can lose more often than it wins and still be profitable.","40% wins averaging +$3 with 60% losses averaging -$1 has positive expectancy: 0.4×3 - 0.6×1 = +0.6 units/trade."],
+["Catalysts and risk events","Earnings, guidance, economic data, FDA decisions, litigation and news can cause gaps that ignore normal technical levels. Know scheduled catalysts before holding risk overnight.","A stop at $98 cannot guarantee a $98 exit if earnings make the stock open at $90."]
+];
+const OPTION_LESSONS=[
+["Option contract basics","An option is a contract tied to an underlying security. One standard equity option contract normally represents 100 shares. Calls give the buyer the right to buy; puts give the buyer the right to sell at the strike before/at expiration.","A $2.50 premium normally costs $250 per contract, not $2.50."],
+["Calls vs puts","A long call generally benefits from upside; a long put generally benefits from downside. The buyer pays premium and has limited loss to that premium, while some option-selling positions can have much larger risk.","Buying a $100 call for $3 risks $300 per contract if it expires worthless."],
+["Strike price","The strike is the contract's exercise price. Relationship between stock price and strike determines whether the option is in, at, or out of the money.","With stock at $105, a $100 call has $5 intrinsic value; a $110 call is out of the money."],
+["Expiration and DTE","Options expire. DTE means days to expiration. Less time means less opportunity for the underlying to move, and time value usually decays faster near expiration.","A 2-DTE option can change value violently even when the stock moves only modestly."],
+["Intrinsic vs extrinsic value","Intrinsic value is immediate exercise value. Extrinsic value is everything else: time, volatility, rates and demand. Out-of-the-money options have only extrinsic value.","Stock $105, $100 call trading $7: about $5 intrinsic + $2 extrinsic."],
+["Break-even at expiration","For a long call, expiration break-even is strike + premium paid. For a long put it is strike - premium paid. Before expiration, option value can differ because extrinsic value remains.","Buy $100 call for $3: expiration break-even is $103."],
+["Delta","Delta approximates option-price sensitivity to a $1 underlying move and is also often used as a rough probability-like measure of finishing ITM, though it is not a literal probability guarantee.","A call with 0.55 delta may gain roughly $0.55 for a $1 stock rise, all else equal."],
+["Gamma","Gamma measures how fast delta changes as the stock moves. Short-dated at-the-money options can have high gamma, making exposure change rapidly.","A 0.50-delta call can become much more stock-like after a fast upward move."],
+["Theta","Theta estimates time decay. Long-option buyers generally lose extrinsic value as time passes if other factors stay unchanged; sellers benefit from that decay but take other risks.","A theta of -0.08 means about $8/day per contract in theoretical decay, not a guaranteed straight line."],
+["Vega and implied volatility","Vega measures sensitivity to implied volatility (IV). IV reflects the market's priced expectation of future movement, not direction. High IV can make options expensive.","A correct directional call can still lose if IV collapses after earnings."],
+["IV crush and earnings","Before major events, option premiums often rise because IV rises. After the event, uncertainty disappears and IV can collapse, reducing premiums immediately.","A call may lose value after a small post-earnings rise if the IV drop is larger than the directional gain."],
+["Bid/ask and option liquidity","Options can have very wide spreads. Use limit orders and inspect volume/open interest. A theoretical profit is meaningless if you cannot exit near the displayed midpoint.","$1.00 bid / $1.40 ask is a 40-cent spread, or $40 per contract."],
+["Long calls and puts as defined risk","Long premium positions have a known maximum loss: premium paid. That makes them useful for learning position sizing, but repeated premium decay can still drain an account.","Five $100-premium contracts risk $500, even if each looks 'cheap'."],
+["Vertical spreads","A vertical combines options of the same type/expiration at different strikes. It can reduce cost and cap both profit and loss. Spreads also reduce some IV/theta exposure compared with naked long premium.","Buy $100 call and sell $105 call: upside is capped above $105, but entry cost is lower than the long call alone."],
+["Assignment, exercise and expiration risk","ITM options may be exercised or assigned. Short options can create stock positions. Brokers may close positions near expiration if the account cannot support exercise.","Do not hold a contract into expiration unless you understand what 100-share exercise/assignment would do to the account."]
+];
+const RISK_LESSONS=[
+["Risk first, trade second","Decide maximum acceptable loss before looking at possible profit. The same setup can be sensible at small size and reckless at large size.","If losing $50 damages your week, do not take a position that can lose $300."],
+["Risk per trade","Use a fixed dollar or small account percentage cap so one bad idea cannot dominate your results.","A $1,000 paper account risking 1% uses about $10 risk per trade."],
+["Daily loss limit","A daily stop prevents emotional escalation after losses. Once hit, stop placing new trades and review instead.","Three -$10 losses might trigger a -$30 daily limit."],
+["Correlation","Ten positions can still be one bet if they move together. Tech stocks, semiconductors and QQQ can all concentrate the same risk.","Owning NVDA, AMD, AVGO and SMH is more concentrated than four unrelated positions."],
+["Gap risk","Overnight and event gaps can jump past stops. Reduce size or avoid holding through binary events when the gap would be unacceptable.","A stop cannot fill at $50 if the next available trade is $44."],
+["Liquidity risk","Small size does not remove liquidity risk. Wide spreads and low volume can create large percentage losses immediately.","A $0.20 spread on a $0.60 option is enormous friction."],
+["Leverage","Options create leverage because small premium controls 100-share exposure. Leverage magnifies mistakes as well as correct calls.","Ten contracts can represent exposure tied to 1,000 shares."],
+["Do not average blindly","Adding to a losing position changes the risk. Only add if it was planned in advance with a total maximum loss.","'It's cheaper now' is not a risk plan."],
+["Review process, not one outcome","A good trade can lose and a bad trade can win. Evaluate whether entry, sizing, reason and exit followed the plan.","One lucky win should not validate a strategy."],
+["Paper-to-live transition","Paper trading tests process, but fills and emotions differ live. Require enough samples and stable rules before increasing real risk.","Move from simulation to tiny live size only after consistent logged execution."]
+];
+function learningDone(key){return S.learningProgress.some(x=>x.lessonKey===key&&x.completed)}
+function learningCounts(){return {stocks:STOCK_LESSONS.filter((x,i)=>learningDone("stocks-"+i)).length,options:OPTION_LESSONS.filter((x,i)=>learningDone("options-"+i)).length,risk:RISK_LESSONS.filter((x,i)=>learningDone("risk-"+i)).length}}
+async function markLesson(track,i){
+  const key=track+"-"+i;await setDoc(subdoc("learningProgress",idSafe(key)),{lessonKey:key,track,index:i,completed:true,completedAt:serverTimestamp(),...ctxFields()},{merge:true});toast("Lesson completed.");
+}
+function stockConceptGraph(){
+  const vals=[100,103,99,106,111,108,117,113,122],w=600,h=180,p=18,min=Math.min(...vals),max=Math.max(...vals),span=max-min;
+  const pts=vals.map((v,i)=>(p+i*(w-2*p)/(vals.length-1))+","+(h-p-(v-min)/span*(h-2*p))).join(" ");
+  return '<svg viewBox="0 0 '+w+' '+h+'" preserveAspectRatio="none"><polyline points="'+pts+'" fill="none" stroke="currentColor" stroke-width="3" vector-effect="non-scaling-stroke"/><line x1="'+p+'" y1="'+(h-p)+'" x2="'+(w-p)+'" y2="'+(h-p)+'" stroke="currentColor" opacity=".15"/><text x="20" y="20" fill="currentColor" opacity=".65" font-size="11">Price is a path, not a straight line</text></svg>';
+}
+function optionPayoffGraph(type="call",strike=100,premium=5){
+  const w=600,h=180,p=18,minX=70,maxX=130,vals=[];
+  for(let s=minX;s<=maxX;s+=2){const intrinsic=type==="call"?Math.max(0,s-strike):Math.max(0,strike-s);vals.push({s,p:(intrinsic-premium)*100})}
+  const ys=vals.map(x=>x.p),minY=Math.min(...ys),maxY=Math.max(...ys),span=maxY-minY||1;
+  const pts=vals.map((x,i)=>(p+i*(w-2*p)/(vals.length-1))+","+(h-p-(x.p-minY)/span*(h-2*p))).join(" ");
+  const zeroY=h-p-(0-minY)/span*(h-2*p);
+  return '<svg viewBox="0 0 '+w+' '+h+'" preserveAspectRatio="none"><line x1="'+p+'" y1="'+zeroY+'" x2="'+(w-p)+'" y2="'+zeroY+'" stroke="currentColor" opacity=".2"/><polyline points="'+pts+'" fill="none" stroke="currentColor" stroke-width="3" vector-effect="non-scaling-stroke"/><text x="20" y="20" fill="currentColor" opacity=".65" font-size="11">'+type.toUpperCase()+' expiration P/L · strike $'+strike+' · premium $'+premium+'</text></svg>';
+}
+function renderLessonList(track,rows){
+  return '<div class="stack">'+rows.map((x,i)=>{const done=learningDone(track+"-"+i);return '<div class="learn-card '+(done?"done":"")+'"><div style="display:flex;gap:11px;align-items:flex-start"><div class="learn-num">'+(i+1)+'</div><div class="row-main"><div class="task-title">'+esc(x[0])+'</div><div class="learn-body" style="margin-top:7px">'+esc(x[1])+'</div><div class="learn-example"><strong>Example:</strong> '+esc(x[2])+'</div></div><button class="btn '+(done?"ghost":"primary")+'" '+(done?'disabled':'data-action="learn-done" data-id="'+track+":"+i+'"')+'>'+(done?"✓ Done":"Mark done")+'</button></div></div>'}).join("")+'</div>';
+}
+function renderLearnPractice(){
+  const c=learningCounts(),quoteReady=c.stocks>=3,optionReady=c.options>=5,caches=S.marketCache.filter(x=>x.quote),first=caches[0],q=first?.quote;
+  const optCache=S.marketCache.find(x=>(x.chain||[]).length),opt=optCache?.chain?.[0];
+  return '<div class="level-row"><span class="pill good">Level 1 basics: unlocked</span><span class="pill '+(quoteReady?"good":"urgent")+'">Level 2 cached stocks: '+(quoteReady?"unlocked":"3 stock lessons")+'</span><span class="pill '+(optionReady?"good":"urgent")+'">Level 3 cached options: '+(optionReady?"unlocked":"5 option lessons")+'</span></div>'+
+    '<div class="grid-2"><section class="card pad"><div class="card-head"><h3>Stock practice</h3><span class="pill blue">NO API CALL</span></div>'+(quoteReady&&q?'<div class="task-title">'+esc(first.symbol)+' cached at '+money(q.last||q.mid)+'</div><div class="small muted">Use the sliders/inputs below to test P/L math from saved data.</div><div class="modal-grid" style="margin-top:10px"><div class="field"><label>Shares</label><input id="practiceShares" type="number" min="1" value="10"></div><div class="field"><label>Price move %</label><input id="practiceMove" type="number" step=".1" value="5"></div></div><div id="practiceStockResult" class="learn-example"></div><button class="btn primary" data-action="paper-practice-stock" data-id="'+esc(first.symbol)+'">Open in paper ticket</button>':quoteReady?'<div class="practice-lock">Level unlocked, but no cached quote exists yet. Open Market Data and refresh one tracked stock once.</div>':'<div class="practice-lock">Complete any 3 stock lessons to unlock cached-stock practice.</div>')+'</section>'+
+    '<section class="card pad"><div class="card-head"><h3>Options practice</h3><span class="pill blue">NO API CALL</span></div>'+(optionReady&&opt?'<div class="task-title">'+esc(optCache.symbol)+' '+esc(opt.side||"")+' $'+esc(opt.strike)+' · '+esc(opt.expiration||"")+'</div><div class="row-meta">Cached bid '+money(opt.bid)+' · ask '+money(opt.ask)+' · delta '+num(opt.delta).toFixed(2)+'</div><div class="concept-graph" style="margin-top:10px">'+optionPayoffGraph((opt.side||"call").toLowerCase(),num(opt.strike),num(opt.ask||opt.last||opt.mid||1))+'</div><div class="learn-example"><strong>Expiration break-even:</strong> '+(String(opt.side).toLowerCase()==="put"?money(num(opt.strike)-num(opt.ask||opt.last||0)):money(num(opt.strike)+num(opt.ask||opt.last||0)))+'. This ignores commissions and any value before expiration.</div><button class="btn primary" data-action="paper-practice-option" data-id="'+esc(opt.optionSymbol||"")+'">Open cached contract in paper ticket</button>':optionReady?'<div class="practice-lock">Level unlocked, but no cached option chain exists. Load one chain once in Market Data; practice will reuse it.</div>':'<div class="practice-lock">Complete any 5 option lessons to unlock cached-option practice.</div>')+'</section></div>';
+}
+function renderLearn(){
+  const counts=learningCounts(),tabs=[["stocks","Stocks 1–12"],["options","Options 1–15"],["risk","Risk 1–10"],["practice","Practice lab"]];
+  let body="";
+  if(S.learnTab==="stocks")body='<div class="grid-2" style="margin-bottom:16px"><div class="card pad"><div class="card-head"><h3>Stock path example</h3><span class="pill blue">CONCEPT</span></div><div class="concept-graph">'+stockConceptGraph()+'</div></div><div class="card pad"><h3>What you should know before paper trading stocks</h3><div class="learn-body">Understand ownership, order types, spreads, charts, volatility, sizing and expectancy. Pier tracks completion so the practice lab can progressively use cached real market observations without making extra provider calls.</div></div></div>'+renderLessonList("stocks",STOCK_LESSONS);
+  else if(S.learnTab==="options")body='<div class="grid-2" style="margin-bottom:16px"><div class="card pad"><div class="card-head"><h3>Long call expiration payoff</h3><span class="pill blue">CONCEPT</span></div><div class="concept-graph">'+optionPayoffGraph("call",100,5)+'</div></div><div class="card pad"><h3>Long put expiration payoff</h3><div class="concept-graph">'+optionPayoffGraph("put",100,5)+'</div></div></div>'+renderLessonList("options",OPTION_LESSONS);
+  else if(S.learnTab==="risk")body=renderLessonList("risk",RISK_LESSONS);
+  else body=renderLearnPractice();
+  return '<div class="section-title"><div><h1>Stocks & Options 101</h1><p>Start-to-finish learning tied directly to Pier paper trading. Practice uses Firebase-cached market data so learning does not burn fresh API credits.</p></div><button class="btn" data-view="market">Market Data →</button></div>'+
+    '<div class="money-hero">'+metric("Stock lessons",counts.stocks+"/12","Level 2 at 3")+metric("Option lessons",counts.options+"/15","Level 3 at 5")+metric("Risk lessons",counts.risk+"/10","Process discipline")+metric("Cached symbols",S.marketCache.filter(x=>x.quote).length,"Available for practice")+'</div>'+
+    '<div class="learn-tabs">'+tabs.map(x=>'<button class="market-tab '+(S.learnTab===x[0]?"active":"")+'" data-action="learn-tab" data-id="'+x[0]+'">'+x[1]+'</button>').join("")+'</div>'+body;
+}
+function updatePracticeMath(){
+  const a=$("#practiceShares"),b=$("#practiceMove"),out=$("#practiceStockResult");if(!a||!b||!out)return;
+  const first=S.marketCache.find(x=>x.quote),px=num(first?.quote?.last||first?.quote?.mid),shares=Math.max(1,num(a.value)),move=num(b.value),newPx=px*(1+move/100),pnl=(newPx-px)*shares;
+  out.innerHTML='<strong>Scenario:</strong> '+shares+' shares at '+money(px)+' → '+money(newPx)+' ('+(move>=0?"+":"")+move.toFixed(1)+'%). P/L = <strong class="'+(pnl>=0?"market-up":"market-down")+'">'+money(pnl)+'</strong>.';
+}
 function renderTrainingData(){
   return '<div class="section-title"><div><h1>Training Data</h1><p>Pier is building clean event data you can reuse later instead of scraping your own UI.</p></div><button class="btn primary" data-action="export-training-data">Download dataset JSON</button></div>'+
     '<div class="grid-2"><section class="card pad"><div class="card-head"><h3>What is being saved</h3><span class="pill good">FIREBASE</span></div><div class="stack">'+
@@ -1720,6 +1824,7 @@ function bindViewInputs(){
   const rb=$("#relBudget");if(rb){rb.value=String(S.relBudget);rb.onchange=e=>{S.relBudget=num(e.target.value);render()}};
   const sus=$("#stockUniverseSearch");if(sus)sus.oninput=e=>{S.stockSearch=e.target.value;render()};
   const ss=$("#stockSector");if(ss){ss.value=S.stockSector;ss.onchange=e=>{S.stockSector=e.target.value;render()}};
+  const ps=$("#practiceShares"),pm=$("#practiceMove");if(ps&&pm){ps.oninput=updatePracticeMath;pm.oninput=updatePracticeMath;updatePracticeMath()}
 }
 
 async function handleAction(action,id,el){
@@ -1746,6 +1851,10 @@ async function handleAction(action,id,el){
   if(action==="complete-plan")return completePlanItem(id);
   if(action==="export-data")return exportData();
   if(action==="request-notifications")return requestNotifications();
+  if(action==="learn-tab"){S.learnTab=id;return render()}
+  if(action==="learn-done"){const [track,i]=String(id).split(":");return markLesson(track,num(i))}
+  if(action==="paper-practice-stock"){const x=cachedMarket(id),q=x?.quote;if(q)return openPaperTradeModal({instrument:"stock",symbol:id,qty:1,price:q.ask||q.last||q.mid||""})}
+  if(action==="paper-practice-option"){let o=null,u="";for(const x of S.marketCache){const y=(x.chain||[]).find(z=>(z.optionSymbol||"")===id);if(y){o=y;u=x.symbol;break}}if(o)return openPaperTradeModal({instrument:"option",symbol:u,optionType:o.side,strike:o.strike,expiration:o.expiration,price:o.ask||o.last||o.mid||"",qty:1})}
   if(action==="market-tab"){S.marketTab=id;return render()}
   if(action==="market-open-cache")return openCachedSymbol(id);
   if(action==="market-watch-add")return addMarketWatch(id,"1h");

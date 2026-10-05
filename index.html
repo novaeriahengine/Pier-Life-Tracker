@@ -199,6 +199,31 @@ tr:last-child td{border-bottom:0}
   .section-title{align-items:flex-start;flex-direction:column}
   .toolbar{width:100%}.toolbar input,.toolbar select{width:100%}
 }
+
+/* Pier v2: household profiles, shadow worlds, work/pay, family life and paper markets */
+.sidebar{overflow-y:auto}
+.context-switcher{display:flex;align-items:center;gap:6px;margin-left:10px}
+.context-switcher select{width:auto;max-width:160px;padding:8px 10px;border-radius:10px;font-size:11px;font-weight:800}
+.context-switcher .world-shadow{border-color:rgba(170,120,255,.55);background:rgba(155,105,255,.14);color:#d9c4ff}
+.shadow-strip{margin-bottom:16px;border:1px solid rgba(166,114,255,.45);background:linear-gradient(90deg,rgba(139,92,246,.14),rgba(101,183,255,.08));border-radius:14px;padding:11px 13px;display:flex;gap:12px;align-items:center;justify-content:space-between}
+.shadow-strip strong{color:#d9c4ff}
+.context-badge{display:inline-flex;gap:6px;align-items:center;border:1px solid var(--line);border-radius:999px;padding:5px 9px;font-size:10px;font-weight:850}
+.profile-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.profile-card{padding:17px;position:relative;overflow:hidden}
+.profile-card.active{border-color:rgba(79,209,165,.55);box-shadow:inset 0 0 0 1px rgba(79,209,165,.14)}
+.profile-orb{width:42px;height:42px;border-radius:14px;display:grid;place-items:center;background:linear-gradient(135deg,var(--accent2),var(--accent));color:#07131e;font-weight:950;font-size:18px}
+.work-clock{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:18px;border:1px solid var(--line);border-radius:17px;background:linear-gradient(135deg,rgba(79,209,165,.08),rgba(101,183,255,.06)),var(--panel2)}
+.clock-time{font-size:31px;font-weight:900;letter-spacing:-.04em}
+.life-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}
+.market-up{color:var(--ok)}.market-down{color:#ff8f8f}
+.paper-hero{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px}
+.schedule-row{border-left:3px solid var(--accent2)}
+.person-chip{display:flex;gap:10px;align-items:center}
+.person-dot{width:34px;height:34px;border-radius:12px;background:var(--panel3);display:grid;place-items:center;font-weight:900}
+.inline-stat{display:flex;gap:5px;align-items:baseline}.inline-stat b{font-size:20px}
+@media(max-width:1100px){.profile-grid{grid-template-columns:repeat(2,1fr)}.life-grid{grid-template-columns:1fr}.paper-hero{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:820px){.context-switcher{margin-left:0;flex:1}.context-switcher select{max-width:120px;min-width:0}.topbar h2{display:none}}
+@media(max-width:600px){.profile-grid{grid-template-columns:1fr}.paper-hero{grid-template-columns:1fr 1fr}.shadow-strip{align-items:flex-start;flex-direction:column}}
 </style>
 </head>
 <body>
@@ -230,6 +255,10 @@ tr:last-child td{border-bottom:0}
       <button class="nav-btn" data-view="money"><span class="nav-icon">$</span>Money</button>
       <button class="nav-btn" data-view="goals"><span class="nav-icon">◎</span>Goals</button>
       <button class="nav-btn" data-view="routines"><span class="nav-icon">↻</span>Routines</button>
+      <button class="nav-btn" data-view="work"><span class="nav-icon">◷</span>Work & Pay</button>
+      <button class="nav-btn" data-view="life"><span class="nav-icon">⌂</span>Family & Life</button>
+      <button class="nav-btn" data-view="paper"><span class="nav-icon">↗</span>Paper Markets</button>
+      <button class="nav-btn" data-view="profiles"><span class="nav-icon">◉</span>Profiles</button>
       <button class="nav-btn" data-view="inbox"><span class="nav-icon">↓</span>Inbox</button>
       <button class="nav-btn" data-view="settings"><span class="nav-icon">⚙</span>Settings</button>
     </nav>
@@ -244,6 +273,7 @@ tr:last-child td{border-bottom:0}
   <main class="main">
     <header class="topbar">
       <h2 id="pageTitle">Dashboard</h2>
+      <div id="contextSwitcher" class="context-switcher"></div>
       <div class="spacer"></div>
       <button class="btn ghost" id="runPlannerBtn">⚡ <span class="desktop-label">Re-plan</span></button>
       <button class="btn primary" id="quickAddBtn">＋ <span class="desktop-label">Add task</span></button>
@@ -319,17 +349,60 @@ const DEFAULT_PROFILE={
   theme:"dark",notifications:false,createdAt:null
 };
 
+const DATA_COLLECTIONS=["tasks","accounts","transactions","bills","goals","routines","inbox","jobs","shifts","timeEntries","paychecks","household","appointments","shopping","paperTrades"];
 const S={
-  user:null,profile:{...DEFAULT_PROFILE},tasks:[],accounts:[],transactions:[],bills:[],goals:[],routines:[],inbox:[],
+  user:null,profile:{...DEFAULT_PROFILE},profiles:[],
+  tasks:[],accounts:[],transactions:[],bills:[],goals:[],routines:[],inbox:[],
+  jobs:[],shifts:[],timeEntries:[],paychecks:[],household:[],appointments:[],shopping:[],paperTrades:[],
+  all:{},activeProfileId:localStorage.getItem("pierProfile")||"primary",worldMode:localStorage.getItem("pierWorld")||"live",
   unsubs:[],view:"dashboard",syncError:"",taskSearch:"",taskFilter:"open",plan:null
 };
+if(!["live","shadow"].includes(S.worldMode))S.worldMode="live";
+
+function currentProfile(){
+  return S.profiles.find(p=>p.id===S.activeProfileId)||S.profiles.find(p=>p.id==="primary")||{id:"primary",name:S.profile.name||"Pier",relation:"Me",paperCashLive:10000,paperCashShadow:10000};
+}
+function ctxFields(){return {profileId:S.activeProfileId,world:S.worldMode}}
+function belongsToContext(d){
+  return (d.profileId||"primary")===S.activeProfileId && (d.world||"live")===S.worldMode;
+}
+function applyContextData(){
+  DATA_COLLECTIONS.forEach(name=>{
+    S[name]=(S.all[name]||[]).filter(belongsToContext);
+    sortData(name);
+  });
+  S.plan=generatePlan();
+}
+function contextCounts(pid,world){
+  const out={};DATA_COLLECTIONS.forEach(n=>out[n]=(S.all[n]||[]).filter(d=>(d.profileId||"primary")===pid&&(d.world||"live")===world).length);return out;
+}
+function updateContextUI(){
+  const box=$("#contextSwitcher");if(!box)return;
+  const list=S.profiles.length?S.profiles:[{id:"primary",name:"Pier"}];
+  box.innerHTML='<select id="profileSwitcher" aria-label="Profile">'+list.map(p=>'<option value="'+esc(p.id)+'">'+esc(p.name||"Profile")+'</option>').join("")+'</select>'+
+    '<select id="worldSwitcher" aria-label="World" class="'+(S.worldMode==="shadow"?"world-shadow":"")+'"><option value="live">LIVE</option><option value="shadow">SHADOW</option></select>';
+  $("#profileSwitcher").value=S.activeProfileId;
+  $("#worldSwitcher").value=S.worldMode;
+  $("#profileSwitcher").onchange=e=>switchContext(e.target.value,S.worldMode);
+  $("#worldSwitcher").onchange=e=>switchContext(S.activeProfileId,e.target.value);
+}
+async function switchContext(profileId,world){
+  S.activeProfileId=profileId;S.worldMode=world;
+  localStorage.setItem("pierProfile",profileId);localStorage.setItem("pierWorld",world);
+  if(world==="shadow"){
+    const hasShadow=DATA_COLLECTIONS.some(n=>(S.all[n]||[]).some(d=>(d.profileId||"primary")===profileId&&(d.world||"live")==="shadow"));
+    const hasLive=DATA_COLLECTIONS.some(n=>(S.all[n]||[]).some(d=>(d.profileId||"primary")===profileId&&(d.world||"live")==="live"));
+    if(!hasShadow&&hasLive){await cloneLiveToShadow(profileId,false)}
+  }
+  applyContextData();refresh();
+}
 
 function toast(message,type="ok"){
   const el=document.createElement("div");el.className="toast "+type;el.textContent=message;$("#toastWrap").appendChild(el);
   setTimeout(()=>el.remove(),3200);
 }
 function setAuthStatus(msg,bad=false){const el=$("#authStatus");el.textContent=msg;el.style.color=bad?"var(--danger)":"var(--muted)"}
-function firstLetter(){return (S.profile.name||S.user?.email||"P").trim().charAt(0).toUpperCase()||"P"}
+function firstLetter(){return (currentProfile().name||S.profile.name||S.user?.email||"P").trim().charAt(0).toUpperCase()||"P"}
 
 function showModal(title,html,onSubmit){
   $("#modalTitle").textContent=title;$("#modalBody").innerHTML=html;$("#modalBackdrop").classList.remove("hidden");
@@ -346,6 +419,9 @@ function friendlyError(err){
   const c=err?.code||"";if(c.includes("invalid-credential"))return "Wrong email or password.";
   if(c.includes("email-already-in-use"))return "That email already has an account.";
   if(c.includes("weak-password"))return "Password needs at least 6 characters.";
+  if(c.includes("configuration-not-found"))return "Firebase Authentication is not enabled yet. In Firebase open Authentication → Get started → Sign-in method → Email/Password → Enable, then try again.";
+  if(c.includes("operation-not-allowed"))return "Email/Password sign-in is disabled. Firebase → Authentication → Sign-in method → Email/Password → Enable.";
+  if(c.includes("unauthorized-domain"))return "Add novaeriahengine.github.io under Firebase Authentication → Settings → Authorized domains.";
   if(c.includes("permission-denied"))return "Firestore denied access. Enable Email/Password Auth and publish the included firestore.rules.";
   return err?.message||"Something failed.";
 }
@@ -368,16 +444,26 @@ async function bootstrapUser(){
   try{
     const p=await getDoc(userDoc());
     if(!p.exists())await setDoc(userDoc(),{...DEFAULT_PROFILE,email:S.user.email||"",createdAt:serverTimestamp()});
+    const primary=await getDoc(subdoc("profiles","primary"));
+    if(!primary.exists())await setDoc(subdoc("profiles","primary"),{name:(S.user.email||"Pier").split("@")[0],relation:"Me",paperCashLive:10000,paperCashShadow:10000,createdAt:serverTimestamp()});
     const cash=await getDoc(subdoc("accounts","cash"));
-    if(!cash.exists())await setDoc(subdoc("accounts","cash"),{name:"Cash",type:"cash",openingBalance:0,createdAt:serverTimestamp()});
+    if(!cash.exists())await setDoc(subdoc("accounts","cash"),{name:"Cash",type:"cash",openingBalance:0,profileId:"primary",world:"live",createdAt:serverTimestamp()});
   }catch(e){setSyncError(e)}
 }
 function stopListeners(){S.unsubs.forEach(u=>{try{u()}catch{}});S.unsubs=[]}
 function startListeners(){
   stopListeners();S.syncError="";
   S.unsubs.push(onSnapshot(userDoc(),snap=>{if(snap.exists()){S.profile={...DEFAULT_PROFILE,...snap.data()};applyTheme();refresh()}setSynced()},setSyncError));
-  ["tasks","accounts","transactions","bills","goals","routines","inbox"].forEach(name=>{
-    S.unsubs.push(onSnapshot(subcol(name),snap=>{S[name]=snap.docs.map(d=>({id:d.id,...d.data()}));sortData(name);refresh();setSynced()},setSyncError));
+  S.unsubs.push(onSnapshot(subcol("profiles"),snap=>{
+    S.profiles=snap.docs.map(d=>({id:d.id,...d.data()}));
+    if(S.profiles.length&&!S.profiles.some(p=>p.id===S.activeProfileId)){S.activeProfileId=S.profiles[0].id;localStorage.setItem("pierProfile",S.activeProfileId)}
+    updateContextUI();refresh();setSynced();
+  },setSyncError));
+  DATA_COLLECTIONS.forEach(name=>{
+    S.unsubs.push(onSnapshot(subcol(name),snap=>{
+      S.all[name]=snap.docs.map(d=>({id:d.id,...d.data()}));
+      applyContextData();refresh();setSynced();
+    },setSyncError));
   });
 }
 function sortData(name){
@@ -385,9 +471,15 @@ function sortData(name){
   if(name==="tasks")S.tasks.sort((a,b)=>scoreAction(toTaskAction(b))-scoreAction(toTaskAction(a)));
   if(name==="bills")S.bills.sort((a,b)=>String(a.dueDate||"9999").localeCompare(String(b.dueDate||"9999")));
   if(name==="inbox")S.inbox.sort((a,b)=>(b.createdMs||0)-(a.createdMs||0));
+  if(name==="shifts")S.shifts.sort((a,b)=>(String(a.date||"")+String(a.start||"")).localeCompare(String(b.date||"")+String(b.start||"")));
+  if(name==="timeEntries")S.timeEntries.sort((a,b)=>String(b.startAt||"").localeCompare(String(a.startAt||"")));
+  if(name==="paychecks")S.paychecks.sort((a,b)=>String(b.payDate||"").localeCompare(String(a.payDate||"")));
+  if(name==="appointments")S.appointments.sort((a,b)=>String(a.dateTime||"").localeCompare(String(b.dateTime||"")));
+  if(name==="shopping")S.shopping.sort((a,b)=>Number(!!a.done)-Number(!!b.done)||Number(!!b.must)-Number(!!a.must));
+  if(name==="paperTrades")S.paperTrades.sort((a,b)=>String(a.date||"").localeCompare(String(b.date||"")));
 }
 function setSynced(){
-  if(S.syncError)return;$("#syncDot").className="dot ok";$("#syncLabel").textContent="Synced";$("#syncDetail").textContent="Firebase · "+(S.user?.email||"");
+  if(S.syncError)return;$("#syncDot").className="dot ok";$("#syncLabel").textContent="Synced";$("#syncDetail").textContent=esc(currentProfile().name||"Profile")+" · "+S.worldMode.toUpperCase();
   $("#setupBanner").classList.add("hidden");
 }
 function setSyncError(err){
@@ -397,7 +489,7 @@ function setSyncError(err){
 function applyTheme(){document.documentElement.dataset.theme=S.profile.theme==="light"?"light":"dark"}
 
 function navigate(view){
-  S.view=view;const titles={dashboard:"Dashboard",tasks:"Tasks",money:"Money",goals:"Goals",routines:"Routines",inbox:"Inbox",settings:"Settings"};
+  S.view=view;const titles={dashboard:"Dashboard",tasks:"Tasks",money:"Money",goals:"Goals",routines:"Routines",work:"Work & Pay",life:"Family & Life",paper:"Paper Markets",profiles:"Profiles",inbox:"Inbox",settings:"Settings"};
   $("#pageTitle").textContent=titles[view]||"Pier";
   $$("[data-view]").forEach(b=>b.classList.toggle("active",b.dataset.view===view));
   render();
@@ -416,14 +508,21 @@ function refresh(){
 }
 function render(){
   const root=$("#viewRoot");if(!root)return;
-  if(S.view==="dashboard")root.innerHTML=renderDashboard();
-  else if(S.view==="tasks")root.innerHTML=renderTasks();
-  else if(S.view==="money")root.innerHTML=renderMoney();
-  else if(S.view==="goals")root.innerHTML=renderGoals();
-  else if(S.view==="routines")root.innerHTML=renderRoutines();
-  else if(S.view==="inbox")root.innerHTML=renderInbox();
-  else root.innerHTML=renderSettings();
-  bindViewInputs();
+  let html="";
+  if(S.view==="dashboard")html=renderDashboard();
+  else if(S.view==="tasks")html=renderTasks();
+  else if(S.view==="money")html=renderMoney();
+  else if(S.view==="goals")html=renderGoals();
+  else if(S.view==="routines")html=renderRoutines();
+  else if(S.view==="work")html=renderWork();
+  else if(S.view==="life")html=renderLife();
+  else if(S.view==="paper")html=renderPaper();
+  else if(S.view==="profiles")html=renderProfiles();
+  else if(S.view==="inbox")html=renderInbox();
+  else html=renderSettings();
+  const shadow=S.worldMode==="shadow"?'<div class="shadow-strip"><div><strong>SHADOW WORLD</strong><div class="small muted">Safe sandbox for '+esc(currentProfile().name||"this profile")+'. Changes here do not change LIVE money, goals, work or tasks.</div></div><button class="btn" data-action="reset-shadow" data-id="'+esc(S.activeProfileId)+'">Reset from LIVE</button></div>':"";
+  root.innerHTML=shadow+html;
+  updateContextUI();bindViewInputs();
 }
 
 function balances(){
@@ -502,7 +601,7 @@ function generatePlan(){
 function plan(){return S.plan||generatePlan()}
 
 function renderDashboard(){
-  const p=plan(),next=p.selected[0],flow=monthFlow(),name=esc((S.profile.name||"").split(" ")[0]||"");
+  const p=plan(),next=p.selected[0],flow=monthFlow(),name=esc((currentProfile().name||S.profile.name||"Pier").split(" ")[0]||"");
   return '<div class="hero">'+
     '<section class="card hero-card"><div class="eyebrow">PIER / TODAY</div><div class="hero-title">'+greeting()+', '+name+'.</div>'+
       '<div class="hero-sub">'+(next?'Your highest-value move is below. Pier ranked it from urgency, must-do status, deadline, time and money constraints.':'You are clear right now. Add what you need to do and Pier will build the order.')+'</div>'+
@@ -603,6 +702,216 @@ function renderInbox(){
     '<section class="card pad" style="margin-top:18px"><div class="card-head"><h3>Unsorted</h3><span class="pill blue">'+open.length+' items</span></div><div class="stack">'+(open.length?open.map(i=>'<div class="inbox-row"><div class="row-main"><div class="task-title">'+esc(i.text)+'</div><div class="row-meta">'+fmtDate(i.date||today())+'</div></div><div class="row-actions"><button class="btn blue" data-action="inbox-to-task" data-id="'+i.id+'">Make task</button><button class="btn icon ghost" data-action="delete-inbox" data-id="'+i.id+'">×</button></div></div>').join(""):'<div class="empty">Inbox zero.</div>')+'</div></section>';
 }
 
+
+function renderProfiles(){
+  const profiles=S.profiles.length?S.profiles:[currentProfile()];
+  return '<div class="section-title"><div><h1>Profiles</h1><p>One login can hold separate lives. Every profile has LIVE data and an isolated SHADOW sandbox.</p></div><button class="btn primary" data-action="add-profile">＋ Add profile</button></div>'+
+    '<div class="profile-grid">'+profiles.map(p=>{
+      const live=contextCounts(p.id,"live"),shadow=contextCounts(p.id,"shadow"),active=p.id===S.activeProfileId;
+      return '<article class="card profile-card '+(active?"active":"")+'"><div style="display:flex;gap:12px;align-items:center"><div class="profile-orb">'+esc((p.name||"P").charAt(0).toUpperCase())+'</div><div><div class="goal-title">'+esc(p.name||"Profile")+'</div><div class="row-meta">'+esc(p.relation||"Household")+(active?' · ACTIVE':'')+'</div></div></div>'+
+        '<div class="grid-2" style="gap:8px;margin-top:15px"><div class="metric"><div class="label">Live items</div><div class="value" style="font-size:20px">'+(live.tasks+live.goals+live.bills)+'</div></div><div class="metric"><div class="label">Shadow items</div><div class="value" style="font-size:20px">'+(shadow.tasks+shadow.goals+shadow.bills)+'</div></div></div>'+
+        '<div class="toolbar" style="margin-top:14px"><button class="btn primary" data-action="use-live" data-id="'+esc(p.id)+'">Use LIVE</button><button class="btn" data-action="use-shadow" data-id="'+esc(p.id)+'">Use SHADOW</button><button class="btn ghost" data-action="reset-shadow" data-id="'+esc(p.id)+'">Refresh shadow</button>'+(p.id!=="primary"?'<button class="btn danger" data-action="delete-profile" data-id="'+esc(p.id)+'">Delete</button>':"")+'</div></article>';
+    }).join("")+'</div>'+
+    '<section class="card pad" style="margin-top:18px"><div class="card-head"><h3>How shadow works</h3><span class="pill blue">SANDBOX</span></div><div class="small muted" style="line-height:1.65">SHADOW is a copy you can mess with. Change balances, pretend a paycheck is bigger or smaller, move goal targets, create bills, experiment with a different schedule or paper trades. LIVE stays untouched. “Refresh shadow” deletes that profile’s current shadow data and copies LIVE again.</div></section>';
+}
+
+function openProfileModal(){
+  showModal("Add household profile",
+    '<form><div class="field"><label>Name</label><input name="name" required placeholder="Me, partner, child, household…"></div><div class="field"><label>Relationship / role</label><input name="relation" placeholder="Me, Partner, Child, Family"></div><div class="modal-grid"><div class="field"><label>Starting paper cash</label><input name="paperCash" type="number" min="0" step=".01" value="10000"></div><div class="field"><label>Opening cash balance</label><input name="cash" type="number" step=".01" value="0"></div></div><div class="modal-foot"><button class="btn ghost" type="button" id="cancelModalBtn">Cancel</button><button class="btn primary" type="submit">Create profile</button></div></form>',
+    async fd=>{
+      const ref=await addDoc(subcol("profiles"),{name:fd.get("name").trim(),relation:fd.get("relation").trim()||"Household",paperCashLive:num(fd.get("paperCash")),paperCashShadow:num(fd.get("paperCash")),createdAt:serverTimestamp()});
+      await addDoc(subcol("accounts"),{name:"Cash",type:"cash",openingBalance:num(fd.get("cash")),profileId:ref.id,world:"live",createdAt:serverTimestamp()});
+      await addDoc(subcol("accounts"),{name:"Cash",type:"cash",openingBalance:num(fd.get("cash")),profileId:ref.id,world:"shadow",createdAt:serverTimestamp()});
+      S.activeProfileId=ref.id;S.worldMode="live";localStorage.setItem("pierProfile",ref.id);localStorage.setItem("pierWorld","live");toast("Profile created.");
+    });
+  $("#cancelModalBtn").onclick=closeModal;
+}
+function cloneDataObject(d,pid,world){
+  const x={...d};delete x.id;delete x.createdAt;delete x.updatedAt;delete x.completedAt;delete x.convertedAt;
+  x.profileId=pid;x.world=world;x.updatedAt=serverTimestamp();x.createdAt=serverTimestamp();return x;
+}
+async function cloneLiveToShadow(pid,ask=true){
+  if(ask&&!confirm("Reset this profile's SHADOW world from LIVE? Current shadow changes will be erased."))return;
+  toast("Rebuilding shadow…");
+  const shadowDocs=[];DATA_COLLECTIONS.forEach(n=>(S.all[n]||[]).forEach(d=>{if((d.profileId||"primary")===pid&&(d.world||"live")==="shadow")shadowDocs.push([n,d.id])}));
+  for(const [n,id] of shadowDocs)await deleteDoc(subdoc(n,id));
+  const accountMap={},jobMap={};
+  const liveAccounts=(S.all.accounts||[]).filter(d=>(d.profileId||"primary")===pid&&(d.world||"live")==="live");
+  for(const d of liveAccounts){const r=await addDoc(subcol("accounts"),cloneDataObject(d,pid,"shadow"));accountMap[d.id]=r.id}
+  const liveJobs=(S.all.jobs||[]).filter(d=>(d.profileId||"primary")===pid&&(d.world||"live")==="live");
+  for(const d of liveJobs){const r=await addDoc(subcol("jobs"),cloneDataObject(d,pid,"shadow"));jobMap[d.id]=r.id}
+  for(const n of DATA_COLLECTIONS){
+    if(n==="accounts"||n==="jobs")continue;
+    const docs=(S.all[n]||[]).filter(d=>(d.profileId||"primary")===pid&&(d.world||"live")==="live");
+    for(const d of docs){
+      const x=cloneDataObject(d,pid,"shadow");
+      if(x.accountId&&accountMap[x.accountId])x.accountId=accountMap[x.accountId];
+      if(x.jobId&&jobMap[x.jobId])x.jobId=jobMap[x.jobId];
+      await addDoc(subcol(n),x);
+    }
+  }
+  const p=S.profiles.find(x=>x.id===pid);
+  if(p)await setDoc(subdoc("profiles",pid),{paperCashShadow:num(p.paperCashLive||10000)},{merge:true});
+  toast("Shadow refreshed from LIVE.");
+}
+async function deleteProfile(id){
+  if(!id||id==="primary")return toast("The primary profile cannot be deleted.","error");
+  const p=S.profiles.find(x=>x.id===id);if(!confirm("Delete "+(p?.name||"this profile")+" and all LIVE + SHADOW data?"))return;
+  for(const n of DATA_COLLECTIONS){
+    const docs=(S.all[n]||[]).filter(d=>(d.profileId||"primary")===id);
+    for(const d of docs)await deleteDoc(subdoc(n,d.id));
+  }
+  await deleteDoc(subdoc("profiles",id));await switchContext("primary","live");toast("Profile deleted.");
+}
+
+/* WORK & PAY */
+function jobName(id){return S.jobs.find(j=>j.id===id)?.name||"Job"}
+function entryHours(e){
+  if(e.hours!==undefined&&e.hours!==null&&e.status!=="open")return num(e.hours);
+  const a=e.startMs||Date.parse(e.startAt||""),b=e.endAt?Date.parse(e.endAt):Date.now();if(!a||!b||b<a)return 0;
+  return Math.max(0,(b-a)/3600000-num(e.breakMin)/60);
+}
+function shiftHours(s){
+  if(!s.start||!s.end)return 0;
+  const [sh,sm]=s.start.split(":").map(Number),[eh,em]=s.end.split(":").map(Number);let mins=(eh*60+em)-(sh*60+sm);if(mins<0)mins+=1440;
+  return Math.max(0,(mins-num(s.breakMin))/60);
+}
+function weekKey(dateLike){
+  const d=new Date(dateLike);if(isNaN(d))return "";
+  const x=new Date(d.getFullYear(),d.getMonth(),d.getDate());x.setDate(x.getDate()-x.getDay());return x.toISOString().slice(0,10);
+}
+function frequencyDays(f){return f==="weekly"?7:f==="biweekly"?14:f==="semimonthly"?15:30}
+function nextPayDate(job){
+  if(!job?.nextPayDate)return "";
+  let d=new Date(job.nextPayDate+"T12:00:00"),guard=0;const days=frequencyDays(job.payFrequency);
+  while(d<new Date(new Date().toDateString())&&guard++<30){if(job.payFrequency==="monthly")d.setMonth(d.getMonth()+1);else d.setDate(d.getDate()+days)}
+  return d.toISOString().slice(0,10);
+}
+function payWindow(job){
+  const end=nextPayDate(job);if(!end)return {start:"",end:""};
+  const d=new Date(end+"T12:00:00");if(job.payFrequency==="monthly")d.setMonth(d.getMonth()-1);else d.setDate(d.getDate()-frequencyDays(job.payFrequency));
+  return {start:d.toISOString().slice(0,10),end};
+}
+function estimatePay(job){
+  if(!job)return {hours:0,regular:0,ot:0,gross:0,net:0,scheduled:0};
+  const w=payWindow(job),entries=S.timeEntries.filter(e=>e.jobId===job.id&&e.startAt&&(!w.start||String(e.startAt).slice(0,10)>=w.start)&&(!w.end||String(e.startAt).slice(0,10)<w.end));
+  const groups={};entries.forEach(e=>{const k=weekKey(e.startAt);groups[k]=(groups[k]||0)+entryHours(e)});
+  let regular=0,ot=0;const threshold=num(job.overtimeThreshold||40);
+  Object.values(groups).forEach(h=>{regular+=Math.min(h,threshold);ot+=Math.max(0,h-threshold)});
+  const rate=num(job.hourlyRate),mult=num(job.overtimeMultiplier||1.5),gross=regular*rate+ot*rate*mult,net=gross*(1-num(job.taxPercent||0)/100);
+  const scheduled=S.shifts.filter(s=>s.jobId===job.id&&(!w.start||s.date>=w.start)&&(!w.end||s.date<w.end)).reduce((a,s)=>a+shiftHours(s),0);
+  return {hours:regular+ot,regular,ot,gross,net,scheduled,window:w};
+}
+function activeClock(){return S.timeEntries.find(e=>e.status==="open"&&!e.endAt)}
+function thisWeekHours(){const k=weekKey(new Date());return S.timeEntries.filter(e=>weekKey(e.startAt)===k).reduce((a,e)=>a+entryHours(e),0)}
+
+function renderWork(){
+  const active=activeClock(),primaryJob=S.jobs[0],estimates=S.jobs.map(j=>({job:j,...estimatePay(j)})),gross=estimates.reduce((a,x)=>a+x.gross,0),net=estimates.reduce((a,x)=>a+x.net,0);
+  return '<div class="section-title"><div><h1>Work & Pay</h1><p>Schedule shifts, clock actual time, estimate checks and record what you really got paid.</p></div><div class="toolbar"><button class="btn" data-action="add-job">＋ Job</button><button class="btn" data-action="add-shift">＋ Shift</button><button class="btn primary" data-action="add-paycheck">＋ Paycheck</button></div></div>'+
+    '<div class="work-clock">'+(active?'<div><div class="eyebrow">CLOCKED IN · '+esc(jobName(active.jobId))+'</div><div class="clock-time">'+entryHours(active).toFixed(2)+' h</div><div class="small muted">Since '+new Date(active.startAt).toLocaleTimeString([],{hour:"numeric",minute:"2-digit"})+'</div></div><button class="btn danger" data-action="clock-out">Clock out</button>':'<div><div class="eyebrow">TIME CLOCK</div><div class="clock-time">Not clocked in</div><div class="small muted">Use actual clock time for paycheck estimates.</div></div><button class="btn primary" data-action="clock-in" '+(!S.jobs.length?'disabled':'')+'>Clock in</button>')+'</div>'+
+    '<div class="money-hero" style="margin-top:18px">'+metric("This week",thisWeekHours().toFixed(2)+" h","Actual tracked time")+metric("Est. gross",money(gross),"Current pay windows")+metric("Est. net",money(net),"After your tax estimate")+metric("Jobs",S.jobs.length,S.shifts.filter(s=>s.date>=today()).length+" upcoming shifts")+'</div>'+
+    '<div class="grid-2"><section class="card pad"><div class="card-head"><h3>Jobs & next check</h3><button class="btn ghost" data-action="add-job">Add</button></div><div class="stack">'+(S.jobs.length?estimates.map(x=>'<div class="task-row"><div class="row-main"><div class="task-title">'+esc(x.job.name)+'</div><div class="row-meta">'+money(x.job.hourlyRate)+'/hr · '+esc(x.job.payFrequency||"biweekly")+' · next '+(nextPayDate(x.job)?fmtDate(nextPayDate(x.job)):"not set")+'</div><div style="margin-top:7px"><span class="pill blue">'+x.hours.toFixed(2)+'h worked</span> <span class="pill">'+x.ot.toFixed(2)+'h OT</span> <span class="pill good">'+money(x.net)+' est. net</span></div></div><button class="btn icon ghost" data-action="edit-job" data-id="'+x.job.id+'">✎</button></div>').join(""):'<div class="empty">Add your job and hourly pay rate first.</div>')+'</div></section>'+
+    '<section class="card pad"><div class="card-head"><h3>Upcoming schedule</h3><button class="btn ghost" data-action="add-shift">Add shift</button></div><div class="stack">'+renderShifts()+'</div></section></div>'+
+    '<div class="grid-2" style="margin-top:18px"><section class="card pad"><div class="card-head"><h3>Timecard</h3><button class="btn ghost" data-action="add-time">Manual entry</button></div>'+renderTimecard()+'</section><section class="card pad"><div class="card-head"><h3>Paycheck history</h3><button class="btn ghost" data-action="add-paycheck">Record check</button></div>'+renderPaychecks()+'</section></div>';
+}
+function renderShifts(){
+  const list=S.shifts.filter(s=>s.date>=today()).slice(0,12);if(!list.length)return '<div class="empty">No upcoming shifts.</div>';
+  return list.map(s=>'<div class="task-row schedule-row"><div class="row-main"><div class="task-title">'+fmtDate(s.date)+' · '+esc(s.start)+'–'+esc(s.end)+'</div><div class="row-meta">'+esc(jobName(s.jobId))+' · '+shiftHours(s).toFixed(2)+' paid h'+(s.notes?' · '+esc(s.notes):'')+'</div></div><button class="btn icon ghost" data-action="delete-shift" data-id="'+s.id+'">×</button></div>').join("");
+}
+function renderTimecard(){
+  if(!S.timeEntries.length)return '<div class="empty">No tracked hours yet.</div>';
+  return '<div class="table-wrap"><table><thead><tr><th>Date</th><th>Job</th><th>In</th><th>Out</th><th>Hours</th><th></th></tr></thead><tbody>'+S.timeEntries.slice(0,20).map(e=>'<tr><td>'+fmtDate(String(e.startAt||today()).slice(0,10))+'</td><td>'+esc(jobName(e.jobId))+'</td><td>'+esc(e.startAt?new Date(e.startAt).toLocaleTimeString([],{hour:"numeric",minute:"2-digit"}):"")+'</td><td>'+esc(e.endAt?new Date(e.endAt).toLocaleTimeString([],{hour:"numeric",minute:"2-digit"}):"RUNNING")+'</td><td>'+entryHours(e).toFixed(2)+'</td><td><button class="btn icon ghost" data-action="delete-time" data-id="'+e.id+'">×</button></td></tr>').join("")+'</tbody></table></div>';
+}
+function renderPaychecks(){
+  if(!S.paychecks.length)return '<div class="empty">No paycheck records yet.</div>';
+  return '<div class="stack">'+S.paychecks.slice(0,12).map(p=>'<div class="task-row"><div class="row-main"><div class="task-title">'+money(p.netAmount)+' net</div><div class="row-meta">'+fmtDate(p.payDate)+' · '+esc(jobName(p.jobId))+' · '+money(p.grossAmount)+' gross · '+num(p.hours).toFixed(2)+'h</div></div><button class="btn icon ghost" data-action="delete-paycheck" data-id="'+p.id+'">×</button></div>').join("")+'</div>';
+}
+function openJobModal(j={}){
+  const edit=!!j.id;
+  showModal(edit?"Edit job":"Add job",
+    '<form><div class="field"><label>Job / employer</label><input name="name" required value="'+esc(j.name||"")+'" placeholder="Concierge, store, side work…"></div><div class="modal-grid"><div class="field"><label>Hourly rate</label><input name="hourlyRate" type="number" min="0" step=".01" required value="'+num(j.hourlyRate||0)+'"></div><div class="field"><label>Pay frequency</label><select name="payFrequency"><option value="weekly">Weekly</option><option value="biweekly">Every 2 weeks</option><option value="semimonthly">Twice monthly</option><option value="monthly">Monthly</option></select></div><div class="field"><label>Next pay date</label><input name="nextPayDate" type="date" value="'+esc(j.nextPayDate||"")+'"></div><div class="field"><label>Estimated tax %</label><input name="taxPercent" type="number" min="0" max="70" step=".1" value="'+num(j.taxPercent||12)+'"></div><div class="field"><label>OT after hours / week</label><input name="overtimeThreshold" type="number" min="1" value="'+num(j.overtimeThreshold||40)+'"></div><div class="field"><label>OT multiplier</label><input name="overtimeMultiplier" type="number" min="1" step=".1" value="'+num(j.overtimeMultiplier||1.5)+'"></div></div><div class="modal-foot">'+(edit?'<button class="btn danger" type="button" id="deleteJobBtn">Delete</button>':'')+'<button class="btn ghost" type="button" id="cancelModalBtn">Cancel</button><button class="btn primary" type="submit">Save</button></div></form>',
+    async fd=>{const data={name:fd.get("name").trim(),hourlyRate:num(fd.get("hourlyRate")),payFrequency:fd.get("payFrequency"),nextPayDate:fd.get("nextPayDate"),taxPercent:num(fd.get("taxPercent")),overtimeThreshold:num(fd.get("overtimeThreshold"))||40,overtimeMultiplier:num(fd.get("overtimeMultiplier"))||1.5,updatedAt:serverTimestamp()};if(edit)await updateDoc(subdoc("jobs",j.id),data);else await addDoc(subcol("jobs"),{...data,...ctxFields(),createdAt:serverTimestamp()});toast("Job saved.")});
+  $("#cancelModalBtn").onclick=closeModal;$("#modalBody select[name=payFrequency]").value=j.payFrequency||"biweekly";
+  if(edit)$("#deleteJobBtn").onclick=async()=>{if(confirm("Delete this job? Time records are not automatically deleted.")){await deleteDoc(subdoc("jobs",j.id));closeModal()}};
+}
+function openShiftModal(){
+  if(!S.jobs.length)return toast("Add a job first.","error");
+  showModal("Schedule shift",
+    '<form><div class="field"><label>Job</label><select name="jobId">'+S.jobs.map(j=>'<option value="'+j.id+'">'+esc(j.name)+'</option>').join("")+'</select></div><div class="modal-grid"><div class="field"><label>Date</label><input name="date" type="date" value="'+today()+'" required></div><div class="field"><label>Unpaid break (min)</label><input name="breakMin" type="number" min="0" value="0"></div><div class="field"><label>Start</label><input name="start" type="time" required></div><div class="field"><label>End</label><input name="end" type="time" required></div></div><div class="field"><label>Notes</label><input name="notes" placeholder="Front desk, overtime, cover shift…"></div><div class="modal-foot"><button class="btn ghost" type="button" id="cancelModalBtn">Cancel</button><button class="btn primary" type="submit">Add shift</button></div></form>',
+    async fd=>{await addDoc(subcol("shifts"),{jobId:fd.get("jobId"),date:fd.get("date"),start:fd.get("start"),end:fd.get("end"),breakMin:num(fd.get("breakMin")),notes:fd.get("notes").trim(),...ctxFields(),createdAt:serverTimestamp()});toast("Shift scheduled.")});
+  $("#cancelModalBtn").onclick=closeModal;
+}
+async function clockIn(){
+  if(activeClock())return toast("You are already clocked in.","error");
+  if(!S.jobs.length)return toast("Add a job first.","error");
+  if(S.jobs.length===1){await startClock(S.jobs[0].id);return}
+  showModal("Clock in",'<form><div class="field"><label>Job</label><select name="jobId">'+S.jobs.map(j=>'<option value="'+j.id+'">'+esc(j.name)+'</option>').join("")+'</select></div><div class="modal-foot"><button class="btn ghost" type="button" id="cancelModalBtn">Cancel</button><button class="btn primary" type="submit">Clock in now</button></div></form>',async fd=>startClock(fd.get("jobId")));$("#cancelModalBtn").onclick=closeModal;
+}
+async function startClock(jobId){await addDoc(subcol("timeEntries"),{jobId,startAt:new Date().toISOString(),startMs:Date.now(),endAt:"",breakMin:0,status:"open",...ctxFields(),createdAt:serverTimestamp()});toast("Clocked in.")}
+function clockOut(){
+  const e=activeClock();if(!e)return toast("No active clock.","error");
+  showModal("Clock out",'<form><div class="field"><label>Unpaid break minutes</label><input name="breakMin" type="number" min="0" value="'+num(e.breakMin)+'"></div><div class="small muted">Pier will calculate the worked hours from your actual clock-in time.</div><div class="modal-foot"><button class="btn ghost" type="button" id="cancelModalBtn">Cancel</button><button class="btn danger" type="submit">Clock out</button></div></form>',async fd=>{const end=new Date(),hours=Math.max(0,(end-(e.startMs||Date.parse(e.startAt)))/3600000-num(fd.get("breakMin"))/60);await updateDoc(subdoc("timeEntries",e.id),{endAt:end.toISOString(),hours,breakMin:num(fd.get("breakMin")),status:"closed",updatedAt:serverTimestamp()});toast("Clocked out: "+hours.toFixed(2)+" hours.")});$("#cancelModalBtn").onclick=closeModal;
+}
+function openTimeModal(){
+  if(!S.jobs.length)return toast("Add a job first.","error");
+  showModal("Manual time entry",'<form><div class="field"><label>Job</label><select name="jobId">'+S.jobs.map(j=>'<option value="'+j.id+'">'+esc(j.name)+'</option>').join("")+'</select></div><div class="modal-grid"><div class="field"><label>Start</label><input name="startAt" type="datetime-local" required value="'+localDateTimeValue()+'"></div><div class="field"><label>End</label><input name="endAt" type="datetime-local" required value="'+localDateTimeValue()+'"></div><div class="field"><label>Unpaid break minutes</label><input name="breakMin" type="number" min="0" value="0"></div></div><div class="modal-foot"><button class="btn ghost" type="button" id="cancelModalBtn">Cancel</button><button class="btn primary" type="submit">Save time</button></div></form>',async fd=>{const start=new Date(fd.get("startAt")),end=new Date(fd.get("endAt")),br=num(fd.get("breakMin"));if(end<=start)throw new Error("End time must be after start time.");const hours=Math.max(0,(end-start)/3600000-br/60);await addDoc(subcol("timeEntries"),{jobId:fd.get("jobId"),startAt:start.toISOString(),startMs:start.getTime(),endAt:end.toISOString(),hours,breakMin:br,status:"closed",...ctxFields(),createdAt:serverTimestamp()});toast("Time entry saved.")});$("#cancelModalBtn").onclick=closeModal;
+}
+function openPaycheckModal(){
+  if(!S.jobs.length)return toast("Add a job first.","error");
+  const est=estimatePay(S.jobs[0]);
+  showModal("Record paycheck",'<form><div class="field"><label>Job</label><select name="jobId">'+S.jobs.map(j=>'<option value="'+j.id+'">'+esc(j.name)+'</option>').join("")+'</select></div><div class="modal-grid"><div class="field"><label>Pay date</label><input name="payDate" type="date" value="'+today()+'"></div><div class="field"><label>Hours on check</label><input name="hours" type="number" min="0" step=".01" value="'+est.hours.toFixed(2)+'"></div><div class="field"><label>Gross amount</label><input name="grossAmount" type="number" min="0" step=".01" value="'+est.gross.toFixed(2)+'"></div><div class="field"><label>Net deposited</label><input name="netAmount" type="number" min="0" step=".01" value="'+est.net.toFixed(2)+'"></div></div>'+(S.accounts.length?'<label class="check"><input type="checkbox" name="deposit"> Also add net pay to Money</label><div class="field"><label>Deposit account</label><select name="accountId">'+S.accounts.map(a=>'<option value="'+a.id+'">'+esc(a.name)+'</option>').join("")+'</select></div>':'')+'<div class="modal-foot"><button class="btn ghost" type="button" id="cancelModalBtn">Cancel</button><button class="btn primary" type="submit">Record paycheck</button></div></form>',async fd=>{const data={jobId:fd.get("jobId"),payDate:fd.get("payDate"),hours:num(fd.get("hours")),grossAmount:num(fd.get("grossAmount")),netAmount:num(fd.get("netAmount")),...ctxFields(),createdAt:serverTimestamp()};await addDoc(subcol("paychecks"),data);if(fd.get("deposit")==="on"&&fd.get("accountId"))await addDoc(subcol("transactions"),{type:"income",amount:data.netAmount,accountId:fd.get("accountId"),date:data.payDate,description:"Paycheck · "+jobName(data.jobId),category:"Income",...ctxFields(),createdAt:serverTimestamp()});toast("Paycheck recorded.")});$("#cancelModalBtn").onclick=closeModal;
+}
+
+/* FAMILY & DAILY LIFE */
+function renderLife(){
+  const upcoming=S.appointments.filter(a=>!a.done&&a.dateTime&&new Date(a.dateTime)>=new Date(Date.now()-86400000)).slice(0,10),shopOpen=S.shopping.filter(x=>!x.done);
+  return '<div class="section-title"><div><h1>Family & Life</h1><p>People, appointments and the little household stuff that becomes a problem when it is forgotten.</p></div><div class="toolbar"><button class="btn" data-action="add-person">＋ Person</button><button class="btn" data-action="add-appointment">＋ Appointment</button><button class="btn primary" data-action="add-shopping">＋ Shopping item</button></div></div>'+
+    '<div class="life-grid"><section class="card pad"><div class="card-head"><h3>Household</h3><span class="pill blue">'+S.household.length+' people</span></div><div class="stack">'+(S.household.length?S.household.map(p=>'<div class="task-row"><div class="person-dot">'+esc((p.name||"?").charAt(0).toUpperCase())+'</div><div class="row-main"><div class="task-title">'+esc(p.name)+'</div><div class="row-meta">'+esc(p.relation||"Family")+(p.birthday?' · birthday '+fmtDate(p.birthday):'')+(p.notes?' · '+esc(p.notes):'')+'</div></div><button class="btn icon ghost" data-action="delete-person" data-id="'+p.id+'">×</button></div>').join(""):'<div class="empty">Add your partner, child or anyone you plan around.</div>')+'</div></section>'+
+    '<section class="card pad"><div class="card-head"><h3>Appointments</h3><span class="pill urgent">'+upcoming.length+' upcoming</span></div><div class="stack">'+(upcoming.length?upcoming.map(a=>'<div class="task-row"><div class="row-main"><div class="task-title">'+esc(a.title)+'</div><div class="row-meta">'+fmtDate(a.dateTime)+' · '+esc(a.person||"Household")+(a.location?' · '+esc(a.location):'')+'</div></div><button class="btn icon ghost" data-action="delete-appointment" data-id="'+a.id+'">×</button></div>').join(""):'<div class="empty">No upcoming appointments.</div>')+'</div></section>'+
+    '<section class="card pad"><div class="card-head"><h3>Shopping / supplies</h3><span class="pill '+(shopOpen.some(x=>x.must)?'must':'blue')+'">'+shopOpen.length+' open</span></div><div class="stack">'+(shopOpen.length?shopOpen.map(x=>'<div class="task-row"><div class="row-main"><div class="task-title">'+esc(x.item)+(x.must?' <span class="pill must">NEED</span>':'')+'</div><div class="row-meta">'+esc(x.qty||"1")+' · '+esc(x.category||"Household")+(x.estimateCost?' · '+money(x.estimateCost):'')+'</div></div><button class="btn icon ghost" data-action="toggle-shopping" data-id="'+x.id+'">✓</button><button class="btn icon ghost" data-action="delete-shopping" data-id="'+x.id+'">×</button></div>').join(""):'<div class="empty">Shopping list is clear.</div>')+'</div></section></div>';
+}
+function openPersonModal(){
+  showModal("Add household person",'<form><div class="field"><label>Name</label><input name="name" required></div><div class="modal-grid"><div class="field"><label>Relationship</label><input name="relation" placeholder="Partner, Child, Parent…"></div><div class="field"><label>Birthday</label><input name="birthday" type="date"></div></div><div class="field"><label>Notes</label><input name="notes" placeholder="School, important needs, anything useful…"></div><div class="modal-foot"><button class="btn ghost" type="button" id="cancelModalBtn">Cancel</button><button class="btn primary" type="submit">Save</button></div></form>',async fd=>{await addDoc(subcol("household"),{name:fd.get("name").trim(),relation:fd.get("relation").trim(),birthday:fd.get("birthday"),notes:fd.get("notes").trim(),...ctxFields(),createdAt:serverTimestamp()});toast("Person added.")});$("#cancelModalBtn").onclick=closeModal;
+}
+function openAppointmentModal(){
+  showModal("Add appointment",'<form><div class="field"><label>What</label><input name="title" required placeholder="Doctor, school meeting, DMV…"></div><div class="modal-grid"><div class="field"><label>Date & time</label><input name="dateTime" type="datetime-local" required value="'+localDateTimeValue(new Date(Date.now()+86400000))+'"></div><div class="field"><label>For who</label><input name="person" placeholder="'+esc(currentProfile().name||"Me")+'"></div></div><div class="field"><label>Location</label><input name="location"></div><div class="field"><label>Notes</label><textarea name="notes"></textarea></div><div class="modal-foot"><button class="btn ghost" type="button" id="cancelModalBtn">Cancel</button><button class="btn primary" type="submit">Save</button></div></form>',async fd=>{await addDoc(subcol("appointments"),{title:fd.get("title").trim(),dateTime:fd.get("dateTime"),person:fd.get("person").trim()||currentProfile().name,location:fd.get("location").trim(),notes:fd.get("notes").trim(),done:false,...ctxFields(),createdAt:serverTimestamp()});toast("Appointment added.")});$("#cancelModalBtn").onclick=closeModal;
+}
+function openShoppingModal(){
+  showModal("Add shopping item",'<form><div class="field"><label>Item</label><input name="item" required placeholder="Diapers, groceries, soap…"></div><div class="modal-grid"><div class="field"><label>Quantity</label><input name="qty" value="1"></div><div class="field"><label>Category</label><input name="category" value="Household"></div><div class="field"><label>Estimated cost</label><input name="estimateCost" type="number" min="0" step=".01"></div></div><label class="check"><input name="must" type="checkbox"> Need / urgent household item</label><div class="modal-foot"><button class="btn ghost" type="button" id="cancelModalBtn">Cancel</button><button class="btn primary" type="submit">Add</button></div></form>',async fd=>{await addDoc(subcol("shopping"),{item:fd.get("item").trim(),qty:fd.get("qty").trim(),category:fd.get("category").trim(),estimateCost:num(fd.get("estimateCost")),must:fd.get("must")==="on",done:false,...ctxFields(),createdAt:serverTimestamp()});toast("Shopping item added.")});$("#cancelModalBtn").onclick=closeModal;
+}
+async function toggleShopping(id){const x=S.shopping.find(i=>i.id===id);if(x)await updateDoc(subdoc("shopping",id),{done:!x.done,updatedAt:serverTimestamp()})}
+
+/* PAPER MARKETS */
+function paperStartingCash(){const p=currentProfile();return num(S.worldMode==="shadow"?(p.paperCashShadow??10000):(p.paperCashLive??10000))}
+function paperState(){
+  const positions={},last={};let cash=paperStartingCash();
+  [...S.paperTrades].sort((a,b)=>String(a.date||"").localeCompare(String(b.date||""))).forEach(t=>{
+    const s=String(t.symbol||"").toUpperCase(),q=num(t.qty),p=num(t.price);if(!s)return;
+    if(!positions[s])positions[s]={symbol:s,qty:0,cost:0,lastPrice:p};
+    last[s]=p;positions[s].lastPrice=p;
+    if(t.side==="buy"){cash-=q*p;const oldQty=positions[s].qty;positions[s].qty+=q;positions[s].cost+=q*p}
+    if(t.side==="sell"){cash+=q*p;const oldQty=Math.max(positions[s].qty,0.0000001),avg=positions[s].cost/oldQty;positions[s].qty-=q;positions[s].cost=Math.max(0,positions[s].cost-avg*q)}
+  });
+  const list=Object.values(positions).filter(x=>Math.abs(x.qty)>.000001).map(x=>({...x,value:x.qty*x.lastPrice,avg:x.qty?x.cost/x.qty:0}));
+  const market=list.reduce((a,x)=>a+x.value,0),equity=cash+market,start=paperStartingCash();
+  return {cash,market,equity,pnl:equity-start,positions:list};
+}
+function renderPaper(){
+  const p=paperState();
+  return '<div class="section-title"><div><h1>Paper Markets</h1><p>Manual stock sandbox. No real orders, no broker connection, no money at risk.</p></div><div class="toolbar"><button class="btn" data-action="set-paper-cash">Set paper cash</button><button class="btn primary" data-action="paper-trade">＋ Paper trade / price</button></div></div>'+
+    '<div class="paper-hero">'+metric("Paper equity",money(p.equity),"Cash + marked holdings")+metric("Paper cash",money(p.cash),"Starting "+money(paperStartingCash()))+metric("Holdings",money(p.market),p.positions.length+" symbols")+metric("Paper P/L",money(p.pnl),p.pnl>=0?"Above starting equity":"Below starting equity")+'</div>'+
+    '<div class="grid-2"><section class="card pad"><div class="card-head"><h3>Positions</h3><span class="pill blue">MANUAL PRICES</span></div>'+(p.positions.length?'<div class="table-wrap"><table><thead><tr><th>Symbol</th><th>Qty</th><th>Avg cost</th><th>Last price</th><th class="right">Value</th></tr></thead><tbody>'+p.positions.map(x=>'<tr><td><strong>'+esc(x.symbol)+'</strong></td><td>'+x.qty.toFixed(4)+'</td><td>'+money(x.avg)+'</td><td>'+money(x.lastPrice)+'</td><td class="right">'+money(x.value)+'</td></tr>').join("")+'</tbody></table></div>':'<div class="empty">No paper positions yet.</div>')+'</section>'+
+    '<section class="card pad"><div class="card-head"><h3>Paper activity</h3><span class="small muted">Latest 20</span></div><div class="stack">'+(S.paperTrades.length?[...S.paperTrades].reverse().slice(0,20).map(t=>'<div class="task-row"><div class="row-main"><div class="task-title">'+esc(String(t.side||"mark").toUpperCase())+' '+esc(String(t.symbol||"").toUpperCase())+'</div><div class="row-meta">'+fmtDate(t.date||today())+' · '+(t.side==="mark"?"mark "+money(t.price):num(t.qty)+' × '+money(t.price)+' = '+money(num(t.qty)*num(t.price)))+'</div></div><button class="btn icon ghost" data-action="delete-paper-trade" data-id="'+t.id+'">×</button></div>').join(""):'<div class="empty">Nothing recorded.</div>')+'</div></section></div>'+
+    '<section class="card pad" style="margin-top:18px"><div class="small muted" style="line-height:1.6"><strong>Important:</strong> this page is only a manual simulator. Prices do not update from the market. Use “MARK” to enter a newer price without buying or selling. It is intentionally separated from your real Money page.</div></section>';
+}
+function openPaperTradeModal(){
+  const st=paperState();
+  showModal("Paper trade / mark price",'<form><div class="modal-grid"><div class="field"><label>Action</label><select name="side"><option value="buy">BUY</option><option value="sell">SELL</option><option value="mark">MARK PRICE ONLY</option></select></div><div class="field"><label>Symbol</label><input name="symbol" required placeholder="AAPL"></div><div class="field"><label>Quantity</label><input name="qty" type="number" min="0" step=".0001" value="1"></div><div class="field"><label>Price</label><input name="price" type="number" min="0" step=".0001" required></div><div class="field"><label>Date</label><input name="date" type="date" value="'+today()+'"></div></div><div class="small muted">Available paper cash: '+money(st.cash)+'</div><div class="modal-foot"><button class="btn ghost" type="button" id="cancelModalBtn">Cancel</button><button class="btn primary" type="submit">Record</button></div></form>',async fd=>{const side=fd.get("side"),symbol=fd.get("symbol").trim().toUpperCase(),qty=side==="mark"?0:num(fd.get("qty")),price=num(fd.get("price"));if(side!=="mark"&&qty<=0)throw new Error("Quantity must be above zero.");if(side==="buy"&&qty*price>paperState().cash)throw new Error("Not enough paper cash.");if(side==="sell"){const pos=paperState().positions.find(x=>x.symbol===symbol);if(!pos||pos.qty<qty)throw new Error("Not enough paper shares to sell.");}await addDoc(subcol("paperTrades"),{side,symbol,qty,price,date:fd.get("date")||today(),...ctxFields(),createdAt:serverTimestamp()});toast("Paper action recorded.")});$("#cancelModalBtn").onclick=closeModal;
+}
+function setPaperCashModal(){
+  const field=S.worldMode==="shadow"?"paperCashShadow":"paperCashLive";
+  showModal("Set paper starting cash",'<form><div class="field"><label>Starting paper cash</label><input name="amount" type="number" min="0" step=".01" value="'+paperStartingCash()+'"></div><div class="small muted">This resets the baseline used for paper P/L. Existing trades remain unless you delete them.</div><div class="modal-foot"><button class="btn ghost" type="button" id="cancelModalBtn">Cancel</button><button class="btn primary" type="submit">Save</button></div></form>',async fd=>{await setDoc(subdoc("profiles",S.activeProfileId),{[field]:num(fd.get("amount"))},{merge:true});toast("Paper cash updated.")});$("#cancelModalBtn").onclick=closeModal;
+}
 function renderSettings(){
   return '<div class="section-title"><div><h1>Settings</h1><p>These values change how Pier decides what comes first.</p></div></div>'+
     '<div class="settings-grid"><section class="card pad"><div class="card-head"><h3>Planner rules</h3></div><form id="settingsForm">'+
@@ -652,6 +961,31 @@ async function handleAction(action,id,el){
   if(action==="complete-plan")return completePlanItem(id);
   if(action==="export-data")return exportData();
   if(action==="request-notifications")return requestNotifications();
+  if(action==="add-profile")return openProfileModal();
+  if(action==="use-live")return switchContext(id,"live");
+  if(action==="use-shadow")return switchContext(id,"shadow");
+  if(action==="reset-shadow")return cloneLiveToShadow(id||S.activeProfileId,true);
+  if(action==="delete-profile")return deleteProfile(id);
+  if(action==="add-job")return openJobModal();
+  if(action==="edit-job")return openJobModal(S.jobs.find(x=>x.id===id));
+  if(action==="add-shift")return openShiftModal();
+  if(action==="delete-shift")return removeDoc("shifts",id,"Delete this scheduled shift?");
+  if(action==="clock-in")return clockIn();
+  if(action==="clock-out")return clockOut();
+  if(action==="add-time")return openTimeModal();
+  if(action==="delete-time")return removeDoc("timeEntries",id,"Delete this time entry?");
+  if(action==="add-paycheck")return openPaycheckModal();
+  if(action==="delete-paycheck")return removeDoc("paychecks",id,"Delete this paycheck record?");
+  if(action==="add-person")return openPersonModal();
+  if(action==="delete-person")return removeDoc("household",id,"Remove this household member?");
+  if(action==="add-appointment")return openAppointmentModal();
+  if(action==="delete-appointment")return removeDoc("appointments",id,"Delete this appointment?");
+  if(action==="add-shopping")return openShoppingModal();
+  if(action==="toggle-shopping")return toggleShopping(id);
+  if(action==="delete-shopping")return removeDoc("shopping",id,"Delete this item?");
+  if(action==="paper-trade")return openPaperTradeModal();
+  if(action==="set-paper-cash")return setPaperCashModal();
+  if(action==="delete-paper-trade")return removeDoc("paperTrades",id,"Delete this paper trade?");
   if(action==="sign-out")return signOut(auth);
 }
 async function removeDoc(col,id,msg){if(confirm(msg))await deleteDoc(subdoc(col,id))}
@@ -678,7 +1012,7 @@ function openTaskModal(t={}){
     '<div class="modal-foot">'+(isEdit?'<button class="btn danger" type="button" id="deleteTaskBtn">Delete</button>':'')+'<button class="btn ghost" type="button" id="cancelModalBtn">Cancel</button><button class="btn primary" type="submit">Save</button></div></form>',
     async fd=>{
       const data={title:fd.get("title").trim(),priority:num(fd.get("priority")),category:fd.get("category").trim()||"General",dueAt:fd.get("dueAt")||"",estimateMin:num(fd.get("estimateMin"))||30,moneyCost:num(fd.get("moneyCost")),must:fd.get("must")==="on",notes:fd.get("notes").trim(),updatedAt:serverTimestamp()};
-      if(isEdit)await updateDoc(subdoc("tasks",t.id),data);else await addDoc(subcol("tasks"),{...data,status:"open",createdAt:serverTimestamp()});
+      if(isEdit)await updateDoc(subdoc("tasks",t.id),data);else await addDoc(subcol("tasks"),{...data,...ctxFields(),status:"open",createdAt:serverTimestamp()});
       toast(isEdit?"Task updated.":"Task added.");
     });
   $("#cancelModalBtn").onclick=closeModal;
@@ -691,11 +1025,11 @@ function openAccountModal(a={}){
     '<form><div class="field"><label>Name</label><input name="name" required value="'+esc(a.name||"")+'" placeholder="Checking, Cash, Savings"></div><div class="modal-grid"><div class="field"><label>Type</label><select name="type"><option>checking</option><option>savings</option><option>cash</option><option>other</option></select></div><div class="field"><label>'+ (isEdit?"Set current balance":"Starting balance") +'</label><input name="balance" type="number" step=".01" value="'+(isEdit?num(balances()[a.id]):num(a.openingBalance))+'"></div></div><div class="modal-foot"><button class="btn ghost" type="button" id="cancelModalBtn">Cancel</button><button class="btn primary" type="submit">Save</button></div></form>',
     async fd=>{
       const name=fd.get("name").trim(),type=fd.get("type"),desired=num(fd.get("balance"));
-      if(!isEdit)await addDoc(subcol("accounts"),{name,type,openingBalance:desired,createdAt:serverTimestamp(),updatedAt:serverTimestamp()});
+      if(!isEdit)await addDoc(subcol("accounts"),{name,type,openingBalance:desired,...ctxFields(),createdAt:serverTimestamp(),updatedAt:serverTimestamp()});
       else{
         const current=num(balances()[a.id]),delta=desired-current;
         await updateDoc(subdoc("accounts",a.id),{name,type,updatedAt:serverTimestamp()});
-        if(Math.abs(delta)>.004)await addDoc(subcol("transactions"),{type:delta>=0?"income":"expense",amount:Math.abs(delta),accountId:a.id,category:"Balance adjustment",description:"Balance adjustment",date:today(),createdAt:serverTimestamp()});
+        if(Math.abs(delta)>.004)await addDoc(subcol("transactions"),{type:delta>=0?"income":"expense",amount:Math.abs(delta),accountId:a.id,category:"Balance adjustment",description:"Balance adjustment",date:today(),...ctxFields(),createdAt:serverTimestamp()});
       }toast("Account saved.");
     });
   $("#cancelModalBtn").onclick=closeModal;if(isEdit)$("#modalBody select[name=type]").value=a.type||"checking";
@@ -705,7 +1039,7 @@ function openTransactionModal(prefill={}){
   if(!S.accounts.length)return toast("Add an account first.","error");
   showModal("Add transaction",
     '<form><div class="modal-grid"><div class="field"><label>Type</label><select name="type"><option value="expense">Expense</option><option value="income">Income</option></select></div><div class="field"><label>Amount</label><input name="amount" type="number" min=".01" step=".01" required value="'+esc(prefill.amount||"")+'"></div><div class="field"><label>Account</label><select name="accountId">'+S.accounts.map(a=>'<option value="'+a.id+'">'+esc(a.name)+'</option>').join("")+'</select></div><div class="field"><label>Date</label><input name="date" type="date" value="'+esc(prefill.date||today())+'"></div></div><div class="field"><label>Description</label><input name="description" value="'+esc(prefill.description||"")+'" placeholder="Groceries, paycheck, gas…"></div><div class="field"><label>Category</label><input name="category" value="'+esc(prefill.category||"Other")+'"></div><div class="modal-foot"><button class="btn ghost" type="button" id="cancelModalBtn">Cancel</button><button class="btn primary" type="submit">Save</button></div></form>',
-    async fd=>{await addDoc(subcol("transactions"),{type:fd.get("type"),amount:num(fd.get("amount")),accountId:fd.get("accountId"),date:fd.get("date")||today(),description:fd.get("description").trim(),category:fd.get("category").trim()||"Other",createdAt:serverTimestamp()});toast("Transaction added.")});
+    async fd=>{await addDoc(subcol("transactions"),{type:fd.get("type"),amount:num(fd.get("amount")),accountId:fd.get("accountId"),date:fd.get("date")||today(),description:fd.get("description").trim(),category:fd.get("category").trim()||"Other",...ctxFields(),createdAt:serverTimestamp()});toast("Transaction added.")});
   $("#cancelModalBtn").onclick=closeModal;
   if(prefill.type)$("#modalBody select[name=type]").value=prefill.type;if(prefill.accountId)$("#modalBody select[name=accountId]").value=prefill.accountId;
 }
@@ -714,7 +1048,7 @@ function openBillModal(b={}){
   const isEdit=!!b.id;
   showModal(isEdit?"Edit bill":"Add bill / obligation",
     '<form><div class="field"><label>Name</label><input name="name" required value="'+esc(b.name||"")+'" placeholder="Rent, phone, school, insurance…"></div><div class="modal-grid"><div class="field"><label>Amount</label><input name="amount" type="number" min="0" step=".01" required value="'+num(b.amount||0)+'"></div><div class="field"><label>Due date</label><input name="dueDate" type="date" required value="'+esc(b.dueDate||today())+'"></div><div class="field"><label>Recurrence</label><select name="recurrence"><option value="none">One time</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option></select></div><div class="field"><label>Priority</label><select name="priority">'+[3,4,5].map(x=>'<option value="'+x+'" '+(num(b.priority||5)===x?'selected':'')+'>P'+x+'</option>').join("")+'</select></div></div><div class="modal-foot">'+(isEdit?'<button class="btn danger" type="button" id="deleteBillBtn">Delete</button>':'')+'<button class="btn ghost" type="button" id="cancelModalBtn">Cancel</button><button class="btn primary" type="submit">Save</button></div></form>',
-    async fd=>{const data={name:fd.get("name").trim(),amount:num(fd.get("amount")),dueDate:fd.get("dueDate"),recurrence:fd.get("recurrence"),priority:num(fd.get("priority")),status:"open",updatedAt:serverTimestamp()};if(isEdit)await updateDoc(subdoc("bills",b.id),data);else await addDoc(subcol("bills"),{...data,createdAt:serverTimestamp()});toast("Bill saved.")});
+    async fd=>{const data={name:fd.get("name").trim(),amount:num(fd.get("amount")),dueDate:fd.get("dueDate"),recurrence:fd.get("recurrence"),priority:num(fd.get("priority")),status:"open",updatedAt:serverTimestamp()};if(isEdit)await updateDoc(subdoc("bills",b.id),data);else await addDoc(subcol("bills"),{...data,...ctxFields(),createdAt:serverTimestamp()});toast("Bill saved.")});
   $("#cancelModalBtn").onclick=closeModal;$("#modalBody select[name=recurrence]").value=b.recurrence||"none";
   if(isEdit)$("#deleteBillBtn").onclick=async()=>{if(confirm("Delete this bill?")){await deleteDoc(subdoc("bills",b.id));closeModal()}};
 }
@@ -729,7 +1063,7 @@ async function payBill(id){
   showModal("Pay "+b.name,'<form><div class="field"><label>Amount</label><input name="amount" type="number" min="0" step=".01" value="'+num(b.amount)+'"></div><div class="field"><label>Pay from</label><select name="accountId">'+opts+'</select></div><div class="field"><label>Payment date</label><input name="date" type="date" value="'+today()+'"></div><div class="modal-foot"><button class="btn ghost" type="button" id="cancelModalBtn">Cancel</button><button class="btn primary" type="submit">Record payment</button></div></form>',
     async fd=>{
       const batch=writeBatch(db),txRef=doc(subcol("transactions"));
-      batch.set(txRef,{type:"expense",amount:num(fd.get("amount")),accountId:fd.get("accountId"),date:fd.get("date"),description:b.name,category:"Bills",createdAt:serverTimestamp()});
+      batch.set(txRef,{type:"expense",amount:num(fd.get("amount")),accountId:fd.get("accountId"),date:fd.get("date"),description:b.name,category:"Bills",...ctxFields(),createdAt:serverTimestamp()});
       if(b.recurrence&&b.recurrence!=="none")batch.update(subdoc("bills",id),{dueDate:addPeriod(b.dueDate,b.recurrence),lastPaidDate:fd.get("date"),status:"open",updatedAt:serverTimestamp()});
       else batch.update(subdoc("bills",id),{status:"paid",lastPaidDate:fd.get("date"),updatedAt:serverTimestamp()});
       await batch.commit();toast("Payment recorded.");
@@ -741,7 +1075,7 @@ function openGoalModal(g={}){
   const isEdit=!!g.id;
   showModal(isEdit?"Edit goal":"Add goal",
     '<form><div class="field"><label>Goal</label><input name="name" required value="'+esc(g.name||"")+'" placeholder="Emergency fund, finish project, lose clutter…"></div><div class="modal-grid"><div class="field"><label>Type</label><select name="kind"><option value="money">Money</option><option value="progress">Progress number</option></select></div><div class="field"><label>Priority</label><select name="priority">'+[1,2,3,4,5].map(x=>'<option value="'+x+'" '+(num(g.priority||3)===x?'selected':'')+'>P'+x+'</option>').join("")+'</select></div><div class="field"><label>Current</label><input name="current" type="number" step=".01" value="'+num(g.current)+'"></div><div class="field"><label>Target</label><input name="target" type="number" step=".01" value="'+num(g.target||100)+'"></div><div class="field"><label>Deadline</label><input name="deadline" type="date" value="'+esc(g.deadline||"")+'"></div><div class="field"><label>Next action time (min)</label><input name="nextActionMinutes" type="number" min="1" value="'+num(g.nextActionMinutes||30)+'"></div></div><div class="field"><label>Next physical action</label><input name="nextAction" value="'+esc(g.nextAction||"")+'" placeholder="Transfer $50, code login screen, call office…"></div><div class="modal-foot">'+(isEdit?'<button class="btn danger" type="button" id="deleteGoalBtn">Delete</button>':'')+'<button class="btn ghost" type="button" id="cancelModalBtn">Cancel</button><button class="btn primary" type="submit">Save</button></div></form>',
-    async fd=>{const data={name:fd.get("name").trim(),kind:fd.get("kind"),priority:num(fd.get("priority")),current:num(fd.get("current")),target:num(fd.get("target")),deadline:fd.get("deadline"),nextAction:fd.get("nextAction").trim(),nextActionMinutes:num(fd.get("nextActionMinutes")),status:"open",updatedAt:serverTimestamp()};if(isEdit)await updateDoc(subdoc("goals",g.id),data);else await addDoc(subcol("goals"),{...data,createdAt:serverTimestamp()});toast("Goal saved.")});
+    async fd=>{const data={name:fd.get("name").trim(),kind:fd.get("kind"),priority:num(fd.get("priority")),current:num(fd.get("current")),target:num(fd.get("target")),deadline:fd.get("deadline"),nextAction:fd.get("nextAction").trim(),nextActionMinutes:num(fd.get("nextActionMinutes")),status:"open",updatedAt:serverTimestamp()};if(isEdit)await updateDoc(subdoc("goals",g.id),data);else await addDoc(subcol("goals"),{...data,...ctxFields(),createdAt:serverTimestamp()});toast("Goal saved.")});
   $("#cancelModalBtn").onclick=closeModal;$("#modalBody select[name=kind]").value=g.kind||"money";
   if(isEdit)$("#deleteGoalBtn").onclick=async()=>{if(confirm("Delete this goal?")){await deleteDoc(subdoc("goals",g.id));closeModal()}};
 }
@@ -756,13 +1090,13 @@ function openRoutineModal(r={}){
   const checks=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map((d,i)=>'<label class="pill"><input style="width:auto" type="checkbox" name="day" value="'+i+'" '+(days.includes(i)?'checked':'')+'> '+d+'</label>').join("");
   showModal(isEdit?"Edit routine":"Add routine",
     '<form><div class="field"><label>Routine</label><input name="name" required value="'+esc(r.name||"")+'" placeholder="Laundry reset, gym, clean room…"></div><div class="field"><label>Days</label><div style="display:flex;gap:6px;flex-wrap:wrap">'+checks+'</div></div><div class="modal-grid"><div class="field"><label>Minutes</label><input name="estimateMin" type="number" min="1" value="'+num(r.estimateMin||20)+'"></div><div class="field"><label>Priority</label><select name="priority">'+[1,2,3,4,5].map(x=>'<option value="'+x+'" '+(num(r.priority||3)===x?'selected':'')+'>P'+x+'</option>').join("")+'</select></div></div><label class="check"><input name="must" type="checkbox" '+(r.must?'checked':'')+'> HAVE TO when scheduled</label><label class="check"><input name="active" type="checkbox" '+(r.active!==false?'checked':'')+'> Active</label><div class="modal-foot">'+(isEdit?'<button class="btn danger" type="button" id="deleteRoutineBtn">Delete</button>':'')+'<button class="btn ghost" type="button" id="cancelModalBtn">Cancel</button><button class="btn primary" type="submit">Save</button></div></form>',
-    async fd=>{const data={name:fd.get("name").trim(),days:fd.getAll("day").map(Number),estimateMin:num(fd.get("estimateMin")),priority:num(fd.get("priority")),must:fd.get("must")==="on",active:fd.get("active")==="on",updatedAt:serverTimestamp()};if(isEdit)await updateDoc(subdoc("routines",r.id),data);else await addDoc(subcol("routines"),{...data,lastCompletedDate:"",createdAt:serverTimestamp()});toast("Routine saved.")});
+    async fd=>{const data={name:fd.get("name").trim(),days:fd.getAll("day").map(Number),estimateMin:num(fd.get("estimateMin")),priority:num(fd.get("priority")),must:fd.get("must")==="on",active:fd.get("active")==="on",updatedAt:serverTimestamp()};if(isEdit)await updateDoc(subdoc("routines",r.id),data);else await addDoc(subcol("routines"),{...data,...ctxFields(),lastCompletedDate:"",createdAt:serverTimestamp()});toast("Routine saved.")});
   $("#cancelModalBtn").onclick=closeModal;if(isEdit)$("#deleteRoutineBtn").onclick=async()=>{if(confirm("Delete routine?")){await deleteDoc(subdoc("routines",r.id));closeModal()}};
 }
 
 async function saveInbox(e){
   e.preventDefault();const input=e.currentTarget.elements.text,text=input.value.trim();if(!text)return;
-  await addDoc(subcol("inbox"),{text,converted:false,date:today(),createdMs:Date.now(),createdAt:serverTimestamp()});input.value="";toast("Captured.");
+  await addDoc(subcol("inbox"),{text,converted:false,date:today(),createdMs:Date.now(),...ctxFields(),createdAt:serverTimestamp()});input.value="";toast("Captured.");
 }
 function inboxToTask(id){
   const item=S.inbox.find(x=>x.id===id);if(!item)return;
@@ -778,7 +1112,7 @@ async function saveSettings(e){
   toast("Planner settings saved.");
 }
 function exportData(){
-  const payload={exportedAt:new Date().toISOString(),profile:S.profile,tasks:S.tasks,accounts:S.accounts,transactions:S.transactions,bills:S.bills,goals:S.goals,routines:S.routines,inbox:S.inbox};
+  const payload={exportedAt:new Date().toISOString(),account:S.profile,profiles:S.profiles,activeProfileId:S.activeProfileId,worldMode:S.worldMode,data:S.all};
   const blob=new Blob([JSON.stringify(payload,null,2)],{type:"application/json"}),url=URL.createObjectURL(blob),a=document.createElement("a");
   a.href=url;a.download="pier-life-backup-"+today()+".json";a.click();URL.revokeObjectURL(url);toast("Backup exported.");
 }

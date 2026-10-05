@@ -264,6 +264,32 @@ tr:last-child td{border-bottom:0}
 .option-table{max-height:520px;overflow:auto}
 @media(max-width:900px){.market-grid{grid-template-columns:1fr}.market-search{grid-template-columns:1fr 1fr}.market-search input{grid-column:1/-1}}
 @media(max-width:550px){.market-search{grid-template-columns:1fr}.market-search input{grid-column:auto}}
+
+/* Pier v2.3: relationship care + hour-by-hour day plan */
+.rel-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.rel-catalog{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:11px}
+.rel-card{padding:14px;border:1px solid var(--line);border-radius:15px;background:var(--panel2);display:flex;flex-direction:column;gap:9px}
+.rel-card .title{font-weight:850;line-height:1.25}
+.store-tags{display:flex;gap:5px;flex-wrap:wrap}
+.store-tag{font-size:9px;font-weight:850;border:1px solid var(--line);border-radius:999px;padding:3px 7px;color:var(--muted)}
+.rel-score{font-size:36px;font-weight:950;letter-spacing:-.05em}
+.opportunity-card{border-left:4px solid var(--accent);padding:12px;border-radius:12px;background:var(--panel2)}
+.readiness-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.readiness-box{border:1px solid var(--line);border-radius:11px;padding:9px;background:var(--panel2);font-size:10px}
+.day-nav{display:flex;gap:7px;align-items:center;flex-wrap:wrap}
+.day-timeline{display:grid;gap:1px;border:1px solid var(--line);border-radius:16px;overflow:hidden;background:var(--line)}
+.hour-row{display:grid;grid-template-columns:72px 1fr;background:var(--panel);min-height:58px}
+.hour-label{padding:10px;border-right:1px solid var(--line);font-size:10px;color:var(--muted);font-weight:800}
+.hour-events{padding:6px;display:grid;gap:5px}
+.day-event{padding:7px 9px;border-radius:9px;background:var(--panel2);border-left:3px solid var(--accent2);font-size:11px}
+.day-event.shift{border-color:var(--accent2)}.day-event.task{border-color:var(--warn)}.day-event.appt{border-color:#b48cff}.day-event.rel{border-color:#ff8fc8}.day-event.block{border-color:var(--accent)}
+.focus-card{background:linear-gradient(135deg,rgba(79,209,165,.10),rgba(101,183,255,.07)),var(--panel);border:1px solid var(--line);border-radius:18px;padding:18px}
+.focus-time{font-size:38px;font-weight:950;letter-spacing:-.05em}
+.price-row{display:flex;gap:7px;flex-wrap:wrap;align-items:center}
+.rel-toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.rel-toolbar input,.rel-toolbar select{width:auto;min-width:150px}
+@media(max-width:1100px){.rel-catalog{grid-template-columns:repeat(2,minmax(0,1fr))}.rel-stats{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:650px){.rel-catalog{grid-template-columns:1fr}.rel-stats{grid-template-columns:1fr 1fr}.readiness-grid{grid-template-columns:1fr 1fr}.hour-row{grid-template-columns:58px 1fr}}
 </style>
 </head>
 <body>
@@ -300,6 +326,8 @@ tr:last-child td{border-bottom:0}
       <button class="nav-btn" data-view="calendar"><span class="nav-icon">▦</span>Calendar</button>
       <button class="nav-btn" data-view="work"><span class="nav-icon">◷</span>Work & Pay</button>
       <button class="nav-btn" data-view="life"><span class="nav-icon">⌂</span>Family & Life</button>
+      <button class="nav-btn" data-view="relationship"><span class="nav-icon">♡</span>Relationship</button>
+      <button class="nav-btn" data-view="day"><span class="nav-icon">◫</span>Day Plan</button>
       <button class="nav-btn" data-view="market"><span class="nav-icon">⌁</span>Market Data</button>
       <button class="nav-btn" data-view="paper"><span class="nav-icon">↗</span>Paper Markets</button>
       <button class="nav-btn" data-view="data"><span class="nav-icon">▤</span>Training Data</button>
@@ -394,13 +422,14 @@ const DEFAULT_PROFILE={
   theme:"dark",notifications:false,createdAt:null
 };
 
-const DATA_COLLECTIONS=["tasks","accounts","transactions","bills","goals","routines","inbox","jobs","shifts","timeEntries","paychecks","household","appointments","shopping","paperTrades"];
+const DATA_COLLECTIONS=["tasks","accounts","transactions","bills","goals","routines","inbox","jobs","shifts","timeEntries","paychecks","household","appointments","shopping","paperTrades","relationshipPlans","timeBlocks","focusSessions"];
 const S={
   user:null,profile:{...DEFAULT_PROFILE},profiles:[],
   tasks:[],accounts:[],transactions:[],bills:[],goals:[],routines:[],inbox:[],
   jobs:[],shifts:[],timeEntries:[],paychecks:[],household:[],appointments:[],shopping:[],paperTrades:[],
+  relationshipPlans:[],timeBlocks:[],focusSessions:[],
   all:{},activeProfileId:localStorage.getItem("pierProfile")||"primary",worldMode:localStorage.getItem("pierWorld")||"live",
-  unsubs:[],view:"dashboard",syncError:"",taskSearch:"",taskFilter:"open",plan:null,calendarCursor:new Date(),
+  unsubs:[],view:"dashboard",syncError:"",taskSearch:"",taskFilter:"open",plan:null,calendarCursor:new Date(),dayCursor:new Date(),relStore:"all",relBudget:550,relSearch:"",
   market:{symbol:"SPY",quote:null,candles:[],chain:[],rate:null,error:"",loading:false,lastFetch:null,hasToken:null}
 };
 if(!["live","shadow"].includes(S.worldMode))S.worldMode="live";
@@ -523,6 +552,9 @@ function sortData(name){
   if(name==="appointments")S.appointments.sort((a,b)=>String(a.dateTime||"").localeCompare(String(b.dateTime||"")));
   if(name==="shopping")S.shopping.sort((a,b)=>Number(!!a.done)-Number(!!b.done)||Number(!!b.must)-Number(!!a.must));
   if(name==="paperTrades")S.paperTrades.sort((a,b)=>String(a.date||"").localeCompare(String(b.date||"")));
+  if(name==="relationshipPlans")S.relationshipPlans.sort((a,b)=>String(a.targetDate||"9999").localeCompare(String(b.targetDate||"9999")));
+  if(name==="timeBlocks")S.timeBlocks.sort((a,b)=>(String(a.date||"")+String(a.start||"")).localeCompare(String(b.date||"")+String(b.start||"")));
+  if(name==="focusSessions")S.focusSessions.sort((a,b)=>num(b.startMs)-num(a.startMs));
 }
 function setSynced(){
   if(S.syncError)return;$("#syncDot").className="dot ok";$("#syncLabel").textContent="Synced";$("#syncDetail").textContent=esc(currentProfile().name||"Profile")+" · "+S.worldMode.toUpperCase();
@@ -535,7 +567,7 @@ function setSyncError(err){
 function applyTheme(){document.documentElement.dataset.theme=S.profile.theme==="light"?"light":"dark"}
 
 function navigate(view){
-  S.view=view;const titles={dashboard:"Dashboard",tasks:"Tasks",money:"Money",coach:"What to Pay",goals:"Goals",routines:"Routines",planner:"Planner / Why",calendar:"Calendar",work:"Work & Pay",life:"Family & Life",market:"Market Data",paper:"Paper Markets",data:"Training Data",profiles:"Profiles",inbox:"Inbox",settings:"Settings"};
+  S.view=view;const titles={dashboard:"Dashboard",tasks:"Tasks",money:"Money",coach:"What to Pay",goals:"Goals",routines:"Routines",planner:"Planner / Why",calendar:"Calendar",work:"Work & Pay",life:"Family & Life",relationship:"Relationship",day:"Day Plan",market:"Market Data",paper:"Paper Markets",data:"Training Data",profiles:"Profiles",inbox:"Inbox",settings:"Settings"};
   $("#pageTitle").textContent=titles[view]||"Pier";
   $$("[data-view]").forEach(b=>b.classList.toggle("active",b.dataset.view===view));
   render();
@@ -565,6 +597,8 @@ function render(){
   else if(S.view==="calendar")html=renderCalendar();
   else if(S.view==="work")html=renderWork();
   else if(S.view==="life")html=renderLife();
+  else if(S.view==="relationship")html=renderRelationship();
+  else if(S.view==="day")html=renderDayPlan();
   else if(S.view==="market")html=renderMarket();
   else if(S.view==="paper")html=renderPaper();
   else if(S.view==="data")html=renderTrainingData();
@@ -600,12 +634,29 @@ function routineDue(r){
 }
 function toRoutineAction(r){return {key:"routine:"+r.id,type:"routine",id:r.id,title:r.name||"Routine",priority:num(r.priority)||3,must:!!r.must,due:today(),minutes:Math.max(1,num(r.estimateMin)||15),cashCost:0,category:"Routine"}}
 function toGoalAction(g){return {key:"goal:"+g.id,type:"goal",id:g.id,title:g.nextAction||("Work on "+g.name),priority:num(g.priority)||3,must:false,due:g.deadline||"",minutes:Math.max(1,num(g.nextActionMinutes)||30),cashCost:0,category:"Goal"}}
+function relationshipLastDone(personId=""){
+  return S.relationshipPlans.filter(x=>x.status==="done"&&(!personId||x.personId===personId)&&x.completedDate).sort((a,b)=>String(b.completedDate).localeCompare(String(a.completedDate)))[0]||null;
+}
+function relationshipDaysSince(personId=""){
+  const x=relationshipLastDone(personId);if(!x)return 21;
+  return Math.max(0,Math.floor((new Date()-new Date(x.completedDate+"T12:00:00"))/86400000));
+}
+function relationshipAttention(personId=""){
+  const days=relationshipDaysSince(personId),overdue=S.relationshipPlans.filter(x=>x.status!=="done"&&(!personId||x.personId===personId)&&x.targetDate&&daysUntil(x.targetDate)<0).length;
+  return clamp(Math.round(days*4+overdue*18),0,100);
+}
+function toRelationshipAction(r){
+  const attention=relationshipAttention(r.personId),d=daysUntil(r.targetDate);
+  const priority=clamp(2+Math.floor(attention/25)+(d<=3?1:0),1,5);
+  return {key:"relationship:"+r.id,type:"relationship",id:r.id,title:r.title||"Relationship plan",priority,must:d<0||attention>=80,due:r.targetDate||"",minutes:Math.max(10,num(r.minutes)||60),cashCost:Math.max(0,num(r.foundPrice||r.budget||0)),category:"Relationship"};
+}
 function allActions(){
   return [
     ...openTasks().map(toTaskAction),
     ...S.bills.filter(b=>b.status!=="paid").map(toBillAction),
     ...S.routines.filter(routineDue).map(toRoutineAction),
-    ...S.goals.filter(g=>g.status!=="done"&&g.nextAction).map(toGoalAction)
+    ...S.goals.filter(g=>g.status!=="done"&&g.nextAction).map(toGoalAction),
+    ...S.relationshipPlans.filter(r=>r.status!=="done"&&r.status!=="skipped").map(toRelationshipAction)
   ];
 }
 function scoreAction(a){
@@ -616,7 +667,7 @@ function scoreAction(a){
   else if(d===1)score+=72;
   else if(d<=3)score+=48;
   else if(d<=7)score+=26;
-  if(a.type==="bill")score+=24;if(a.type==="routine")score+=10;
+  if(a.type==="bill")score+=24;if(a.type==="routine")score+=10;if(a.type==="relationship")score+=Math.floor(relationshipAttention()/5);
   if(a.minutes<=20)score+=5;
   return Math.round(score);
 }
@@ -641,6 +692,7 @@ function scoreBreakdown(a){
   else if(d<=7)parts.push(["Due ≤7d",26]);
   if(a.type==="bill")parts.push(["Bill",24]);
   if(a.type==="routine")parts.push(["Routine",10]);
+  if(a.type==="relationship")parts.push(["Relationship cadence",Math.floor(relationshipAttention()/5)]);
   if(a.minutes<=20)parts.push(["Quick win",5]);
   return parts;
 }
@@ -699,7 +751,8 @@ function renderDashboard(){
       '<section class="card pad"><div class="card-head"><h3>Money snapshot</h3><button class="btn ghost" data-view="money">Open money →</button></div>'+renderMiniAccounts()+'</section>'+
       '<section class="card pad"><div class="card-head"><h3>Quick brain dump</h3><span class="small muted">Capture first. Organize second.</span></div><form id="dashInboxForm" class="quick-capture"><input name="text" maxlength="240" placeholder="Anything you do not want to forget…"><button class="btn blue">Capture</button></form><div class="small muted" style="margin-top:10px">Tip: use Tasks for something actionable; Inbox is for messy thoughts.</div></section>'+
     '</div>'+
-    '<section class="card pad" style="margin-top:18px"><div class="card-head"><h3>What should I pay?</h3><button class="btn ghost" data-view="coach">See full pay plan →</button></div>'+renderPayCoachMini()+'</section>';
+    '<section class="card pad" style="margin-top:18px"><div class="card-head"><h3>What should I pay?</h3><button class="btn ghost" data-view="coach">See full pay plan →</button></div>'+renderPayCoachMini()+'</section>'+
+    '<div class="grid-2" style="margin-top:18px"><section class="card pad"><div class="card-head"><h3>Relationship check</h3><button class="btn ghost" data-view="relationship">Open →</button></div><div class="inline-stat"><b>'+relationshipAttention(relationshipPerson()?.id||"")+'</b><span class="muted"> / 100 attention pressure</span></div><div class="small muted" style="margin-top:6px">'+relationshipDaysSince(relationshipPerson()?.id||"")+' days since a completed plan. This rises with time and drops when you complete something.</div></section><section class="card pad"><div class="card-head"><h3>Today schedule</h3><button class="btn ghost" data-view="day">Open day →</button></div><div class="inline-stat"><b>'+dayEvents(today()).length+'</b><span class="muted"> scheduled items</span></div><div class="small muted" style="margin-top:6px">Work, tasks, appointments, relationship plans and manual time blocks.</div></section></div>';
 }
 function greeting(){const h=new Date().getHours();return h<12?"Good morning":h<18?"Good afternoon":"Good evening"}
 function metric(label,value,sub){return '<div class="metric"><div class="label">'+esc(label)+'</div><div class="value">'+esc(value)+'</div><div class="sub">'+esc(sub)+'</div></div>'}
@@ -859,6 +912,9 @@ function calendarEvents(start,end){
   S.bills.filter(b=>b.dueDate).forEach(b=>ev.push({date:b.dueDate,kind:"bill",title:(b.status==="paid"?"Paid ":"Bill ")+b.name,meta:money(b.amount)}));
   S.shifts.forEach(s=>ev.push({date:s.date,kind:"shift",title:jobName(s.jobId)+" "+s.start+"–"+s.end,meta:shiftHours(s).toFixed(1)+"h"}));
   S.appointments.filter(a=>a.dateTime).forEach(a=>ev.push({date:String(a.dateTime).slice(0,10),kind:"appt",title:a.title,meta:a.person||""}));
+  S.timeBlocks.forEach(b=>ev.push({date:b.date,kind:"task",title:(b.start?b.start+" ":"")+b.title,meta:b.type||"time block"}));
+  S.relationshipPlans.filter(r=>r.targetDate&&r.status!=="done").forEach(r=>ev.push({date:r.targetDate,kind:"appt",title:"♡ "+r.title,meta:relationshipPersonName(r.personId)}));
+  relationshipOpportunityDays(3).forEach(x=>ev.push({date:x.date,kind:"appt",title:"♡ Good relationship window",meta:"projected spendable "+money(x.cash)}));
   S.paychecks.forEach(p=>ev.push({date:p.payDate,kind:"pay",title:"Paid "+money(p.netAmount),meta:jobName(p.jobId)}));
   S.jobs.forEach(j=>payDateSeries(j,start,end).forEach(d=>ev.push({date:d,kind:"pay",title:"Expected payday",meta:j.name})));
   return ev.filter(x=>x.date>=start&&x.date<=end).sort((a,b)=>a.date.localeCompare(b.date));
@@ -881,6 +937,233 @@ function renderCalendar(){
 function renderPayPeriodCalendarCards(){
   if(!S.jobs.length)return "";
   return '<section class="card pad" style="margin-top:18px"><div class="card-head"><h3>Pay periods</h3><span class="pill good">CALENDAR-AWARE</span></div><div class="profile-grid">'+S.jobs.map(j=>{const d=nextPayDate(j),w=payWindow(j),e=estimatePay(j);return '<div class="account-card"><div class="name">'+esc(j.name)+'</div><div class="amount">'+money(e.net)+'</div><strong>Estimated next net</strong><div class="row-meta">Payday '+(d?fmtDate(d):"not set")+'<br>Work period '+(w.start?fmtDate(w.start):"?")+' → '+(w.end?fmtDate(w.end):"?")+'<br>'+e.hours.toFixed(2)+' actual h · '+e.scheduled.toFixed(2)+' scheduled h</div></div>'}).join("")+'</div></section>';
+}
+
+const REL_IDEA_ROWS=[
+["Fresh flowers + handwritten card","gift",12,35,"Walmart,CVS,Target"],
+["Favorite candy/snack bundle","gift",8,25,"Walmart,CVS,Target"],
+["Framed photo of you two","gift",10,35,"Walmart,CVS,Target"],
+["Cozy blanket","gift",20,55,"Walmart,Target"],
+["Scented candle set","gift",12,40,"Walmart,CVS,Target"],
+["Body care gift set","gift",15,45,"Walmart,CVS,Target"],
+["Skincare mini set","gift",15,50,"CVS,Target"],
+["Perfume sampler","gift",25,70,"CVS,Target,Online"],
+["Full-size fragrance","gift",45,160,"CVS,Target,Online"],
+["Cute pajamas","gift",20,55,"Walmart,Target"],
+["Soft robe","gift",25,65,"Walmart,Target"],
+["Slippers","gift",15,40,"Walmart,Target"],
+["Handbag","gift",30,150,"Walmart,Target,Online"],
+["Wallet/card holder","gift",15,70,"Walmart,Target,Online"],
+["Simple necklace","gift",20,90,"Walmart,Target,Online"],
+["Gold-tone necklace","gift",35,120,"Walmart,Target,Online"],
+["Bracelet","gift",20,100,"Walmart,Target,Online"],
+["Earrings","gift",15,90,"Walmart,Target,Online"],
+["Birthstone jewelry","gift",35,150,"Online,Target"],
+["Watch","gift",35,180,"Walmart,Target,Online"],
+["Makeup set","gift",20,80,"CVS,Target"],
+["Hair-care bundle","gift",15,55,"CVS,Walmart,Target"],
+["Nail-care bundle","gift",12,45,"CVS,Walmart,Target"],
+["Spa-at-home basket","gift",25,75,"CVS,Walmart,Target"],
+["Bath salts + lotion + candle","gift",18,55,"CVS,Walmart,Target"],
+["Personalized mug","gift",10,30,"Walmart,Online"],
+["Custom photo book","gift",20,60,"CVS,Walmart,Online"],
+["Photo prints + mini album","gift",10,35,"CVS,Walmart"],
+["Phone case she picked","gift",15,60,"Walmart,Target,Online"],
+["Portable charger","gift",20,50,"Walmart,Target"],
+["Earbuds","gift",20,120,"Walmart,Target"],
+["Cute water bottle","gift",15,45,"Walmart,Target"],
+["Favorite drink + flowers surprise","gesture",10,30,"CVS,Walmart,Target"],
+["Breakfast in bed","gesture",8,30,"Walmart,Grocery,Home"],
+["Cook her favorite dinner","gesture",15,55,"Walmart,Grocery,Home"],
+["Dessert night at home","gesture",8,30,"Walmart,Grocery,Home"],
+["Movie night basket","date",15,45,"Walmart,CVS,Home"],
+["Home candlelight dinner","date",20,70,"Walmart,Grocery,Home"],
+["Living-room picnic","date",15,45,"Walmart,Grocery,Home"],
+["Board-game date night","date",15,50,"Walmart,Target,Home"],
+["Coffee date","date",10,30,"Restaurant,Local"],
+["Breakfast date","date",20,55,"Restaurant,Local"],
+["Lunch date","date",25,70,"Restaurant,Local"],
+["Casual dinner date","date",40,100,"Restaurant,Local"],
+["Nice dinner date","date",80,180,"Restaurant,Local"],
+["Dessert-only date","date",15,45,"Restaurant,Local"],
+["Ice cream date","date",10,30,"Restaurant,Local"],
+["Beach sunset date","date",5,35,"Walmart,Local"],
+["Park picnic","date",15,50,"Walmart,Grocery,Local"],
+["Scenic drive + snacks","date",15,45,"CVS,Walmart,Local"],
+["Mini golf","date",30,80,"Local"],
+["Bowling","date",35,90,"Local"],
+["Arcade night","date",30,90,"Local"],
+["Movie theater","date",35,90,"Local"],
+["Museum date","date",20,70,"Local"],
+["Botanical garden","date",20,70,"Local"],
+["Aquarium date","date",60,150,"Local"],
+["Zoo date","date",50,140,"Local"],
+["Art walk / gallery date","date",10,60,"Local"],
+["Farmers market morning","date",20,70,"Local"],
+["Thrift-store challenge date","date",20,60,"Local"],
+["Bookstore date","date",15,60,"Local,Target"],
+["Cook a new recipe together","date",20,60,"Walmart,Grocery,Home"],
+["Bake dessert together","date",12,40,"Walmart,Grocery,Home"],
+["Paint/craft night","date",20,60,"Walmart,Target,Home"],
+["At-home spa night","date",20,70,"CVS,Walmart,Home"],
+["Photo walk together","date",0,25,"Local,Home"],
+["Sunrise breakfast trip","date",20,65,"Restaurant,Local"],
+["Drive-in / outdoor movie","date",25,70,"Local"],
+["Couples question-card night","date",10,30,"Walmart,Target,Home"],
+["Plan-your-dream-trip night","date",0,25,"Home"],
+["No-phone one-hour date","date",0,20,"Home,Local"],
+["Clean the whole room for her","service",0,20,"Home"],
+["Do laundry start-to-finish","service",0,15,"Home"],
+["Wash/vacuum the car","service",10,30,"Walmart,Home"],
+["Fill her gas tank","service",25,80,"Local"],
+["Handle an errand she hates","service",0,30,"Local"],
+["Give her a sleep-in morning","service",0,25,"Home"],
+["Take over dinner + cleanup","service",15,45,"Walmart,Grocery,Home"],
+["Prepare her lunch/snacks","service",8,25,"Walmart,Grocery,Home"],
+["Write a real appreciation letter","gesture",0,10,"CVS,Walmart,Home"],
+["Make a memory jar","gesture",8,25,"Walmart,Target,Home"],
+["Print 10 favorite photos","gesture",5,20,"CVS,Walmart"],
+["Create a playlist + note","gesture",0,10,"Home"],
+["Surprise coffee delivery","gesture",8,25,"Restaurant,Local"],
+["Favorite takeout surprise","gesture",25,70,"Restaurant,Local"],
+["Nail appointment","experience",40,100,"Local"],
+["Hair appointment contribution","experience",50,180,"Local"],
+["Massage","experience",70,180,"Local"],
+["Spa treatment","experience",100,260,"Local"],
+["Couples massage","experience",160,350,"Local"],
+["Professional photoshoot","experience",120,350,"Local"],
+["Cooking class","experience",80,220,"Local"],
+["Pottery/art class","experience",70,200,"Local"],
+["Concert tickets","experience",100,350,"Online,Local"],
+["Comedy show","experience",70,220,"Online,Local"],
+["Theater/show tickets","experience",100,300,"Online,Local"],
+["Nice hotel night","experience",160,400,"Online,Local"],
+["Weekend staycation","experience",250,550,"Online,Local"],
+["Day trip with meals","experience",120,300,"Local"],
+["Boat / water activity","experience",150,450,"Local"],
+["Theme-park day","experience",180,550,"Online,Local"],
+["Premium dinner + gift","experience",180,400,"Restaurant,Local"],
+["Jewelry + dinner combo","experience",200,550,"Online,Restaurant"],
+["Spa + dinner combo","experience",220,550,"Local,Restaurant"],
+["Fragrance + flowers + dinner","experience",140,350,"CVS,Target,Restaurant"],
+["Surprise full date itinerary","experience",100,300,"Local,Restaurant"],
+["Family outing together","family",60,180,"Local"],
+["Family photo day","family",50,220,"Local"],
+["Cook family breakfast together","family",15,45,"Walmart,Grocery,Home"],
+["Park family day","family",15,60,"Walmart,Local"],
+["Movie + snacks with family","family",25,80,"Walmart,CVS,Local"],
+["Memory-box project","family",15,50,"Walmart,Target,Home"]
+];
+function relationshipIdeaCatalog(){
+  return REL_IDEA_ROWS.slice(0,100).map((x,i)=>({id:"idea"+String(i+1).padStart(3,"0"),title:x[0],category:x[1],min:x[2],max:x[3],stores:x[4].split(",")}));
+}
+function relationshipPerson(){
+  return S.household.find(p=>/partner|wife|girlfriend|spouse/i.test(p.relation||""))||S.household[0]||null;
+}
+function relationshipPersonName(id){
+  return S.household.find(p=>p.id===id)?.name||relationshipPerson()?.name||"Partner";
+}
+function relationshipStats(personId=""){
+  const rows=S.relationshipPlans.filter(x=>!personId||x.personId===personId),done=rows.filter(x=>x.status==="done"),cut=Date.now()-30*86400000;
+  const recent=done.filter(x=>x.completedDate&&new Date(x.completedDate+"T12:00:00").getTime()>=cut);
+  return {days:relationshipDaysSince(personId),attention:relationshipAttention(personId),done30:recent.length,spent30:recent.reduce((a,x)=>a+num(x.actualSpent||x.foundPrice),0),open:rows.filter(x=>x.status!=="done"&&x.status!=="skipped").length};
+}
+function projectedSpendableDate(date){
+  let cash=availableMoney();
+  expectedIncomeEvents(45).filter(x=>x.date<=date).forEach(x=>cash+=num(x.amount));
+  S.bills.filter(b=>b.status!=="paid"&&b.dueDate&&b.dueDate<=date).forEach(b=>cash-=num(b.minimumDue)>0?Math.min(num(b.amount),num(b.minimumDue)):num(b.amount));
+  return cash;
+}
+function relationshipOpportunityDays(limit=4){
+  const out=[],now=new Date();
+  for(let i=1;i<=30;i++){
+    const d=new Date(now);d.setDate(d.getDate()+i);const key=d.toISOString().slice(0,10),cash=projectedSpendableDate(key);
+    const shiftHoursTotal=S.shifts.filter(s=>s.date===key).reduce((a,s)=>a+shiftHours(s),0),appt=S.appointments.filter(a=>String(a.dateTime||"").slice(0,10)===key).length;
+    const weekend=[0,6].includes(d.getDay()),score=cash/8+(weekend?35:0)-shiftHoursTotal*7-appt*20;
+    out.push({date:key,cash,score,shiftHours:shiftHoursTotal});
+  }
+  return out.filter(x=>x.cash>=20).sort((a,b)=>b.score-a.score).filter((x,i,a)=>a.slice(0,i).every(y=>Math.abs((new Date(x.date)-new Date(y.date))/86400000)>=3)).slice(0,limit).sort((a,b)=>a.date.localeCompare(b.date));
+}
+function relationshipPlanReadiness(r){
+  if(!r)return {score:0,parts:[]};
+  const parts=[
+    ["Date",!!r.targetDate],["Price",num(r.foundPrice)>0||num(r.budget)===0],["Store / place",!!r.store],
+    ["Transportation",!!r.transportReady],["Childcare",!!r.childcareReady],["Reservation",!!r.reservationReady],["Item ready",!!r.itemReady],["Time blocked",!!r.timeReady]
+  ];
+  return {score:Math.round(parts.filter(x=>x[1]).length/parts.length*100),parts};
+}
+function storeSearchUrl(store,q){
+  q=encodeURIComponent(q||"gift");
+  if(store==="Walmart")return "https://www.walmart.com/search?q="+q;
+  if(store==="CVS")return "https://www.cvs.com/search?searchTerm="+q;
+  if(store==="Target")return "https://www.target.com/s?searchTerm="+q;
+  return "https://www.google.com/search?q="+encodeURIComponent((store||"near me")+" "+decodeURIComponent(q));
+}
+function renderRelationship(){
+  const person=relationshipPerson(),pid=person?.id||"",st=relationshipStats(pid),catalog=relationshipIdeaCatalog().filter(x=>(S.relStore==="all"||x.stores.includes(S.relStore))&&x.max<=num(S.relBudget||550)&&(!S.relSearch||(x.title+" "+x.category+" "+x.stores.join(" ")).toLowerCase().includes(S.relSearch.toLowerCase())));
+  const open=S.relationshipPlans.filter(x=>x.status!=="done"&&x.status!=="skipped"&&(!pid||x.personId===pid)),next=open[0],ready=relationshipPlanReadiness(next),opp=relationshipOpportunityDays(4);
+  return '<div class="section-title"><div><h1>Relationship</h1><p>Practical care planning: ideas, budgets, store searches, calendar timing and a priority that rises when too much time passes.</p></div><button class="btn primary" data-action="rel-custom">＋ Plan something</button></div>'+
+    (!person?'<div class="setup-banner"><div><strong>Add your partner first.</strong><div class="small">Family & Life → Add person → relationship “Partner”.</div></div><button class="btn" data-view="life">Add person</button></div>':'')+
+    '<div class="rel-stats">'+metric("Days since completed plan",st.days,st.days>=14?"Attention pressure is rising":"Recent activity")+metric("Attention pressure",st.attention+"/100","Used to raise planner rank over time")+metric("Last 30 days",st.done30+" completed",money(st.spent30)+" recorded spend")+metric("Open plans",st.open,next?("Next "+fmtDate(next.targetDate)):"Nothing scheduled")+'</div>'+
+    '<div class="grid-2" style="margin-top:18px"><section class="card pad"><div class="card-head"><h3>Good days in the next 30</h3><span class="pill good">CASH + SCHEDULE</span></div><div class="stack">'+(opp.length?opp.map(x=>'<div class="opportunity-card"><strong>'+fmtDate(x.date)+'</strong><div class="row-meta">Projected spendable '+money(x.cash)+' · '+x.shiftHours.toFixed(1)+'h scheduled work</div><button class="btn ghost" style="margin-top:7px" data-action="rel-custom-date" data-id="'+x.date+'">Plan something this day</button></div>').join(""):'<div class="empty">No comfortable window found yet. Pier will keep checking from your pay/bill data.</div>')+'</div></section>'+
+    '<section class="card pad"><div class="card-head"><h3>Next-plan readiness</h3><span class="pill '+(ready.score>=75?'good':'urgent')+'">'+ready.score+'%</span></div>'+(next?'<div class="task-title">'+esc(next.title)+'</div><div class="row-meta">'+fmtDate(next.targetDate)+' · budget '+money(next.budget)+' · found '+(num(next.foundPrice)>0?money(next.foundPrice):"not checked")+'</div><div class="readiness-grid" style="margin-top:12px">'+ready.parts.map(x=>'<div class="readiness-box">'+(x[1]?'✓ ':'○ ')+esc(x[0])+'</div>').join("")+'</div><div class="toolbar" style="margin-top:12px"><button class="btn primary" data-action="rel-complete" data-id="'+next.id+'">Done / record spend</button><button class="btn" data-action="rel-edit" data-id="'+next.id+'">Edit readiness</button></div>':'<div class="empty">Pick an idea below or create your own.</div>')+'</section></div>'+
+    '<section class="card pad" style="margin-top:18px"><div class="card-head"><div><h3>Planned for '+esc(person?.name||"your partner")+'</h3><div class="small muted">If an open plan sits too long, its planner priority climbs. Completing one drops the pressure again.</div></div><span class="pill blue">'+open.length+'</span></div><div class="stack">'+(open.length?open.map(r=>'<div class="task-row"><div class="priority-bar p'+toRelationshipAction(r).priority+'"></div><div class="row-main"><div class="task-title">'+esc(r.title)+'</div><div class="row-meta">'+fmtDate(r.targetDate)+' · '+esc(r.store||"no store")+' · '+(num(r.foundPrice)>0?money(r.foundPrice)+" found":money(r.budget)+" budget")+' · planner P'+toRelationshipAction(r).priority+'</div></div><div class="row-actions"><button class="btn primary" data-action="rel-complete" data-id="'+r.id+'">Done</button><button class="btn icon ghost" data-action="rel-edit" data-id="'+r.id+'">✎</button></div></div>').join(""):'<div class="empty">No open relationship plans.</div>')+'</div></section>'+
+    '<section class="card pad" style="margin-top:18px"><div class="card-head"><div><h3>100 things to consider</h3><div class="small muted">Planning estimates, not live shelf prices. Search the store first, then save the price you actually found.</div></div><span class="pill blue">'+catalog.length+' shown</span></div>'+
+    '<div class="rel-toolbar" style="margin-bottom:13px"><input id="relSearch" value="'+esc(S.relSearch)+'" placeholder="Search ideas…"><select id="relStore"><option value="all">All stores</option><option>Walmart</option><option>CVS</option><option>Target</option><option>Restaurant</option><option>Local</option><option>Home</option><option>Online</option></select><select id="relBudget"><option value="25">Up to $25</option><option value="60">Up to $60</option><option value="150">Up to $150</option><option value="260">Up to $260</option><option value="550">Up to $550</option></select></div>'+
+    '<div class="rel-catalog">'+catalog.map(x=>'<div class="rel-card"><div><span class="pill">'+esc(x.category.toUpperCase())+'</span></div><div class="title">'+esc(x.title)+'</div><div class="row-meta">Est. '+money(x.min)+'–'+money(x.max)+'</div><div class="store-tags">'+x.stores.map(s=>'<span class="store-tag">'+esc(s)+'</span>').join("")+'</div><div class="price-row">'+x.stores.filter(s=>["Walmart","CVS","Target"].includes(s)).slice(0,2).map(s=>'<a class="btn ghost" target="_blank" rel="noopener" href="'+storeSearchUrl(s,x.title)+'">Search '+esc(s)+'</a>').join("")+'</div><button class="btn primary wide" data-action="rel-plan-idea" data-id="'+x.id+'">Add to plan</button></div>').join("")+'</div></section>';
+}
+function openRelationshipPlanModal(seed={}){
+  const edit=!!seed.id,person=relationshipPerson(),opp=relationshipOpportunityDays(1)[0],cat=relationshipIdeaCatalog().find(x=>x.id===seed.catalogId);
+  const stores=(cat?.stores||["Walmart","CVS","Target","Local","Restaurant","Home","Online"]);
+  const people=S.household.map(p=>'<option value="'+p.id+'">'+esc(p.name)+' · '+esc(p.relation||"family")+'</option>').join("");
+  showModal(edit?"Edit relationship plan":"Plan relationship item",
+    '<form><div class="field"><label>For</label><select name="personId">'+(people||'<option value="">Partner</option>')+'</select></div><div class="field"><label>Plan / item</label><input name="title" required value="'+esc(seed.title||cat?.title||"")+'"></div><div class="modal-grid"><div class="field"><label>Target date</label><input name="targetDate" type="date" value="'+esc(seed.targetDate||opp?.date||new Date(Date.now()+7*86400000).toISOString().slice(0,10))+'"></div><div class="field"><label>Time needed (min)</label><input name="minutes" type="number" min="10" value="'+num(seed.minutes||90)+'"></div><div class="field"><label>Budget</label><input name="budget" type="number" min="0" step=".01" value="'+num(seed.budget??cat?.max??60)+'"></div><div class="field"><label>Price I found</label><input name="foundPrice" type="number" min="0" step=".01" value="'+num(seed.foundPrice||0)+'"></div><div class="field"><label>Store / place</label><select name="store">'+stores.map(s=>'<option>'+esc(s)+'</option>').join("")+'</select></div><div class="field"><label>Price checked</label><input name="priceCheckedDate" type="date" value="'+esc(seed.priceCheckedDate||"")+'"></div></div>'+
+    '<div class="field"><label>Notes</label><textarea name="notes">'+esc(seed.notes||"")+'</textarea></div>'+
+    '<div class="readiness-grid"><label class="check"><input name="transportReady" type="checkbox" '+(seed.transportReady?'checked':'')+'> Transport</label><label class="check"><input name="childcareReady" type="checkbox" '+(seed.childcareReady?'checked':'')+'> Childcare</label><label class="check"><input name="reservationReady" type="checkbox" '+(seed.reservationReady?'checked':'')+'> Reservation</label><label class="check"><input name="itemReady" type="checkbox" '+(seed.itemReady?'checked':'')+'> Item ready</label><label class="check"><input name="timeReady" type="checkbox" '+(seed.timeReady?'checked':'')+'> Time blocked</label></div>'+
+    '<div class="modal-foot">'+(edit?'<button class="btn danger" type="button" id="deleteRelBtn">Delete</button>':'')+'<button class="btn ghost" type="button" id="cancelModalBtn">Cancel</button><button class="btn primary" type="submit">Save plan</button></div></form>',
+    async fd=>{const data={personId:fd.get("personId")||person?.id||"",title:fd.get("title").trim(),catalogId:seed.catalogId||"",category:seed.category||cat?.category||"custom",targetDate:fd.get("targetDate"),minutes:num(fd.get("minutes"))||90,budget:num(fd.get("budget")),foundPrice:num(fd.get("foundPrice")),store:fd.get("store"),priceCheckedDate:fd.get("priceCheckedDate"),notes:fd.get("notes").trim(),transportReady:fd.get("transportReady")==="on",childcareReady:fd.get("childcareReady")==="on",reservationReady:fd.get("reservationReady")==="on",itemReady:fd.get("itemReady")==="on",timeReady:fd.get("timeReady")==="on",status:seed.status||"open",updatedAt:serverTimestamp()};if(edit)await updateDoc(subdoc("relationshipPlans",seed.id),data);else await addDoc(subcol("relationshipPlans"),{...data,...ctxFields(),createdAt:serverTimestamp()});toast("Relationship plan saved.")});
+  $("#cancelModalBtn").onclick=closeModal;
+  if(person||seed.personId)$("#modalBody select[name=personId]").value=seed.personId||person?.id||"";
+  if(seed.store)$("#modalBody select[name=store]").value=seed.store;
+  if(edit)$("#deleteRelBtn").onclick=async()=>{if(confirm("Delete this relationship plan?")){await deleteDoc(subdoc("relationshipPlans",seed.id));closeModal()}};
+}
+function completeRelationship(id){
+  const r=S.relationshipPlans.find(x=>x.id===id);if(!r)return;
+  const opts=S.accounts.map(a=>'<option value="'+a.id+'">'+esc(a.name)+' · '+money(balances()[a.id]||0)+'</option>').join("");
+  showModal("Complete "+r.title,'<form><div class="modal-grid"><div class="field"><label>Actual spent</label><input name="actualSpent" type="number" min="0" step=".01" value="'+num(r.foundPrice||r.budget||0)+'"></div><div class="field"><label>Date completed</label><input name="completedDate" type="date" value="'+today()+'"></div></div>'+(S.accounts.length?'<label class="check"><input name="recordExpense" type="checkbox" '+(num(r.foundPrice||r.budget)>0?'checked':'')+'> Record this as a Money expense</label><div class="field"><label>Paid from</label><select name="accountId">'+opts+'</select></div>':'')+'<div class="field"><label>How it went / note</label><textarea name="resultNote"></textarea></div><div class="modal-foot"><button class="btn ghost" type="button" id="cancelModalBtn">Cancel</button><button class="btn primary" type="submit">Complete</button></div></form>',async fd=>{const spent=num(fd.get("actualSpent")),date=fd.get("completedDate")||today();await updateDoc(subdoc("relationshipPlans",id),{status:"done",completedDate:date,actualSpent:spent,resultNote:fd.get("resultNote").trim(),updatedAt:serverTimestamp()});if(fd.get("recordExpense")==="on"&&spent>0&&fd.get("accountId"))await addDoc(subcol("transactions"),{type:"expense",amount:spent,accountId:fd.get("accountId"),date,description:r.title,category:"Relationship",...ctxFields(),createdAt:serverTimestamp()});toast("Completed. Relationship pressure recalculated.")});$("#cancelModalBtn").onclick=closeModal;
+}
+
+/* DAY PLAN + FOCUS */
+function dayKey(){return new Date(S.dayCursor).toISOString().slice(0,10)}
+function activeFocus(){return S.focusSessions.find(x=>x.status==="open"&&!x.endAt)}
+function dayEvents(date){
+  const out=[];
+  S.shifts.filter(s=>s.date===date).forEach(s=>out.push({start:s.start,end:s.end,title:jobName(s.jobId),kind:"shift",meta:shiftHours(s).toFixed(1)+"h shift"}));
+  S.appointments.filter(a=>String(a.dateTime||"").slice(0,10)===date).forEach(a=>{const d=new Date(a.dateTime);out.push({start:String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0"),end:"",title:a.title,kind:"appt",meta:a.person||""})});
+  S.timeBlocks.filter(b=>b.date===date).forEach(b=>out.push({start:b.start,end:b.end,title:b.title,kind:"block",meta:b.type||"block"}));
+  S.tasks.filter(t=>String(t.dueAt||"").slice(0,10)===date&&t.status!=="done").forEach(t=>{const d=new Date(t.dueAt);out.push({start:String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0"),end:"",title:t.title,kind:"task",meta:"task deadline"})});
+  S.relationshipPlans.filter(r=>r.targetDate===date&&r.status!=="done").forEach(r=>out.push({start:r.start||"19:00",end:"",title:"♡ "+r.title,kind:"rel",meta:relationshipPersonName(r.personId)}));
+  return out.sort((a,b)=>String(a.start||"23:59").localeCompare(String(b.start||"23:59")));
+}
+function renderDayPlan(){
+  const key=dayKey(),events=dayEvents(key),focus=activeFocus(),elapsed=focus?Math.max(0,(Date.now()-num(focus.startMs))/60000):0,target=num(focus?.plannedMin||0),remaining=Math.max(0,target-elapsed);
+  const focusToday=S.focusSessions.filter(x=>String(x.startAt||"").slice(0,10)===key&&x.status==="closed"),focusMin=focusToday.reduce((a,x)=>a+num(x.actualMin),0),interruptions=focusToday.reduce((a,x)=>a+num(x.interruptions),0)+(focus&&String(focus.startAt||"").slice(0,10)===key?num(focus.interruptions):0);
+  const hours=[];for(let h=5;h<=23;h++){const hh=String(h).padStart(2,"0"),items=events.filter(x=>(x.start||"").slice(0,2)===hh);hours.push('<div class="hour-row"><div class="hour-label">'+new Date(2000,0,1,h).toLocaleTimeString([],{hour:"numeric"})+'</div><div class="hour-events">'+(items.length?items.map(x=>'<div class="day-event '+x.kind+'"><strong>'+esc(x.title)+'</strong><div class="small muted">'+esc(x.start+(x.end?"–"+x.end:"")+(x.meta?" · "+x.meta:""))+'</div></div>').join(""):'')+'</div></div>')}
+  return '<div class="section-title"><div><h1>Day Plan</h1><p>Hour-by-hour structure from work, appointments, tasks, relationship plans and your own time blocks.</p></div><div class="day-nav"><button class="btn" data-action="day-prev">←</button><button class="btn" data-action="day-today">Today</button><button class="btn" data-action="day-next">→</button><button class="btn primary" data-action="add-time-block">＋ Time block</button></div></div>'+
+    '<div class="grid-2"><div class="focus-card">'+(focus?'<div class="eyebrow">FOCUS ACTIVE · '+esc(focus.label||"Focus")+'</div><div class="focus-time">'+Math.floor(elapsed)+' / '+target+' min</div><div class="row-meta">'+Math.ceil(remaining)+' min remaining · '+num(focus.interruptions)+' tab exits</div><div class="toolbar" style="margin-top:12px"><button class="btn danger" data-action="focus-stop" data-id="'+focus.id+'">Stop focus</button></div>':'<div class="eyebrow">FOCUS MODE</div><div class="focus-time">Ready</div><div class="row-meta">Pier cannot see your whole phone. While this focus timer is running, leaving the Pier tab counts as an interruption so you can see the pattern.</div><div class="toolbar" style="margin-top:12px"><button class="btn primary" data-action="focus-start">Start focus</button></div>')+'</div>'+
+    '<div class="metrics">'+metric("Focused today",Math.round(focusMin)+" min","Closed focus sessions")+metric("Interruptions",interruptions,"Pier tab exits during focus")+metric("Scheduled items",events.length,fmtDate(key))+metric("Open tasks",openTasks().length,"Across this profile")+'</div></div>'+
+    '<section class="card pad" style="margin-top:18px"><div class="card-head"><div><h3>'+fmtDate(key)+'</h3><div class="small muted">Use time blocks to deliberately reserve parts of the day.</div></div><span class="pill blue">'+events.length+' items</span></div><div class="day-timeline">'+hours.join("")+'</div></section>'+
+    '<section class="card pad" style="margin-top:18px"><div class="card-head"><h3>Manual time blocks</h3><span class="small muted">Editable schedule</span></div><div class="stack">'+(S.timeBlocks.filter(b=>b.date===key).length?S.timeBlocks.filter(b=>b.date===key).map(b=>'<div class="task-row"><div class="row-main"><div class="task-title">'+esc(b.title)+'</div><div class="row-meta">'+esc(b.start)+'–'+esc(b.end)+' · '+esc(b.type||"Personal")+'</div></div><button class="btn icon ghost" data-action="delete-time-block" data-id="'+b.id+'">×</button></div>').join(""):'<div class="empty">No manual blocks for this day.</div>')+'</div></section>';
+}
+function openTimeBlockModal(){
+  showModal("Add time block",'<form><div class="field"><label>Title</label><input name="title" required placeholder="Engine work, clean room, family time, study…"></div><div class="modal-grid"><div class="field"><label>Date</label><input name="date" type="date" value="'+dayKey()+'"></div><div class="field"><label>Type</label><select name="type"><option>Focus</option><option>Personal</option><option>Family</option><option>Errand</option><option>Rest</option><option>Project</option></select></div><div class="field"><label>Start</label><input name="start" type="time" required></div><div class="field"><label>End</label><input name="end" type="time" required></div></div><div class="modal-foot"><button class="btn ghost" type="button" id="cancelModalBtn">Cancel</button><button class="btn primary" type="submit">Add block</button></div></form>',async fd=>{await addDoc(subcol("timeBlocks"),{title:fd.get("title").trim(),date:fd.get("date"),type:fd.get("type"),start:fd.get("start"),end:fd.get("end"),...ctxFields(),createdAt:serverTimestamp()});toast("Time block added.")});$("#cancelModalBtn").onclick=closeModal;
+}
+function startFocusModal(){
+  showModal("Start focus",'<form><div class="field"><label>Focus on</label><input name="label" required placeholder="MEP engine, clean room, paperwork…"></div><div class="field"><label>Minutes</label><select name="minutes"><option>25</option><option>45</option><option selected>60</option><option>90</option><option>120</option></select></div><div class="modal-foot"><button class="btn ghost" type="button" id="cancelModalBtn">Cancel</button><button class="btn primary" type="submit">Start</button></div></form>',async fd=>{const now=new Date();await addDoc(subcol("focusSessions"),{label:fd.get("label").trim(),plannedMin:num(fd.get("minutes")),startAt:now.toISOString(),startMs:now.getTime(),interruptions:0,status:"open",...ctxFields(),createdAt:serverTimestamp()});toast("Focus started.")});$("#cancelModalBtn").onclick=closeModal;
+}
+async function stopFocus(id){
+  const f=S.focusSessions.find(x=>x.id===id);if(!f)return;const end=new Date(),actual=Math.max(0,(end-num(f.startMs))/60000);
+  await updateDoc(subdoc("focusSessions",id),{endAt:end.toISOString(),actualMin:actual,status:"closed",updatedAt:serverTimestamp()});toast("Focus saved: "+Math.round(actual)+" min.");
 }
 function renderProfiles(){
   const profiles=S.profiles.length?S.profiles:[currentProfile()];
@@ -1254,6 +1537,9 @@ function bindViewInputs(){
   const inbox=$("#inboxForm");if(inbox)inbox.onsubmit=saveInbox;
   const dash=$("#dashInboxForm");if(dash)dash.onsubmit=saveInbox;
   const sf=$("#settingsForm");if(sf){sf.theme.value=S.profile.theme||"dark";sf.onsubmit=saveSettings}
+  const rs=$("#relSearch");if(rs)rs.oninput=e=>{S.relSearch=e.target.value;render()};
+  const rst=$("#relStore");if(rst){rst.value=S.relStore;rst.onchange=e=>{S.relStore=e.target.value;render()}};
+  const rb=$("#relBudget");if(rb){rb.value=String(S.relBudget);rb.onchange=e=>{S.relBudget=num(e.target.value);render()}};
 }
 
 async function handleAction(action,id,el){
@@ -1305,6 +1591,18 @@ async function handleAction(action,id,el){
   if(action==="delete-time")return removeDoc("timeEntries",id,"Delete this time entry?");
   if(action==="add-paycheck")return openPaycheckModal();
   if(action==="delete-paycheck")return removeDoc("paychecks",id,"Delete this paycheck record?");
+  if(action==="rel-custom")return openRelationshipPlanModal({});
+  if(action==="rel-custom-date")return openRelationshipPlanModal({targetDate:id});
+  if(action==="rel-plan-idea"){const x=relationshipIdeaCatalog().find(v=>v.id===id);if(x)return openRelationshipPlanModal({catalogId:x.id,title:x.title,category:x.category,budget:x.max,store:x.stores[0]})}
+  if(action==="rel-edit")return openRelationshipPlanModal(S.relationshipPlans.find(x=>x.id===id)||{});
+  if(action==="rel-complete")return completeRelationship(id);
+  if(action==="day-prev"){S.dayCursor=new Date(S.dayCursor.getFullYear(),S.dayCursor.getMonth(),S.dayCursor.getDate()-1);return render()}
+  if(action==="day-next"){S.dayCursor=new Date(S.dayCursor.getFullYear(),S.dayCursor.getMonth(),S.dayCursor.getDate()+1);return render()}
+  if(action==="day-today"){S.dayCursor=new Date();return render()}
+  if(action==="add-time-block")return openTimeBlockModal();
+  if(action==="delete-time-block")return removeDoc("timeBlocks",id,"Delete this time block?");
+  if(action==="focus-start")return startFocusModal();
+  if(action==="focus-stop")return stopFocus(id);
   if(action==="add-person")return openPersonModal();
   if(action==="delete-person")return removeDoc("household",id,"Remove this household member?");
   if(action==="add-appointment")return openAppointmentModal();
@@ -1327,6 +1625,7 @@ async function completePlanItem(key){
   if(type==="bill")return payBill(id);
   if(type==="routine"){await updateDoc(subdoc("routines",id),{lastCompletedDate:today(),updatedAt:serverTimestamp()});return toast("Routine completed.")}
   if(type==="goal"){const g=S.goals.find(x=>x.id===id);return g&&openGoalProgress(g)}
+  if(type==="relationship")return completeRelationship(id);
 }
 
 function openTaskModal(t={}){
@@ -1459,6 +1758,22 @@ function checkNotifications(){
   localStorage.setItem(key,"1");
 }
 setInterval(checkNotifications,10*60*1000);
+
+document.addEventListener("visibilitychange",async()=>{
+  if(!document.hidden)return;
+  const f=activeFocus();if(!f)return;
+  try{await updateDoc(subdoc("focusSessions",f.id),{interruptions:num(f.interruptions)+1,updatedAt:serverTimestamp()})}catch{}
+});
+setInterval(async()=>{
+  const f=activeFocus();if(!f)return;
+  const elapsed=(Date.now()-num(f.startMs))/60000;
+  if(elapsed>=num(f.plannedMin)&&!f.notified){
+    try{await updateDoc(subdoc("focusSessions",f.id),{notified:true,updatedAt:serverTimestamp()})}catch{}
+    if("Notification" in window&&Notification.permission==="granted")new Notification("Pier focus block complete",{body:(f.label||"Focus")+" · "+Math.round(elapsed)+" minutes"});
+    else toast("Focus block complete: "+(f.label||"Focus"));
+  }
+  if(S.view==="day")render();
+},60000);
 
 window.addEventListener("online",()=>{if(!S.syncError)setSynced()});
 window.addEventListener("offline",()=>{$("#syncDot").className="dot";$("#syncLabel").textContent="Offline";$("#syncDetail").textContent="Waiting for connection"});

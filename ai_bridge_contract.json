@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "contextSchema": "pier.ai.context.v1",
+  "requestSchema": "pier.ai.request.v1",
+  "responseSchema": "pier.ai.response.v1",
+  "request": {
+    "schema": "pier.ai.request.v1",
+    "mode": "health|summarize|organize|plan|explain",
+    "prompt": "string",
+    "model": "string",
+    "context": "pier.ai.context.v1 object",
+    "requestedAt": "ISO-8601"
+  },
+  "response": {
+    "schema": "pier.ai.response.v1",
+    "message": "string",
+    "actions": [
+      {
+        "type": "create_task|update_task|create_goal|update_goal|create_time_block|create_reminder|none",
+        "payload": "validated action-specific object"
+      }
+    ]
+  },
+  "security": {
+    "firebaseAuthHeader": "Authorization: Bearer <Firebase ID token>",
+    "secrets": "Provider API keys belong server-side only.",
+    "firestore": "Never accept arbitrary model-generated Firestore document paths."
+  },
+  "browserLocalHook": "window.PierLocalAI.generate(request)"
+}

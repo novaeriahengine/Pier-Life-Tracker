@@ -334,6 +334,17 @@ tr:last-child td{border-bottom:0}
 .status-strip{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 @media(max-width:1050px){.admin-grid,.asset-grid{grid-template-columns:repeat(2,1fr)}.quick-session{grid-template-columns:repeat(3,1fr)}}
 @media(max-width:650px){.admin-grid,.asset-grid{grid-template-columns:1fr}.quick-session{grid-template-columns:repeat(2,1fr)}}
+
+/* Pier v2.7: universal life JSON + Firebase daily GOAP drafts */
+.import-summary{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:10px}
+.import-stat{padding:10px;border:1px solid var(--line);border-radius:11px;background:var(--panel);font-size:10px}
+.import-stat strong{display:block;font-size:18px;margin-bottom:2px}
+.draft-card{border:1px solid rgba(101,183,255,.35);background:linear-gradient(135deg,rgba(101,183,255,.07),transparent),var(--panel2);border-radius:14px;padding:12px}
+.draft-card.corrected{border-color:rgba(255,202,99,.42)}
+.draft-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:9px}
+.learned-chip{font-size:9px;font-weight:900;padding:3px 7px;border:1px solid rgba(180,140,255,.4);border-radius:999px;color:#dbcaff;background:rgba(160,110,255,.08)}
+.goap-memory{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:9px}
+@media(max-width:800px){.import-summary,.goap-memory{grid-template-columns:repeat(2,1fr)}}
 </style>
 </head>
 <body>
@@ -470,16 +481,16 @@ const DEFAULT_PROFILE={
   theme:"dark",notifications:false,createdAt:null
 };
 
-const DATA_COLLECTIONS=["tasks","accounts","transactions","bills","goals","routines","inbox","jobs","shifts","timeEntries","paychecks","household","appointments","shopping","paperTrades","relationshipPlans","timeBlocks","focusSessions","marketWatch","marketCache","learningProgress","legalObligations","assets","assetEvents","sessionLogs"];
+const DATA_COLLECTIONS=["tasks","accounts","transactions","bills","goals","routines","inbox","jobs","shifts","timeEntries","paychecks","household","appointments","shopping","paperTrades","relationshipPlans","timeBlocks","focusSessions","marketWatch","marketCache","learningProgress","legalObligations","assets","assetEvents","sessionLogs","dailyDrafts","goapFeedback"];
 const S={
   user:null,profile:{...DEFAULT_PROFILE},profiles:[],
   tasks:[],accounts:[],transactions:[],bills:[],goals:[],routines:[],inbox:[],
   jobs:[],shifts:[],timeEntries:[],paychecks:[],household:[],appointments:[],shopping:[],paperTrades:[],
-  relationshipPlans:[],timeBlocks:[],focusSessions:[],marketWatch:[],marketCache:[],learningProgress:[],legalObligations:[],assets:[],assetEvents:[],sessionLogs:[],
+  relationshipPlans:[],timeBlocks:[],focusSessions:[],marketWatch:[],marketCache:[],learningProgress:[],legalObligations:[],assets:[],assetEvents:[],sessionLogs:[],dailyDrafts:[],goapFeedback:[],
   stockUniverse:[],stockUniverseLoaded:false,stockSearch:"",stockSector:"all",marketTab:"watch",learnTab:"stocks",
   all:{},activeProfileId:localStorage.getItem("pierProfile")||"primary",worldMode:localStorage.getItem("pierWorld")||"live",
   unsubs:[],view:"dashboard",syncError:"",taskSearch:"",taskFilter:"open",plan:null,calendarCursor:new Date(),dayCursor:new Date(),relStore:"all",relBudget:550,relSearch:"",
-  market:{symbol:"SPY",quote:null,candles:[],chain:[],rate:null,error:"",loading:false,lastFetch:null,hasToken:null,autoBusy:false}
+  market:{symbol:"SPY",quote:null,candles:[],chain:[],rate:null,error:"",loading:false,lastFetch:null,hasToken:null,autoBusy:false},dailyDraftBusy:false,dailyDraftTimer:null
 };
 if(!["live","shadow"].includes(S.worldMode))S.worldMode="live";
 
@@ -496,6 +507,7 @@ function applyContextData(){
     sortData(name);
   });
   S.plan=generatePlan();
+  queueDailyDraftGeneration();
 }
 function contextCounts(pid,world){
   const out={};DATA_COLLECTIONS.forEach(n=>out[n]=(S.all[n]||[]).filter(d=>(d.profileId||"primary")===pid&&(d.world||"live")===world).length);return out;
@@ -617,6 +629,8 @@ function sortData(name){
   if(name==="assets")S.assets.sort((a,b)=>String(a.kind||"").localeCompare(String(b.kind||""))||String(a.name||"").localeCompare(String(b.name||"")));
   if(name==="assetEvents")S.assetEvents.sort((a,b)=>String(b.date||"").localeCompare(String(a.date||"")));
   if(name==="sessionLogs")S.sessionLogs.sort((a,b)=>num(b.startMs)-num(a.startMs));
+  if(name==="dailyDrafts")S.dailyDrafts.sort((a,b)=>String(a.date||"").localeCompare(String(b.date||""))||String(a.start||"").localeCompare(String(b.start||"")));
+  if(name==="goapFeedback")S.goapFeedback.sort((a,b)=>String(a.sourceKey||"").localeCompare(String(b.sourceKey||"")));
 }
 function setSynced(){
   if(S.syncError)return;$("#syncDot").className="dot ok";$("#syncLabel").textContent="Synced";$("#syncDetail").textContent=esc(currentProfile().name||"Profile")+" · "+S.worldMode.toUpperCase();
@@ -718,10 +732,10 @@ function toRelationshipAction(r){
 }
 function allActions(){
   return [
-    ...openTasks().map(toTaskAction),
+    ...openTasks().filter(t=>t.plannerEnabled!==false).map(toTaskAction),
     ...S.bills.filter(b=>b.status!=="paid").map(toBillAction),
     ...S.routines.filter(routineDue).map(toRoutineAction),
-    ...S.goals.filter(g=>g.status!=="done"&&g.nextAction).map(toGoalAction),
+    ...S.goals.filter(g=>g.status!=="done"&&g.nextAction&&g.plannerEnabled!==false).map(toGoalAction),
     ...S.relationshipPlans.filter(r=>r.status!=="done"&&r.status!=="skipped").map(toRelationshipAction)
   ];
 }
@@ -2058,11 +2072,11 @@ function openTaskModal(t={}){
     '<div class="field"><label>Deadline</label><input name="dueAt" type="datetime-local" value="'+esc(t.dueAt||"")+'"></div>'+
     '<div class="field"><label>Time needed (minutes)</label><input name="estimateMin" type="number" min="1" value="'+num(t.estimateMin||30)+'"></div>'+
     '<div class="field"><label>Money required</label><input name="moneyCost" type="number" min="0" step=".01" value="'+num(t.moneyCost||0)+'"></div></div>'+
-    '<label class="check"><input name="must" type="checkbox" '+(t.must?'checked':'')+'> <strong>HAVE TO</strong> — treat this as mandatory</label><label class="check"><input name="requiresDriving" type="checkbox" '+(t.requiresDriving?'checked':'')+'> Requires me to drive myself</label>'+
+    '<label class="check"><input name="must" type="checkbox" '+(t.must?'checked':'')+'> <strong>HAVE TO</strong> — treat this as mandatory</label><label class="check"><input name="requiresDriving" type="checkbox" '+(t.requiresDriving?'checked':'')+'> Requires me to drive myself</label><label class="check"><input name="plannerEnabled" type="checkbox" '+(t.plannerEnabled!==false?'checked':'')+'> Let Pier schedule this automatically</label>'+
     '<div class="field"><label>Notes</label><textarea name="notes" placeholder="Anything you need when you come back to this…">'+esc(t.notes||"")+'</textarea></div>'+
     '<div class="modal-foot">'+(isEdit?'<button class="btn danger" type="button" id="deleteTaskBtn">Delete</button>':'')+'<button class="btn ghost" type="button" id="cancelModalBtn">Cancel</button><button class="btn primary" type="submit">Save</button></div></form>',
     async fd=>{
-      const data={title:fd.get("title").trim(),priority:num(fd.get("priority")),category:fd.get("category").trim()||"General",dueAt:fd.get("dueAt")||"",estimateMin:num(fd.get("estimateMin"))||30,moneyCost:num(fd.get("moneyCost")),must:fd.get("must")==="on",requiresDriving:fd.get("requiresDriving")==="on",notes:fd.get("notes").trim(),updatedAt:serverTimestamp()};
+      const data={title:fd.get("title").trim(),priority:num(fd.get("priority")),category:fd.get("category").trim()||"General",dueAt:fd.get("dueAt")||"",estimateMin:num(fd.get("estimateMin"))||30,moneyCost:num(fd.get("moneyCost")),must:fd.get("must")==="on",requiresDriving:fd.get("requiresDriving")==="on",plannerEnabled:fd.get("plannerEnabled")==="on",notes:fd.get("notes").trim(),updatedAt:serverTimestamp()};
       if(isEdit)await updateDoc(subdoc("tasks",t.id),data);else await addDoc(subcol("tasks"),{...data,...ctxFields(),status:"open",createdAt:serverTimestamp()});
       toast(isEdit?"Task updated.":"Task added.");
     });
@@ -2130,8 +2144,8 @@ async function payBill(id){
 function openGoalModal(g={}){
   const isEdit=!!g.id;
   showModal(isEdit?"Edit goal":"Add goal",
-    '<form><div class="field"><label>Goal</label><input name="name" required value="'+esc(g.name||"")+'" placeholder="Emergency fund, finish project, lose clutter…"></div><div class="modal-grid"><div class="field"><label>Type</label><select name="kind"><option value="money">Money</option><option value="progress">Progress number</option></select></div><div class="field"><label>Priority</label><select name="priority">'+[1,2,3,4,5].map(x=>'<option value="'+x+'" '+(num(g.priority||3)===x?'selected':'')+'>P'+x+'</option>').join("")+'</select></div><div class="field"><label>Current</label><input name="current" type="number" step=".01" value="'+num(g.current)+'"></div><div class="field"><label>Target</label><input name="target" type="number" step=".01" value="'+num(g.target||100)+'"></div><div class="field"><label>Deadline</label><input name="deadline" type="date" value="'+esc(g.deadline||"")+'"></div><div class="field"><label>Next action time (min)</label><input name="nextActionMinutes" type="number" min="1" value="'+num(g.nextActionMinutes||30)+'"></div></div><div class="field"><label>Next physical action</label><input name="nextAction" value="'+esc(g.nextAction||"")+'" placeholder="Transfer $50, code login screen, call office…"></div><div class="modal-foot">'+(isEdit?'<button class="btn danger" type="button" id="deleteGoalBtn">Delete</button>':'')+'<button class="btn ghost" type="button" id="cancelModalBtn">Cancel</button><button class="btn primary" type="submit">Save</button></div></form>',
-    async fd=>{const data={name:fd.get("name").trim(),kind:fd.get("kind"),priority:num(fd.get("priority")),current:num(fd.get("current")),target:num(fd.get("target")),deadline:fd.get("deadline"),nextAction:fd.get("nextAction").trim(),nextActionMinutes:num(fd.get("nextActionMinutes")),status:"open",updatedAt:serverTimestamp()};if(isEdit)await updateDoc(subdoc("goals",g.id),data);else await addDoc(subcol("goals"),{...data,...ctxFields(),createdAt:serverTimestamp()});toast("Goal saved.")});
+    '<form><div class="field"><label>Goal</label><input name="name" required value="'+esc(g.name||"")+'" placeholder="Emergency fund, finish project, lose clutter…"></div><div class="modal-grid"><div class="field"><label>Type</label><select name="kind"><option value="money">Money</option><option value="progress">Progress number</option></select></div><div class="field"><label>Priority</label><select name="priority">'+[1,2,3,4,5].map(x=>'<option value="'+x+'" '+(num(g.priority||3)===x?'selected':'')+'>P'+x+'</option>').join("")+'</select></div><div class="field"><label>Current</label><input name="current" type="number" step=".01" value="'+num(g.current)+'"></div><div class="field"><label>Target</label><input name="target" type="number" step=".01" value="'+num(g.target||100)+'"></div><div class="field"><label>Deadline</label><input name="deadline" type="date" value="'+esc(g.deadline||"")+'"></div><div class="field"><label>Next action time (min)</label><input name="nextActionMinutes" type="number" min="1" value="'+num(g.nextActionMinutes||30)+'"></div></div><div class="field"><label>Next physical action</label><input name="nextAction" value="'+esc(g.nextAction||"")+'" placeholder="Transfer $50, code login screen, call office…"></div><label class="check"><input name="plannerEnabled" type="checkbox" '+(g.plannerEnabled!==false?'checked':'')+'> Let Pier turn this goal&#39;s next action into daily plan suggestions</label><div class="modal-foot">'+(isEdit?'<button class="btn danger" type="button" id="deleteGoalBtn">Delete</button>':'')+'<button class="btn ghost" type="button" id="cancelModalBtn">Cancel</button><button class="btn primary" type="submit">Save</button></div></form>',
+    async fd=>{const data={name:fd.get("name").trim(),kind:fd.get("kind"),priority:num(fd.get("priority")),current:num(fd.get("current")),target:num(fd.get("target")),deadline:fd.get("deadline"),nextAction:fd.get("nextAction").trim(),nextActionMinutes:num(fd.get("nextActionMinutes")),plannerEnabled:fd.get("plannerEnabled")==="on",status:"open",updatedAt:serverTimestamp()};if(isEdit)await updateDoc(subdoc("goals",g.id),data);else await addDoc(subcol("goals"),{...data,...ctxFields(),createdAt:serverTimestamp()});toast("Goal saved.")});
   $("#cancelModalBtn").onclick=closeModal;$("#modalBody select[name=kind]").value=g.kind||"money";
   if(isEdit)$("#deleteGoalBtn").onclick=async()=>{if(confirm("Delete this goal?")){await deleteDoc(subdoc("goals",g.id));closeModal()}};
 }

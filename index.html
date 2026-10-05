@@ -1310,6 +1310,97 @@ function fixedDayEvents(date){
   S.relationshipPlans.filter(r=>r.targetDate===date&&r.status!=="done").forEach(r=>out.push({start:r.start||"19:00",end:minToTime(timeToMin(r.start||"19:00")+Math.max(30,num(r.minutes)||90)),title:"♡ "+r.title,kind:"rel",meta:relationshipPersonName(r.personId),fixed:true}));
   return out.sort((a,b)=>String(a.start||"23:59").localeCompare(String(b.start||"23:59")));
 }
+
+function feedbackFor(sourceKey){return S.goapFeedback.find(x=>x.sourceKey===sourceKey)||null}
+function learnedAction(a){
+  const f=feedbackFor(a.key);if(!f)return {...a,learnedBoost:0,learnedFrom:0};
+  const approvals=num(f.approvedCount),rejects=num(f.rejectedCount),corrections=num(f.correctedCount);
+  const boost=Math.max(-35,Math.min(35,approvals*4-rejects*7+corrections*2));
+  const preferred=Number.isFinite(Number(f.avgStartMin))?minToTime(num(f.avgStartMin)):(a.preferredTime||"");
+  const mins=Number.isFinite(Number(f.avgDurationMin))&&num(f.avgDurationMin)>=10?Math.round(num(f.avgDurationMin)):(a.minutes||30);
+  return {...a,preferredTime:preferred,minutes:mins,learnedBoost:boost,learnedFrom:approvals+rejects+corrections};
+}
+function learnedScore(a){const x=learnedAction(a);return scoreAction(x)+num(x.learnedBoost)}
+async function recordGoapFeedback(sourceKey,outcome,start="",end=""){
+  if(!sourceKey)return;
+  const current=feedbackFor(sourceKey)||{},approved=num(current.approvedCount),rejected=num(current.rejectedCount),corrected=num(current.correctedCount);
+  const startMin=start?timeToMin(start):null,duration=start&&end?Math.max(10,timeToMin(end)-timeToMin(start)):null;
+  let samples=num(current.timeSamples),avgStart=Number.isFinite(Number(current.avgStartMin))?num(current.avgStartMin):null,avgDur=Number.isFinite(Number(current.avgDurationMin))?num(current.avgDurationMin):null;
+  if(startMin!==null&&duration!==null){
+    avgStart=avgStart===null?startMin:(avgStart*samples+startMin)/(samples+1);
+    avgDur=avgDur===null?duration:(avgDur*samples+duration)/(samples+1);
+    samples++;
+  }
+  await setDoc(subdoc("goapFeedback",idSafe(sourceKey)),{
+    sourceKey,
+    approvedCount:approved+(outcome==="approved"?1:0),
+    rejectedCount:rejected+(outcome==="rejected"?1:0),
+    correctedCount:corrected+(outcome==="corrected"?1:0),
+    avgStartMin:avgStart,
+    avgDurationMin:avgDur,
+    timeSamples:samples,
+    lastOutcome:outcome,
+    lastDate:today(),
+    ...ctxFields(),
+    updatedAt:serverTimestamp()
+  },{merge:true});
+}
+function dailyDraftsFor(date){return S.dailyDrafts.filter(d=>d.date===date)}
+function queueDailyDraftGeneration(){
+  if(!S.user)return;
+  clearTimeout(S.dailyDraftTimer);
+  S.dailyDraftTimer=setTimeout(()=>ensureDailyDrafts(today()),1100);
+}
+async function ensureDailyDrafts(date,force=false){
+  if(S.dailyDraftBusy||!S.user)return;
+  if(date!==today()&&!force)return;
+  S.dailyDraftBusy=true;
+  try{
+    const rows=autoDaySuggestions(date),existing=dailyDraftsFor(date),sourceSet=new Set(existing.map(x=>x.sourceKey));
+    let made=0;
+    for(const x of rows){
+      if(sourceSet.has(x.autoSourceKey))continue;
+      const a=learnedAction(x.action||{key:x.autoSourceKey,priority:3,minutes:30});
+      await addDoc(subcol("dailyDrafts"),{
+        date,sourceKey:x.autoSourceKey,sourceType:(x.action?.type||"action"),sourceId:(x.action?.id||""),
+        title:x.title,start:x.start,end:x.end,minutes:Math.max(10,timeToMin(x.end)-timeToMin(x.start)),
+        score:learnedScore(x.action||{key:x.autoSourceKey,priority:3,minutes:30}),reason:x.meta,
+        learnedFrom:num(a.learnedFrom),status:"pending",generation:"GOAP-v1",...ctxFields(),createdAt:serverTimestamp()
+      });made++;
+    }
+    if(made&&force)toast(made+" daily suggestion"+(made===1?"":"s")+" generated.");
+  }catch(e){console.warn("daily drafts",e)}
+  finally{S.dailyDraftBusy=false}
+}
+async function approveDailyDraft(id,corrected=false){
+  const d=S.dailyDrafts.find(x=>x.id===id);if(!d)return;
+  const already=S.timeBlocks.some(b=>b.dailyDraftId===id||(b.autoSourceKey===d.sourceKey&&b.date===d.date));
+  if(!already)await addDoc(subcol("timeBlocks"),{title:d.title,date:d.date,start:d.start,end:d.end,type:"GOAP APPROVED",autoSourceKey:d.sourceKey,dailyDraftId:id,autoReason:d.reason,...ctxFields(),createdAt:serverTimestamp()});
+  await updateDoc(subdoc("dailyDrafts",id),{status:"approved",approvedAt:new Date().toISOString(),corrected:!!corrected,updatedAt:serverTimestamp()});
+  await recordGoapFeedback(d.sourceKey,corrected?"corrected":"approved",d.start,d.end);
+  toast((corrected?"Corrected":"Approved")+" · Pier learned from this.");
+}
+async function rejectDailyDraft(id){
+  const d=S.dailyDrafts.find(x=>x.id===id);if(!d)return;
+  await updateDoc(subdoc("dailyDrafts",id),{status:"rejected",rejectedAt:new Date().toISOString(),updatedAt:serverTimestamp()});
+  await recordGoapFeedback(d.sourceKey,"rejected");
+  toast("Rejected · future priority/time preference adjusted.");
+}
+function editDailyDraft(d){
+  if(!d)return;
+  showModal("Correct daily suggestion",'<form><div class="field"><label>Block title</label><input name="title" required value="'+esc(d.title||"")+'"></div><div class="modal-grid"><div class="field"><label>Start</label><input name="start" type="time" required value="'+esc(d.start||"")+'"></div><div class="field"><label>End</label><input name="end" type="time" required value="'+esc(d.end||"")+'"></div></div><div class="field"><label>Correction note</label><input name="note" placeholder="Why this time works better"></div><div class="small muted">Correct &amp; approve updates today&#39;s Firebase plan and teaches Pier the time/duration you prefer for this action.</div><div class="modal-foot"><button class="btn ghost" type="button" id="cancelModalBtn">Cancel</button><button class="btn primary" type="submit">Correct &amp; approve</button></div></form>',async fd=>{
+    const start=fd.get("start"),end=fd.get("end");if(timeToMin(end)<=timeToMin(start))throw new Error("End must be after start.");
+    const title=fd.get("title").trim();
+    await updateDoc(subdoc("dailyDrafts",d.id),{title,start,end,minutes:timeToMin(end)-timeToMin(start),correctionNote:fd.get("note").trim(),status:"approved",approvedAt:new Date().toISOString(),corrected:true,updatedAt:serverTimestamp()});
+    const already=S.timeBlocks.some(b=>b.dailyDraftId===d.id);
+    if(!already)await addDoc(subcol("timeBlocks"),{title,date:d.date,start,end,type:"GOAP CORRECTED",autoSourceKey:d.sourceKey,dailyDraftId:d.id,autoReason:d.reason,...ctxFields(),createdAt:serverTimestamp()});
+    await recordGoapFeedback(d.sourceKey,"corrected",start,end);toast("Correction saved and learned.");
+  });$("#cancelModalBtn").onclick=closeModal;
+}
+async function approveAllDailyDrafts(date){
+  const rows=dailyDraftsFor(date).filter(x=>x.status==="pending");if(!rows.length)return toast("No pending suggestions.");
+  for(const d of rows)await approveDailyDraft(d.id,false);
+}
 function autoDaySuggestions(date){
   const occupied=fixedDayEvents(date).filter(x=>x.fixed&&x.start).map(x=>({s:timeToMin(x.start),e:timeToMin(x.end||minToTime(timeToMin(x.start)+60))})).sort((a,b)=>a.s-b.s);
   let dayStart=360,dayEnd=1380;
@@ -1320,7 +1411,7 @@ function autoDaySuggestions(date){
     if(usedKeys.has(a.key))return false;
     const due=a.due?new Date(String(a.due).length<=10?a.due+"T23:59:59":a.due).getTime():Infinity;
     return a.must||due<=dateMs+7*86400000||scoreAction(a)>=90;
-  }).sort((a,b)=>scoreAction(b)-scoreAction(a)).slice(0,10);
+  }).map(learnedAction).sort((a,b)=>learnedScore(b)-learnedScore(a)).slice(0,10);
   const out=[],busy=[...occupied];
   function slot(minutes,preferred="",canOverlap=false){
     if(preferred){
@@ -1334,24 +1425,31 @@ function autoDaySuggestions(date){
   }
   for(const a of candidates){
     const mins=Math.max(10,Math.min(180,Math.ceil(a.minutes/15)*15)),s=slot(mins,a.preferredTime||"",a.canOverlap);if(s===null)continue;
-    const e=s+mins;busy.push({s,e});out.push({start:minToTime(s),end:minToTime(e),title:a.title,kind:"auto",meta:"AUTO · score "+scoreAction(a)+" · "+whyAction(a),autoSourceKey:a.key,action:a});
+    const e=s+mins;busy.push({s,e});out.push({start:minToTime(s),end:minToTime(e),title:a.title,kind:"auto",meta:"AUTO · score "+learnedScore(a)+" · "+whyAction(a)+(a.learnedFrom?" · learned from "+a.learnedFrom+" prior choice(s)":""),autoSourceKey:a.key,action:a});
   }
   return out;
 }
-function dayEvents(date){return [...fixedDayEvents(date),...autoDaySuggestions(date)].sort((a,b)=>String(a.start||"23:59").localeCompare(String(b.start||"23:59")))}
+function draftDayEvents(date){
+  return dailyDraftsFor(date).filter(d=>d.status==="pending").map(d=>({start:d.start,end:d.end,title:d.title,kind:"auto",meta:"DRAFT · "+(d.reason||"GOAP suggestion"),autoSourceKey:d.sourceKey,draftId:d.id}));
+}
+function dayEvents(date){
+  const drafts=draftDayEvents(date),auto=drafts.length?drafts:autoDaySuggestions(date);
+  return [...fixedDayEvents(date),...auto].sort((a,b)=>String(a.start||"23:59").localeCompare(String(b.start||"23:59")));
+}
 async function applyAutoDayPlan(){
-  const date=dayKey(),rows=autoDaySuggestions(date);if(!rows.length)return toast("No new auto blocks to apply.");
-  for(const x of rows)await addDoc(subcol("timeBlocks"),{title:x.title,date,start:x.start,end:x.end,type:"AUTO GOAP",autoSourceKey:x.autoSourceKey,autoReason:x.meta,...ctxFields(),createdAt:serverTimestamp()});
-  toast(rows.length+" auto-planned block"+(rows.length===1?"":"s")+" saved.");
+  const date=dayKey(),pending=dailyDraftsFor(date).filter(x=>x.status==="pending");
+  if(pending.length)return approveAllDailyDrafts(date);
+  await ensureDailyDrafts(date,true);
+  setTimeout(()=>approveAllDailyDrafts(date),750);
 }
 function renderDayPlan(){
-  const key=dayKey(),events=dayEvents(key),auto=events.filter(x=>x.kind==="auto"),focus=activeFocus(),elapsed=focus?Math.max(0,(Date.now()-num(focus.startMs))/60000):0,target=num(focus?.plannedMin||0),remaining=Math.max(0,target-elapsed);
+  const key=dayKey(),events=dayEvents(key),auto=events.filter(x=>x.kind==="auto"),drafts=dailyDraftsFor(key),pendingDrafts=drafts.filter(x=>x.status==="pending"),approvedDrafts=drafts.filter(x=>x.status==="approved"),focus=activeFocus(),elapsed=focus?Math.max(0,(Date.now()-num(focus.startMs))/60000):0,target=num(focus?.plannedMin||0),remaining=Math.max(0,target-elapsed);
   const focusToday=S.focusSessions.filter(x=>String(x.startAt||"").slice(0,10)===key&&x.status==="closed"),focusMin=focusToday.reduce((a,x)=>a+num(x.actualMin),0),interruptions=focusToday.reduce((a,x)=>a+num(x.interruptions),0)+(focus&&String(focus.startAt||"").slice(0,10)===key?num(focus.interruptions):0);
   const hours=[];for(let h=5;h<=23;h++){const hh=String(h).padStart(2,"0"),items=events.filter(x=>(x.start||"").slice(0,2)===hh);hours.push('<div class="hour-row"><div class="hour-label">'+new Date(2000,0,1,h).toLocaleTimeString([],{hour:"numeric"})+'</div><div class="hour-events">'+(items.length?items.map(x=>'<div class="day-event '+x.kind+' '+(x.kind==="auto"?"auto-day":"")+'"><strong>'+esc(x.title)+'</strong>'+(x.kind==="auto"?'<span class="auto-badge" style="margin-left:7px">AUTO</span>':'')+'<div class="small muted">'+esc(x.start+(x.end?"–"+x.end:"")+(x.meta?" · "+x.meta:""))+'</div></div>').join(""):'')+'</div></div>')}
-  return '<div class="section-title"><div><h1>Day Plan</h1><p>Pier now fills open time automatically from your tasks, bills, routines, goals and relationship plans while respecting shifts, appointments and blocks.</p></div><div class="day-nav"><button class="btn" data-action="day-prev">←</button><button class="btn" data-action="day-today">Today</button><button class="btn" data-action="day-next">→</button><button class="btn" data-action="auto-day-apply">Save auto plan</button><button class="btn primary" data-action="add-time-block">＋ Time block</button></div></div>'+
+  return '<div class="section-title"><div><h1>Day Plan</h1><p>Pier now fills open time automatically from your tasks, bills, routines, goals and relationship plans while respecting shifts, appointments and blocks.</p></div><div class="day-nav"><button class="btn" data-action="day-prev">←</button><button class="btn" data-action="day-today">Today</button><button class="btn" data-action="day-next">→</button><button class="btn" data-action="daily-regenerate">Generate / refresh</button><button class="btn" data-action="auto-day-apply">Approve all pending</button><button class="btn primary" data-action="add-time-block">＋ Time block</button></div></div>'+
     '<div class="grid-2"><div class="focus-card">'+(focus?'<div class="eyebrow">FOCUS ACTIVE · '+esc(focus.label||"Focus")+'</div><div class="focus-time">'+Math.floor(elapsed)+' / '+target+' min</div><div class="row-meta">'+Math.ceil(remaining)+' min remaining · '+num(focus.interruptions)+' tab exits</div><div class="toolbar" style="margin-top:12px"><button class="btn danger" data-action="focus-stop" data-id="'+focus.id+'">Stop focus</button></div>':'<div class="eyebrow">FOCUS MODE</div><div class="focus-time">Ready</div><div class="row-meta">Pier cannot see your whole phone. While this focus timer is running, leaving the Pier tab counts as an interruption.</div><div class="toolbar" style="margin-top:12px"><button class="btn primary" data-action="focus-start">Start focus</button></div>')+'</div>'+
     '<div class="metrics">'+metric("Focused today",Math.round(focusMin)+" min","Closed focus sessions")+metric("Interruptions",interruptions,"Pier tab exits during focus")+metric("Auto blocks",auto.length,"Generated from your life state")+metric("Open tasks",openTasks().length,"Across this profile")+'</div></div>'+
-    (auto.length?'<section class="card pad" style="margin-top:18px"><div class="card-head"><h3>Auto plan reasoning</h3><span class="pill good">'+auto.length+' suggested</span></div><div class="stack">'+auto.map((x,i)=>'<div class="task-row auto-day"><div class="plan-num">'+(i+1)+'</div><div class="row-main"><div class="task-title">'+esc(x.title)+'</div><div class="row-meta">'+esc(x.start+'–'+x.end+' · '+x.meta)+'</div></div></div>').join("")+'</div></section>':'')+
+    '<section class="card pad" style="margin-top:18px"><div class="card-head"><div><h3>Firebase daily GOAP draft</h3><div class="small muted">Pier creates suggestions from your current Firebase state. Approve, correct or reject them; those choices change future scheduling.</div></div><span class="pill '+(pendingDrafts.length?'urgent':'good')+'">'+pendingDrafts.length+' pending · '+approvedDrafts.length+' approved</span></div><div class="stack">'+(pendingDrafts.length?pendingDrafts.map((d,i)=>'<div class="draft-card '+(d.corrected?'corrected':'')+'"><div style="display:flex;gap:10px;align-items:flex-start"><div class="plan-num">'+(i+1)+'</div><div class="row-main"><div class="task-title">'+esc(d.title)+'</div><div class="row-meta">'+esc(d.start+'–'+d.end+' · score '+Math.round(num(d.score))+' · '+(d.reason||''))+'</div>'+(num(d.learnedFrom)?'<div style="margin-top:6px"><span class="learned-chip">learned from '+num(d.learnedFrom)+' prior choice(s)</span></div>':'')+'</div></div><div class="draft-actions"><button class="btn primary" data-action="daily-approve" data-id="'+d.id+'">Approve</button><button class="btn" data-action="daily-edit" data-id="'+d.id+'">Correct time</button><button class="btn danger" data-action="daily-reject" data-id="'+d.id+'">Reject</button></div></div>').join(""):'<div class="empty">No pending draft. Pier will generate one from Firebase when there is something worth scheduling.</div>')+'</div></section>'+
     '<section class="card pad" style="margin-top:18px"><div class="card-head"><div><h3>'+fmtDate(key)+'</h3><div class="small muted">AUTO blocks are previews until you press Save auto plan. In SHADOW you can experiment freely.</div></div><span class="pill blue">'+events.length+' items</span></div><div class="day-timeline">'+hours.join("")+'</div></section>'+
     '<section class="card pad" style="margin-top:18px"><div class="card-head"><h3>Saved time blocks</h3><span class="small muted">Manual + applied auto blocks</span></div><div class="stack">'+(S.timeBlocks.filter(b=>b.date===key).length?S.timeBlocks.filter(b=>b.date===key).map(b=>'<div class="task-row"><div class="row-main"><div class="task-title">'+esc(b.title)+(b.autoSourceKey?' <span class="auto-badge">AUTO</span>':'')+'</div><div class="row-meta">'+esc(b.start)+'–'+esc(b.end)+' · '+esc(b.type||"Personal")+'</div></div><button class="btn icon ghost" data-action="delete-time-block" data-id="'+b.id+'">×</button></div>').join(""):'<div class="empty">No saved blocks for this day.</div>')+'</div></section>';
 }
@@ -2032,6 +2130,10 @@ async function handleAction(action,id,el){
   if(action==="day-prev"){S.dayCursor=new Date(S.dayCursor.getFullYear(),S.dayCursor.getMonth(),S.dayCursor.getDate()-1);return render()}
   if(action==="day-next"){S.dayCursor=new Date(S.dayCursor.getFullYear(),S.dayCursor.getMonth(),S.dayCursor.getDate()+1);return render()}
   if(action==="day-today"){S.dayCursor=new Date();return render()}
+  if(action==="daily-regenerate")return ensureDailyDrafts(S.view==="day"?dayKey():today(),true);
+  if(action==="daily-approve")return approveDailyDraft(id,false);
+  if(action==="daily-edit")return editDailyDraft(S.dailyDrafts.find(x=>x.id===id));
+  if(action==="daily-reject")return rejectDailyDraft(id);
   if(action==="auto-day-apply")return applyAutoDayPlan();
   if(action==="add-time-block")return openTimeBlockModal();
   if(action==="delete-time-block")return removeDoc("timeBlocks",id,"Delete this time block?");

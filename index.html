@@ -1055,7 +1055,7 @@ function openAdminModal(x={}){
 }
 async function importPrivateSetup(payload){
   if(!payload||!payload.collections)throw new Error("This is not a Pier private setup file.");
-  const pid=S.activeProfileId,world="live",jobMap={};
+  const pid=S.activeProfileId,world="live",jobMap={},assetMap={};
   const order=["household","assets","legalObligations","jobs","bills","goals","tasks","routines","appointments","relationshipPlans","timeBlocks","assetEvents"];
   let created=0,updated=0;
   for(const name of order){
@@ -1067,8 +1067,13 @@ async function importPrivateSetup(payload){
         let ref;if(existing){await updateDoc(subdoc("jobs",existing.id),data);ref=existing.id;updated++}else{const r=await addDoc(subcol("jobs"),{...data,createdAt:serverTimestamp()});ref=r.id;created++}
         if(row.importKey)jobMap[row.importKey]=ref;continue;
       }
+      if(name==="assets"){
+        const existing=(S.all.assets||[]).find(d=>d.importKey&&d.importKey===row.importKey&&(d.profileId||"primary")===pid&&(d.world||"live")==="live");
+        let ref;if(existing){await updateDoc(subdoc("assets",existing.id),data);ref=existing.id;updated++}else{const r=await addDoc(subcol("assets"),{...data,createdAt:serverTimestamp()});ref=r.id;created++}
+        if(row.importKey)assetMap[row.importKey]=ref;continue;
+      }
       if(data.jobImportKey){data.jobId=jobMap[data.jobImportKey]||(S.all.jobs||[]).find(j=>j.importKey===data.jobImportKey)?.id||"";delete data.jobImportKey}
-      if(data.assetImportKey){data.assetId=(S.all.assets||[]).find(a=>a.importKey===data.assetImportKey)?.id||""}
+      if(data.assetImportKey){data.assetId=assetMap[data.assetImportKey]||(S.all.assets||[]).find(a=>a.importKey===data.assetImportKey)?.id||"";delete data.assetImportKey}
       const existing=(S.all[name]||[]).find(d=>d.importKey&&d.importKey===row.importKey&&(d.profileId||"primary")===pid&&(d.world||"live")==="live");
       if(existing){await updateDoc(subdoc(name,existing.id),data);updated++}else{await addDoc(subcol(name),{...data,createdAt:serverTimestamp()});created++}
     }

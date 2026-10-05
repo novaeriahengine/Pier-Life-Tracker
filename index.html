@@ -446,10 +446,10 @@ tr:last-child td{border-bottom:0}
 
   <nav class="mobile-nav" id="mobileNav">
     <button class="active" data-view="dashboard"><span>⌂</span>Home</button>
-    <button data-view="tasks"><span>✓</span>Tasks</button>
+    <button data-view="mylife"><span>✦</span>My Life</button>
     <button data-view="money"><span>$</span>Money</button>
-    <button data-view="goals"><span>◎</span>Goals</button>
-    <button data-view="inbox"><span>↓</span>Inbox</button>
+    <button data-view="day"><span>◫</span>Day</button>
+    <button data-action="mobile-more"><span>⋯</span>More</button>
   </nav>
 </div>
 
@@ -623,7 +623,7 @@ async function bootstrapUser(){
 function stopListeners(){S.unsubs.forEach(u=>{try{u()}catch{}});S.unsubs=[]}
 function startListeners(){
   stopListeners();S.syncError="";
-  S.unsubs.push(onSnapshot(userDoc(),snap=>{if(snap.exists()){S.profile={...DEFAULT_PROFILE,...snap.data()};applyTheme();refresh()}setSynced()},setSyncError));
+  S.unsubs.push(onSnapshot(userDoc(),snap=>{if(snap.exists()){S.profile={...DEFAULT_PROFILE,...snap.data()};applyTheme();refresh();setTimeout(maybeAutoCheckLicense,400)}setSynced()},setSyncError));
   S.unsubs.push(onSnapshot(subcol("profiles"),snap=>{
     S.profiles=snap.docs.map(d=>({id:d.id,...d.data()}));
     if(S.profiles.length&&!S.profiles.some(p=>p.id===S.activeProfileId)){S.activeProfileId=S.profiles[0].id;localStorage.setItem("pierProfile",S.activeProfileId)}
@@ -1192,14 +1192,16 @@ async function startSession(type,label=""){
   const now=new Date();await addDoc(subcol("sessionLogs"),{type,label:label||sessionLabel(type),startedAt:now.toISOString(),startMs:now.getTime(),status:"open",...ctxFields(),createdAt:serverTimestamp()});toast((label||sessionLabel(type))+" started.");
 }
 async function stopSession(id){
-  const s=S.sessionLogs.find(x=>x.id===id);if(!s)return;const end=new Date(),mins=Math.max(0,(end-num(s.startMs||Date.parse(s.startedAt)))/60000);
+  const s=S.sessionLogs.find(x=>x.id===id);if(!s)return;
+  if(s.type==="smoke")return finishSmokeSession(s);
+  const end=new Date(),mins=Math.max(0,(end-num(s.startMs||Date.parse(s.startedAt)))/60000);
   await updateDoc(subdoc("sessionLogs",id),{endAt:end.toISOString(),durationMin:mins,status:"closed",updatedAt:serverTimestamp()});toast(sessionLabel(s.type)+" saved · "+Math.round(mins)+" min.");
 }
 function renderSessions(){
   const active=activeSession(),elapsed=sessionElapsed(active),recent=S.sessionLogs.filter(x=>x.status==="closed").slice(0,30);
   return '<div class="section-title"><div><h1>Sessions</h1><p>Persistent timers for things you actually do. Start time is saved to Firebase, so closing Pier does not lose the session.</p></div></div>'+
     '<div class="session-hero">'+(active?'<div class="eyebrow">RUNNING · '+esc(active.label||sessionLabel(active.type))+'</div><div class="session-time">'+Math.floor(elapsed)+' min</div><div class="row-meta">Started '+new Date(active.startedAt).toLocaleString()+'. You can close the site; elapsed time is calculated from the saved timestamp when you return.</div><button class="btn danger" style="margin-top:13px" data-action="session-stop" data-id="'+active.id+'">Stop session</button>':'<div class="eyebrow">NO ACTIVE SESSION</div><div class="session-time">Ready</div><div class="row-meta">Pick a quick session below.</div>')+'</div>'+
-    '<section class="card pad" style="margin-top:18px"><div class="card-head"><h3>Quick start</h3><span class="pill blue">FIREBASE TIMER</span></div><div class="quick-session"><button class="btn" data-action="session-start" data-id="smoke">Smoke session</button><button class="btn" data-action="session-start" data-id="manga">Manga / manhua</button><button class="btn" data-action="session-start" data-id="baby_sleep">Baby sleep</button><button class="btn" data-action="session-start" data-id="family">Family time</button><button class="btn primary" data-action="session-custom">Custom</button></div></section>'+
+    '<section class="card pad" style="margin-top:18px"><div class="card-head"><h3>Quick start</h3><span class="pill blue">FIREBASE TIMER</span></div><div class="quick-session"><button class="btn" data-action="smoke-start">Smoke session</button><button class="btn" data-action="session-start" data-id="manga">Manga / manhua</button><button class="btn" data-action="session-start" data-id="baby_sleep">Baby sleep</button><button class="btn" data-action="session-start" data-id="family">Family time</button><button class="btn primary" data-action="session-custom">Custom</button></div></section>'+
     '<section class="card pad" style="margin-top:18px"><div class="card-head"><h3>Recent sessions</h3><span class="pill">'+recent.length+'</span></div><div class="table-wrap"><table><thead><tr><th>Type</th><th>Started</th><th>Minutes</th><th>Note</th></tr></thead><tbody>'+recent.map(s=>'<tr><td>'+esc(sessionLabel(s.type))+'</td><td>'+new Date(s.startedAt).toLocaleString()+'</td><td>'+Math.round(num(s.durationMin))+'</td><td>'+esc(s.note||"")+'</td></tr>').join("")+'</tbody></table></div></section>';
 }
 function openCustomSession(){
@@ -2263,7 +2265,22 @@ function bindViewInputs(){
   const ps=$("#practiceShares"),pm=$("#practiceMove");if(ps&&pm){ps.oninput=updatePracticeMath;pm.oninput=updatePracticeMath;updatePracticeMath()}
 }
 
+
+function openMobileMore(){
+  const views=[["tasks","✓","Tasks"],["savings","⌁","Savings"],["goals","◎","Goals"],["routines","↻","Routines"],["planner","⚡","Planner / Why"],["calendar","▦","Calendar"],["work","◷","Work & Pay"],["life","⌂","Family & Life"],["admin","!","Admin / Legal"],["assets","▣","Devices & Cars"],["sessions","◉","Sessions"],["smoking","◌","Smoke Tracker"],["relationship","♡","Relationship"],["market","⌁","Market Data"],["learn","◈","Stocks & Options 101"],["paper","↗","Paper Markets"],["profiles","◉","Profiles"],["inbox","↓","Inbox"],["settings","⚙","Settings"]];
+  showModal("Pier menu",'<div class="quick-session">'+views.map(v=>'<button class="btn" type="button" data-mobile-view="'+v[0]+'">'+v[1]+' '+v[2]+'</button>').join("")+'</div>');
+  $$("#modalBody [data-mobile-view]").forEach(b=>b.onclick=()=>{closeModal();navigate(b.dataset.mobileView)});
+}
 async function handleAction(action,id,el){
+  if(action==="mobile-more")return openMobileMore();
+  if(action==="mylife-edit")return openMyLifeEditor();
+  if(action==="license-setup")return openLicenseSetup();
+  if(action==="license-check")return checkLicenseStatus();
+  if(action==="add-savings-goal")return openGoalModal({kind:"money",name:"Savings goal",priority:3,target:500,nextAction:"Set aside money toward this goal",nextActionMinutes:10,plannerEnabled:true});
+  if(action==="smoke-start")return startSmokeSession();
+  if(action==="smoke-log")return logSmokeManual();
+  if(action==="smoke-purchase")return openSmokePurchase();
+  if(action==="smoke-target")return setSmokeTarget();
   if(action==="add-task")return openTaskModal();
   if(action==="edit-task")return openTaskModal(S.tasks.find(x=>x.id===id));
   if(action==="done-task")return completeTask(id);

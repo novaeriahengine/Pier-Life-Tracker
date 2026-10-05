@@ -840,6 +840,139 @@ function generatePlan(){
 }
 function plan(){return S.plan||generatePlan()}
 
+
+function maskedLicense(v){
+  v=String(v||"").trim();if(!v)return "Not saved";
+  if(v.length<=4)return "••••"+v;
+  return v.slice(0,1)+"••••••"+v.slice(-4);
+}
+function licenseStatusClass(status){
+  status=String(status||"unknown").toLowerCase();
+  return status==="active"?"good":status==="suspended"?"must":status==="restricted"?"urgent":"";
+}
+async function checkLicenseStatus(){
+  const number=String(S.profile.driverLicenseNumber||"").trim(),backend=String(S.profile.licenseCheckBackendUrl||"").trim();
+  if(!number)return toast("Save your Florida driver license number first.","error");
+  if(!backend){
+    await setDoc(userDoc(),{licenseStatus:"unavailable",licenseStatusSource:"backend-not-configured",licenseLastCheckedAt:new Date().toISOString(),licenseLastMessage:"Automatic checker backend is not configured."},{merge:true});
+    return toast("Automatic checker backend is not configured. Use the official FLHSMV link or add your backend URL.","error");
+  }
+  try{
+    toast("Checking Florida license status…");
+    const idToken=await S.user.getIdToken();
+    const r=await fetch(backend,{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+idToken},body:JSON.stringify({state:"FL",driverLicenseNumber:number})});
+    let data={};try{data=await r.json()}catch{}
+    if(!r.ok)throw new Error(data.message||("Checker returned HTTP "+r.status));
+    let status=String(data.status||data.licenseStatus||"unavailable").toLowerCase();
+    if(!["active","suspended","restricted","unavailable","unknown"].includes(status))status="unavailable";
+    await setDoc(userDoc(),{
+      licenseStatus:status,licenseStatusSource:"automatic-backend",
+      licenseLastCheckedAt:data.checkedAt||new Date().toISOString(),
+      licenseLastMessage:String(data.message||data.detail||""),
+      licenseLastError:""
+    },{merge:true});
+    toast("License status: "+status.toUpperCase());
+  }catch(e){
+    await setDoc(userDoc(),{licenseStatus:"unavailable",licenseStatusSource:"automatic-backend",licenseLastCheckedAt:new Date().toISOString(),licenseLastError:friendlyError(e)},{merge:true});
+    toast("License check unavailable: "+friendlyError(e),"error");
+  }
+}
+async function maybeAutoCheckLicense(){
+  if(!S.user||!S.profile.licenseAutoCheck||!S.profile.driverLicenseNumber||!S.profile.licenseCheckBackendUrl)return;
+  const hours=Math.max(1,num(S.profile.licenseCheckEveryHours||24)),last=Date.parse(S.profile.licenseLastCheckedAt||0);
+  if(!last||Date.now()-last>=hours*3600000)checkLicenseStatus();
+}
+function openMyLifeEditor(){
+  showModal("Edit My Life profile",'<form><div class="modal-grid"><div class="field"><label>Full name</label><input name="fullName" value="'+esc(S.profile.fullName||S.profile.name||"")+'"></div><div class="field"><label>Current base / city</label><input name="currentBase" value="'+esc(S.profile.currentBase||"")+'" placeholder="City, state"></div></div><div class="field"><label>Life description</label><textarea name="lifeSummary" style="min-height:150px" placeholder="Where I am right now, family, work, priorities, what I am building…">'+esc(S.profile.lifeSummary||"")+'</textarea></div><div class="field"><label>Background</label><textarea name="background">'+esc(S.profile.background||"")+'</textarea></div><div class="field"><label>Current focus</label><textarea name="currentFocus">'+esc(S.profile.currentFocus||"")+'</textarea></div><div class="modal-foot"><button class="btn ghost" type="button" id="cancelModalBtn">Cancel</button><button class="btn primary" type="submit">Save to Firebase</button></div></form>',async fd=>{
+    await setDoc(userDoc(),{fullName:fd.get("fullName").trim(),currentBase:fd.get("currentBase").trim(),lifeSummary:fd.get("lifeSummary").trim(),background:fd.get("background").trim(),currentFocus:fd.get("currentFocus").trim(),updatedAt:serverTimestamp()},{merge:true});toast("My Life profile saved.");
+  });$("#cancelModalBtn").onclick=closeModal;
+}
+function openLicenseSetup(){
+  showModal("Florida driver license tracker",'<form><div class="field"><label>Driver license number</label><input name="driverLicenseNumber" type="password" autocomplete="off" value="'+esc(S.profile.driverLicenseNumber||"")+'" placeholder="Stored only in your Firebase user document"></div><div class="field"><label>Your checker backend URL</label><input name="licenseCheckBackendUrl" type="url" value="'+esc(S.profile.licenseCheckBackendUrl||"")+'" placeholder="https://your-backend.example/check-license"></div><div class="modal-grid"><div class="field"><label>Fallback/manual status</label><select name="licenseStatus"><option value="active">Active</option><option value="suspended">Suspended</option><option value="restricted">Restricted</option><option value="unavailable">Unavailable</option><option value="unknown">Unknown</option></select></div><div class="field"><label>Auto-check interval</label><select name="licenseCheckEveryHours"><option value="6">6 hours</option><option value="12">12 hours</option><option value="24">24 hours</option><option value="72">3 days</option><option value="168">7 days</option></select></div></div><label class="check"><input name="licenseAutoCheck" type="checkbox" '+(S.profile.licenseAutoCheck?'checked':'')+'> Check automatically when Pier loads and the saved result is stale</label><div class="small muted">Pier sends the license number only to the backend URL you configure and automatically attaches your Firebase ID token as a Bearer token. Do not put a private backend secret/JWT in this webpage.</div><div class="modal-foot"><button class="btn ghost" type="button" id="cancelModalBtn">Cancel</button><button class="btn primary" type="submit">Save tracker</button></div></form>',async fd=>{
+    await setDoc(userDoc(),{driverLicenseNumber:fd.get("driverLicenseNumber").trim(),licenseCheckBackendUrl:fd.get("licenseCheckBackendUrl").trim(),licenseStatus:fd.get("licenseStatus"),licenseCheckEveryHours:num(fd.get("licenseCheckEveryHours"))||24,licenseAutoCheck:fd.get("licenseAutoCheck")==="on",updatedAt:serverTimestamp()},{merge:true});toast("License tracker saved.");
+  });
+  $("#cancelModalBtn").onclick=closeModal;$("#modalBody select[name=licenseStatus]").value=S.profile.licenseStatus||"unknown";$("#modalBody select[name=licenseCheckEveryHours]").value=String(S.profile.licenseCheckEveryHours||24);
+}
+function myLifeCompletion(){
+  const checks=[S.profile.fullName||S.profile.name,S.profile.lifeSummary,S.household.length,S.jobs.length,S.assets.length,S.goals.length,S.tasks.length,S.accounts.length,S.profile.driverLicenseNumber];
+  return Math.round(checks.filter(Boolean).length/checks.length*100);
+}
+function renderMyLife(){
+  const name=S.profile.fullName||S.profile.name||currentProfile().name||"Me",partner=relationshipPerson(),child=S.household.find(x=>/child|son|daughter/i.test(x.relation||"")),job=S.jobs[0],top=plan().selected.slice(0,5),moneyGoals=S.goals.filter(g=>g.kind==="money"&&g.status!=="done"),legal=S.legalObligations.filter(x=>x.status!=="resolved"),status=S.profile.licenseStatus||"unknown";
+  return '<div class="section-title"><div><h1>My Life</h1><p>Your private Firebase-backed overview: who you are, what is happening, what you own, what you owe and what matters next.</p></div><div class="toolbar"><button class="btn" data-action="license-setup">License setup</button><button class="btn primary" data-action="mylife-edit">Edit My Life</button></div></div>'+
+    '<section class="life-hero"><div class="eyebrow">MY LIFE · '+esc(S.worldMode.toUpperCase())+'</div><div class="life-name">'+esc(name)+'</div><div class="row-meta">'+esc(S.profile.currentBase||"Location not filled in")+' · profile completeness '+myLifeCompletion()+'%</div><div class="life-summary">'+esc(S.profile.lifeSummary||"Add your life description here. Pier will keep the structured details below synced from Firebase.")+'</div>'+(S.profile.currentFocus?'<div class="reason-box" style="margin-top:12px"><strong>Current focus:</strong> '+esc(S.profile.currentFocus)+'</div>':'')+'</section>'+
+    '<div class="grid-2" style="margin-top:18px"><section class="license-box"><div class="card-head"><h3>Florida driver license</h3><span class="pill '+licenseStatusClass(status)+'">'+esc(String(status).toUpperCase())+'</span></div><div class="life-line"><span>Number</span><strong class="license-number">'+esc(maskedLicense(S.profile.driverLicenseNumber))+'</strong></div><div class="life-line"><span>Source</span><strong>'+esc(S.profile.licenseStatusSource||"manual")+'</strong></div><div class="life-line"><span>Last checked</span><strong>'+(S.profile.licenseLastCheckedAt?new Date(S.profile.licenseLastCheckedAt).toLocaleString():"Never")+'</strong></div>'+(S.profile.licenseLastMessage?'<div class="reason-box" style="margin-top:9px">'+esc(S.profile.licenseLastMessage)+'</div>':'')+(S.profile.licenseLastError?'<div class="pill must" style="margin-top:9px">'+esc(S.profile.licenseLastError)+'</div>':'')+'<div class="toolbar" style="margin-top:11px"><button class="btn primary" data-action="license-check">Check now</button><button class="btn" data-action="license-setup">Edit</button><a class="btn ghost" target="_blank" rel="noopener noreferrer" href="https://mydmvportal.flhsmv.gov/">Official FLHSMV ↗</a></div></section>'+
+    '<section class="life-section"><div class="card-head"><h3>Family</h3><span class="pill">'+S.household.length+'</span></div><div class="life-list">'+(partner?'<div class="life-line"><span>Partner</span><strong>'+esc(partner.name)+'</strong></div>':'')+(child?'<div class="life-line"><span>Child</span><strong>'+esc(child.name)+'</strong></div>':'')+'<div class="life-line"><span>Relationship pressure</span><strong>'+relationshipAttention(partner?.id||"")+'/100</strong></div><div class="life-line"><span>Family routines</span><strong>'+S.routines.filter(r=>/family|baby|child|partner/i.test(r.name||"")).length+'</strong></div></div></section></div>'+
+    '<div class="grid-3" style="margin-top:18px"><section class="life-section"><div class="card-head"><h3>Work</h3></div><div class="life-list"><div class="life-line"><span>Current</span><strong>'+esc(job?.name||"Not entered")+'</strong></div><div class="life-line"><span>Future shifts</span><strong>'+S.shifts.filter(s=>s.date>=today()).length+'</strong></div><div class="life-line"><span>Goals</span><strong>'+S.goals.filter(g=>/work|income|job/i.test((g.name||"")+" "+(g.nextAction||""))&&g.status!=="done").length+'</strong></div></div></section><section class="life-section"><div class="card-head"><h3>Money</h3></div><div class="life-list"><div class="life-line"><span>Total cash</span><strong>'+money(totalBalance())+'</strong></div><div class="life-line"><span>Spendable</span><strong>'+money(availableMoney())+'</strong></div><div class="life-line"><span>Money goals</span><strong>'+moneyGoals.length+'</strong></div></div></section><section class="life-section"><div class="card-head"><h3>Admin / legal</h3></div><div class="life-list"><div class="life-line"><span>Open obligations</span><strong>'+legal.length+'</strong></div><div class="life-line"><span>Open amount</span><strong>'+money(legal.reduce((n,x)=>n+num(x.amountRemaining??x.amount),0))+'</strong></div><div class="life-line"><span>Critical</span><strong>'+legal.filter(x=>num(x.priority)>=5).length+'</strong></div></div></section></div>'+
+    '<div class="grid-2" style="margin-top:18px"><section class="card pad"><div class="card-head"><h3>What matters next</h3><button class="btn ghost" data-view="planner">Why →</button></div>'+renderPlanList(top,5)+'</section><section class="card pad"><div class="card-head"><h3>Devices & vehicles</h3><button class="btn ghost" data-view="assets">Open →</button></div><div class="stack">'+(S.assets.slice(0,6).map(a=>'<div class="setting-row"><div><strong>'+esc(a.name)+'</strong><div class="small muted">'+esc(a.owner||"Me")+' · '+esc(a.kind||"asset")+'</div></div><span class="pill">'+esc(a.status||"owned")+'</span></div>').join("")||'<div class="empty">No assets saved.</div>')+'</div></section></div>'+
+    '<section class="card pad" style="margin-top:18px"><div class="card-head"><h3>Active goals & projects</h3><span class="pill blue">'+S.goals.filter(g=>g.status!=="done").length+'</span></div><div class="profile-grid">'+S.goals.filter(g=>g.status!=="done").slice(0,12).map(g=>'<div class="goal-card"><div class="goal-title">'+esc(g.name)+'</div><div class="row-meta">P'+num(g.priority||3)+(g.deadline?' · '+fmtDate(g.deadline):'')+'</div><div class="small muted" style="margin-top:7px">'+esc(g.nextAction||"No next action")+'</div></div>').join("")+'</div></section>';
+}
+
+/* SAVINGS */
+function categorySpendForMonth(){
+  const ym=today().slice(0,7),map={};
+  S.transactions.filter(t=>t.type==="expense"&&String(t.date||"").startsWith(ym)).forEach(t=>map[t.category||"Other"]=(map[t.category||"Other"]||0)+num(t.amount));
+  return Object.entries(map).sort((a,b)=>b[1]-a[1]);
+}
+function smokeSpendMonth(){
+  const ym=today().slice(0,7);return S.transactions.filter(t=>t.type==="expense"&&String(t.date||"").startsWith(ym)&&/smok|cannabis/i.test(t.category||"")).reduce((n,t)=>n+num(t.amount),0);
+}
+function renderSavings(){
+  const flow=monthFlow(),saved=flow.income-flow.expense,cats=categorySpendForMonth(),smoke=smokeSpendMonth(),moneyGoals=S.goals.filter(g=>g.kind==="money"&&g.status!=="done"),leaks=cats.filter(([k])=>/smok|restaurant|entertain|subscription/i.test(k)).slice(0,8);
+  const rate=flow.income>0?saved/flow.income*100:0;
+  return '<div class="section-title"><div><h1>Savings</h1><p>See where the money is going, protect your reserve, and turn reductions into actual goal money.</p></div><div class="toolbar"><button class="btn" data-action="add-transaction">＋ Transaction</button><button class="btn primary" data-action="add-savings-goal">＋ Savings goal</button></div></div>'+
+    '<div class="saving-grid">'+metric("This month net",money(saved),(rate||0).toFixed(1)+"% of income")+metric("Emergency reserve",money(S.profile.emergencyReserve),"Planner protects this")+metric("Smoking spend",money(smoke),"This month")+metric("50% smoke reduction",money(smoke*.5),"Potential monthly difference")+'</div>'+
+    '<div class="grid-2" style="margin-top:18px"><section class="card pad"><div class="card-head"><h3>Spending by category</h3><span class="pill">'+cats.length+'</span></div>'+(cats.length?cats.slice(0,15).map(([k,v])=>'<div class="category-row"><span>'+esc(k)+'</span><strong>'+money(v)+'</strong></div>').join(""):'<div class="empty">Add expenses to see the pattern.</div>')+'</section><section class="card pad"><div class="card-head"><h3>Spending leaks to watch</h3><span class="pill urgent">'+leaks.length+'</span></div>'+(leaks.length?leaks.map(([k,v])=>'<div class="category-row"><span>'+esc(k)+'</span><strong>'+money(v)+'</strong></div>').join(""):'<div class="empty">No tracked discretionary categories this month.</div>')+'<div class="reason-box" style="margin-top:12px">This is not telling you what you are allowed to buy. It makes recurring discretionary spending visible so you can choose what to cut and move the difference toward your goals.</div></section></div>'+
+    '<section class="card pad" style="margin-top:18px"><div class="card-head"><h3>Money goals</h3><button class="btn ghost" data-view="goals">All goals →</button></div><div class="profile-grid">'+(moneyGoals.length?moneyGoals.map(g=>{const pct=num(g.target)>0?clamp(num(g.current)/num(g.target)*100,0,100):0;return '<div class="goal-card"><div class="goal-title">'+esc(g.name)+'</div><div class="row-meta">'+money(g.current)+' / '+money(g.target)+'</div><div class="smoke-bar" style="margin-top:9px"><div style="width:'+pct+'%"></div></div><div class="small muted" style="margin-top:7px">'+pct.toFixed(0)+'%</div></div>'}).join(""):'<div class="empty">No money goals yet.</div>')+'</div></section>';
+}
+
+/* SMOKE / CANNABIS REDUCTION TRACKER */
+function smokeStats(date){
+  const rows=S.smokeLogs.filter(x=>(x.date||String(x.startedAt||"").slice(0,10))===date),physical=rows.reduce((n,x)=>n+num(x.units||1),0);
+  const mine=rows.filter(x=>x.who==="me"||x.who==="together").reduce((n,x)=>n+num(x.units||1),0);
+  const partner=rows.filter(x=>x.who==="partner"||x.who==="together").reduce((n,x)=>n+num(x.units||1),0);
+  const shared=rows.filter(x=>x.who==="together").reduce((n,x)=>n+num(x.units||1),0);
+  return {rows,physical,mine,partner,shared};
+}
+function smokeWeekAverage(){
+  let sum=0;for(let i=0;i<7;i++){const d=new Date();d.setDate(d.getDate()-i);sum+=smokeStats(d.toISOString().slice(0,10)).mine}return sum/7;
+}
+function startSmokeSession(){
+  if(activeSession())return toast("Stop the current session first.","error");
+  showModal("Start smoke session",'<form><div class="modal-grid"><div class="field"><label>Who</label><select name="who"><option value="me">Me</option><option value="together">Me + partner together</option><option value="partner">Partner only</option></select></div><div class="field"><label>Track as</label><select name="smokeType"><option value="joint">Joint</option><option value="blunt">Blunt</option><option value="vape">Vape session</option><option value="other">Other</option></select></div></div><div class="field"><label>Starting units</label><input name="units" type="number" min=".25" step=".25" value="1"></div><div class="field"><label>Note</label><input name="note" placeholder="Optional"></div><div class="modal-foot"><button class="btn ghost" type="button" id="cancelModalBtn">Cancel</button><button class="btn primary" type="submit">Start timer</button></div></form>',async fd=>{
+    const now=new Date();await addDoc(subcol("sessionLogs"),{type:"smoke",label:"Smoke session",who:fd.get("who"),smokeType:fd.get("smokeType"),units:num(fd.get("units"))||1,note:fd.get("note").trim(),startedAt:now.toISOString(),startMs:now.getTime(),status:"open",...ctxFields(),createdAt:serverTimestamp()});toast("Smoke session started.");
+  });$("#cancelModalBtn").onclick=closeModal;
+}
+function finishSmokeSession(s){
+  showModal("Finish smoke session",'<form><div class="modal-grid"><div class="field"><label>Who</label><select name="who"><option value="me">Me</option><option value="together">Me + partner together</option><option value="partner">Partner only</option></select></div><div class="field"><label>Type</label><select name="smokeType"><option value="joint">Joint</option><option value="blunt">Blunt</option><option value="vape">Vape session</option><option value="other">Other</option></select></div><div class="field"><label>Units actually used</label><input name="units" type="number" min=".25" step=".25" value="'+num(s.units||1)+'"></div></div><div class="field"><label>Note</label><input name="note" value="'+esc(s.note||"")+'"></div><div class="modal-foot"><button class="btn ghost" type="button" id="cancelModalBtn">Cancel</button><button class="btn primary" type="submit">Save & stop</button></div></form>',async fd=>{
+    const end=new Date(),mins=Math.max(0,(end-num(s.startMs||Date.parse(s.startedAt)))/60000),units=num(fd.get("units"))||1,who=fd.get("who"),smokeType=fd.get("smokeType");
+    await updateDoc(subdoc("sessionLogs",s.id),{endAt:end.toISOString(),durationMin:mins,status:"closed",who,smokeType,units,note:fd.get("note").trim(),updatedAt:serverTimestamp()});
+    await addDoc(subcol("smokeLogs"),{date:String(s.startedAt).slice(0,10),startedAt:s.startedAt,endAt:end.toISOString(),durationMin:mins,who,smokeType,units,note:fd.get("note").trim(),sessionId:s.id,...ctxFields(),createdAt:serverTimestamp()});
+    toast("Smoke session logged · "+units+" "+smokeType+(units===1?"":"s")+".");
+  });
+  $("#cancelModalBtn").onclick=closeModal;$("#modalBody select[name=who]").value=s.who||"me";$("#modalBody select[name=smokeType]").value=s.smokeType||"joint";
+}
+function logSmokeManual(){
+  showModal("Log smoke without timer",'<form><div class="modal-grid"><div class="field"><label>Date</label><input name="date" type="date" value="'+today()+'"></div><div class="field"><label>Who</label><select name="who"><option value="me">Me</option><option value="together">Me + partner together</option><option value="partner">Partner only</option></select></div><div class="field"><label>Type</label><select name="smokeType"><option value="joint">Joint</option><option value="blunt">Blunt</option><option value="vape">Vape session</option><option value="other">Other</option></select></div><div class="field"><label>Units</label><input name="units" type="number" min=".25" step=".25" value="1"></div></div><div class="field"><label>Note</label><input name="note"></div><div class="modal-foot"><button class="btn ghost" type="button" id="cancelModalBtn">Cancel</button><button class="btn primary" type="submit">Log</button></div></form>',async fd=>{
+    await addDoc(subcol("smokeLogs"),{date:fd.get("date")||today(),startedAt:(fd.get("date")||today())+"T12:00:00",durationMin:0,who:fd.get("who"),smokeType:fd.get("smokeType"),units:num(fd.get("units"))||1,note:fd.get("note").trim(),manual:true,...ctxFields(),createdAt:serverTimestamp()});toast("Smoke use logged.");
+  });$("#cancelModalBtn").onclick=closeModal;
+}
+function openSmokePurchase(){
+  if(!S.accounts.length)return toast("Add your real money account first so the purchase affects your budget.","error");
+  showModal("Add smoking / smoke-shop purchase",'<form><div class="modal-grid"><div class="field"><label>Amount</label><input name="amount" type="number" min=".01" step=".01" required></div><div class="field"><label>Paid from</label><select name="accountId">'+S.accounts.map(a=>'<option value="'+a.id+'">'+esc(a.name)+' · '+money(balances()[a.id]||0)+'</option>').join("")+'</select></div><div class="field"><label>Date</label><input name="date" type="date" value="'+today()+'"></div><div class="field"><label>Category</label><select name="category"><option value="Smoking / Cannabis">Smoking / Cannabis</option><option value="Smoke Shop">Smoke Shop</option></select></div></div><div class="field"><label>What did you buy?</label><input name="description" placeholder="Optional product/store note"></div><div class="modal-foot"><button class="btn ghost" type="button" id="cancelModalBtn">Cancel</button><button class="btn primary" type="submit">Record expense</button></div></form>',async fd=>{
+    await addDoc(subcol("transactions"),{type:"expense",amount:num(fd.get("amount")),accountId:fd.get("accountId"),date:fd.get("date")||today(),description:fd.get("description").trim()||"Smoking purchase",category:fd.get("category"),...ctxFields(),createdAt:serverTimestamp()});toast("Smoking expense recorded.");
+  });$("#cancelModalBtn").onclick=closeModal;
+}
+function setSmokeTarget(){
+  showModal("Set reduction target",'<form><div class="field"><label>My daily participation target (joints/blunts/session-units)</label><input name="target" type="number" min="0" step=".25" value="'+num(S.profile.smokeMyDailyTarget||0)+'"></div><div class="small muted">A shared joint counts once toward your participation because you took part in it; the physical-unit total still counts that joint only once overall. The target is for awareness/reduction, not a quota to use.</div><div class="modal-foot"><button class="btn ghost" type="button" id="cancelModalBtn">Cancel</button><button class="btn primary" type="submit">Save target</button></div></form>',async fd=>{await setDoc(userDoc(),{smokeMyDailyTarget:num(fd.get("target")),updatedAt:serverTimestamp()},{merge:true});toast("Reduction target saved.")});$("#cancelModalBtn").onclick=closeModal;
+}
+function renderSmoking(){
+  const t=smokeStats(today()),avg=smokeWeekAverage(),target=num(S.profile.smokeMyDailyTarget||0),pct=target>0?Math.min(100,t.mine/target*100):0,monthSpend=smokeSpendMonth(),recent=S.smokeLogs.slice(0,50);
+  return '<div class="section-title"><div><h1>Smoke Tracker</h1><p>Track frequency and spending so you can see the pattern clearly and reduce it over time.</p></div><div class="toolbar"><button class="btn" data-action="smoke-purchase">＋ Purchase</button><button class="btn" data-action="smoke-log">＋ Log without timer</button><button class="btn primary" data-action="smoke-start">Start smoke timer</button></div></div>'+
+    '<div class="smoke-metrics">'+metric("My participation today",t.mine.toFixed(2),"Shared sessions count toward me")+metric("Partner participation",t.partner.toFixed(2),"Shared sessions count toward partner")+metric("Physical units today",t.physical.toFixed(2),t.shared.toFixed(2)+" shared")+metric("Smoking spend",money(monthSpend),"This month")+'</div>'+
+    '<section class="card pad" style="margin-top:18px"><div class="card-head"><div><h3>Reduction target</h3><div class="small muted">7-day average '+avg.toFixed(2)+' units/day</div></div><button class="btn" data-action="smoke-target">'+(target?"Edit target":"Set target")+'</button></div>'+(target?'<div class="row-meta">Today '+t.mine.toFixed(2)+' / target '+target.toFixed(2)+'</div><div class="smoke-bar" style="margin-top:9px"><div style="width:'+pct+'%"></div></div><div class="small muted" style="margin-top:8px">'+(t.mine<=target?"At or below your chosen reduction target today.":"Above your chosen target by "+(t.mine-target).toFixed(2)+". Use the number as feedback, not as a reason to give up on reducing tomorrow.")+'</div>':'<div class="empty">Set a target if you want Pier to compare your daily use against a reduction goal.</div>')+'</section>'+
+    '<div class="grid-2" style="margin-top:18px"><section class="card pad"><div class="card-head"><h3>Today sessions</h3><span class="pill">'+t.rows.length+'</span></div><div class="stack">'+(t.rows.length?t.rows.map(x=>'<div class="task-row"><div class="row-main"><div class="task-title">'+esc((x.smokeType||"smoke").toUpperCase())+' · '+num(x.units||1)+' unit(s)</div><div class="row-meta">'+esc(x.who==="together"?"Together":x.who==="partner"?"Partner":"Me")+(x.durationMin?' · '+Math.round(num(x.durationMin))+' min':'')+'</div><div class="small muted">'+esc(x.note||"")+'</div></div></div>').join(""):'<div class="empty">Nothing logged today.</div>')+'</div></section><section class="card pad"><div class="card-head"><h3>Recent history</h3><span class="pill blue">CALENDAR-BACKED</span></div><div class="table-wrap"><table><thead><tr><th>Date</th><th>Who</th><th>Type</th><th>Units</th></tr></thead><tbody>'+recent.map(x=>'<tr><td>'+fmtDate(x.date||String(x.startedAt||"").slice(0,10))+'</td><td>'+esc(x.who==="together"?"Together":x.who==="partner"?"Partner":"Me")+'</td><td>'+esc(x.smokeType||"")+'</td><td>'+num(x.units||1)+'</td></tr>').join("")+'</tbody></table></div></section></div>';
+}
 function renderDashboard(){
   const p=plan(),next=p.selected[0],flow=monthFlow(),name=esc((currentProfile().name||S.profile.name||"Pier").split(" ")[0]||"");
   return '<div class="hero">'+

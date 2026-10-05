@@ -2532,6 +2532,59 @@ function setPaperCashModal(){
   const field=S.worldMode==="shadow"?"paperCashShadow":"paperCashLive";
   showModal("Set custom paper starting cash",'<form><div class="field"><label>Starting paper cash</label><input name="amount" type="number" min="0" step=".01" value="'+paperStartingCash()+'"></div><div class="small muted">This is only the paper-market wallet. It never changes Money, bills or your real SHADOW/LIVE cash.</div><div class="modal-foot"><button class="btn ghost" type="button" id="cancelModalBtn">Cancel</button><button class="btn primary" type="submit">Save custom paper wallet</button></div></form>',async fd=>{await setDoc(subdoc("profiles",S.activeProfileId),{[field]:num(fd.get("amount")),paperWalletMode:"custom"},{merge:true});toast("Custom paper wallet saved.")});$("#cancelModalBtn").onclick=closeModal;
 }
+
+function renderAiBridgePanel(){
+  const provider=S.profile.aiProvider||"disabled",protocol=S.profile.aiProtocol||"pier",url=S.profile.aiBridgeUrl||"",model=S.profile.aiModel||"",path=S.profile.aiBridgePath||"/v1/pier/respond";
+  const current=S.aiSnapshots.find(x=>x.kind==="current");
+  return '<section class="card pad" style="margin-top:18px"><div class="card-head"><div><h3>AI / GGUF bridge</h3><div class="small muted">Prepared now; model connection can come later.</div></div><span class="pill blue">'+esc(aiBridgeProviderLabel())+'</span></div>'+
+    '<div class="ai-pipeline"><div><strong>1 · Firebase</strong><br><span class="muted">Life state + GOAP feedback</span></div><div><strong>2 · Context pack</strong><br><span class="muted">Compact model-ready JSON</span></div><div><strong>3 · Adapter</strong><br><span class="muted">HF / llama.cpp / Ollama / custom</span></div><div><strong>4 · Validated actions</strong><br><span class="muted">Future model suggestions, never raw Firestore writes</span></div></div>'+
+    '<form id="aiBridgeForm" style="margin-top:12px"><div class="modal-grid"><div class="field"><label>Provider adapter</label><select name="aiProvider">'+AI_BRIDGE_PROVIDERS.map(x=>'<option value="'+x.id+'">'+esc(x.label)+'</option>').join("")+'</select></div><div class="field"><label>Protocol</label><select name="aiProtocol"><option value="pier">Pier JSON contract</option><option value="openai_compatible">OpenAI-compatible chat</option></select></div><div class="field"><label>Backend / server URL</label><input name="aiBridgeUrl" type="url" value="'+esc(url)+'" placeholder="https://your-space-or-backend.example"></div><div class="field"><label>Request path</label><input name="aiBridgePath" value="'+esc(path)+'" placeholder="/v1/pier/respond"></div><div class="field"><label>Model name / GGUF label</label><input name="aiModel" value="'+esc(model)+'" placeholder="Qwen2.5-0.5B-Instruct-Q4_K_M.gguf"></div><div class="field"><label>Context item cap</label><input name="aiContextLimit" type="number" min="10" max="200" value="'+num(S.profile.aiContextLimit||60)+'"></div></div>'+
+    '<label class="check"><input name="aiSendFirebaseToken" type="checkbox" '+(S.profile.aiSendFirebaseToken!==false?'checked':'')+'> Attach Firebase ID token to my own backend request</label>'+
+    '<div class="small muted">No AI API key or Hugging Face token is stored here. Private provider keys belong in your backend/Space secrets. Browser-local mode is a future hook for WebGPU/WASM GGUF and does not need a remote endpoint.</div>'+
+    '<div class="toolbar" style="margin-top:12px"><button class="btn primary" type="submit">Save bridge setup</button><button class="btn" type="button" data-action="ai-save-snapshot">Save history snapshot</button><button class="btn" type="button" data-action="ai-export-pack">Download context JSON</button><button class="btn ghost" type="button" data-action="ai-test-bridge">Test bridge</button></div></form>'+
+    '<div class="split-line"></div><div class="status-strip"><span class="pill good">Auto current snapshot</span><span class="pill">'+esc(current?.generatedAt?new Date(current.generatedAt).toLocaleString():"waiting for first snapshot")+'</span><span class="pill">'+S.tasks.length+' tasks · '+S.goals.length+' goals · '+S.transactions.length+' transactions</span></div>'+
+    '<div class="ai-provider-grid" style="margin-top:12px"><div class="ai-provider"><strong>Hugging Face</strong><br>Point Pier at a Space or your HF-backed proxy that implements the Pier JSON contract.</div><div class="ai-provider"><strong>llama.cpp / Ollama / LM Studio</strong><br>Use a local/LAN server or proxy. Generic OpenAI-compatible mode is ready for compatible servers.</div><div class="ai-provider"><strong>Browser-local GGUF</strong><br>Reserved hook: <span class="mono">window.PierLocalAI.generate(request)</span>. A future WebGPU/WASM loader can plug in without changing Pier data format.</div><div class="ai-provider"><strong>Cloud/serverless proxy</strong><br>Cloudflare Worker or another lightweight backend can hold provider secrets and verify Firebase auth.</div><div class="ai-provider"><strong>Custom backend</strong><br>Use the same context schema with your own C++, Python, Node, Go, or Rust model service.</div><div class="ai-provider"><strong>Safe action path</strong><br>Future AI responses are intended to propose structured actions; Pier validates them before Firebase changes.</div></div>'+
+  '</section>';
+}
+async function saveAiBridgeSettings(e){
+  e.preventDefault();const fd=new FormData(e.currentTarget);
+  await setDoc(userDoc(),{
+    aiProvider:fd.get("aiProvider")||"disabled",
+    aiProtocol:fd.get("aiProtocol")||"pier",
+    aiBridgeUrl:fd.get("aiBridgeUrl").trim(),
+    aiBridgePath:fd.get("aiBridgePath").trim()||"/v1/pier/respond",
+    aiModel:fd.get("aiModel").trim(),
+    aiContextLimit:Math.max(10,Math.min(200,num(fd.get("aiContextLimit"))||60)),
+    aiSendFirebaseToken:fd.get("aiSendFirebaseToken")==="on",
+    updatedAt:serverTimestamp()
+  },{merge:true});toast("AI bridge setup saved. No model is called unless you explicitly connect/use it.");
+}
+function aiBridgeUrl(){
+  const base=String(S.profile.aiBridgeUrl||"").replace(/\/+$/,""),path=String(S.profile.aiBridgePath||"/v1/pier/respond");
+  if(!base)return "";return base+(path.startsWith("/")?path:"/"+path);
+}
+function makeAiBridgeRequest(prompt="health",mode="health"){
+  return {schema:"pier.ai.request.v1",mode,prompt:String(prompt||""),model:S.profile.aiModel||"",context:buildAiDataPack(),requestedAt:new Date().toISOString()};
+}
+async function testAiBridge(){
+  const provider=S.profile.aiProvider||"disabled";
+  if(provider==="disabled")return toast("Choose an AI provider adapter first.","error");
+  if(provider==="browser_local"){
+    if(!window.PierLocalAI?.generate)return toast("Browser-local adapter is ready, but no GGUF/WebGPU loader is installed yet.","error");
+    try{await window.PierLocalAI.generate(makeAiBridgeRequest("Return a health response only.","health"));return toast("Browser-local AI adapter responded.")}catch(e){return toast("Local adapter error: "+friendlyError(e),"error")}
+  }
+  const url=aiBridgeUrl();if(!url)return toast("Save a backend/server URL first.","error");
+  try{
+    const headers={"Content-Type":"application/json"};
+    if(S.profile.aiSendFirebaseToken!==false)headers.Authorization="Bearer "+await S.user.getIdToken();
+    let body;
+    if((S.profile.aiProtocol||"pier")==="openai_compatible"){
+      body={model:S.profile.aiModel||"local-model",messages:[{role:"system",content:"Pier connectivity health check. Reply only with OK."},{role:"user",content:"health"}],max_tokens:8};
+    }else body=makeAiBridgeRequest("Return a health response only.","health");
+    const r=await fetch(url,{method:"POST",headers,body:JSON.stringify(body)});if(!r.ok)throw new Error("HTTP "+r.status);
+    toast("AI bridge responded successfully.");
+  }catch(e){toast("Bridge unavailable: "+friendlyError(e),"error")}
+}
 function renderSettings(){
   return '<div class="section-title"><div><h1>Settings</h1><p>These values change how Pier decides what comes first.</p></div></div>'+
     '<div class="settings-grid"><section class="card pad"><div class="card-head"><h3>Planner rules</h3></div><form id="settingsForm">'+
@@ -2548,7 +2601,7 @@ function renderSettings(){
       '<div class="setting-row"><div><strong>Firestore</strong><div class="small muted">'+(S.syncError?esc(S.syncError):"Realtime sync active")+'</div></div><span class="pill '+(S.syncError?'must':'good')+'">'+(S.syncError?"SETUP":"LIVE")+'</span></div>'+
       '<div class="split-line"></div><div class="small muted" style="line-height:1.55">If Firestore says permission denied: Firebase Console → Authentication → Sign-in method → enable Email/Password. Then Firestore → Rules → publish the contents of <span class="mono">firestore.rules</span> from this repository.</div>'+
       '<div class="split-line"></div><div class="import-zone"><strong>Life JSON → Firebase</strong><div class="small muted" style="margin-top:5px">Upload one JSON file to merge/update tasks, goals, devices, vehicles, household, work, bills, legal/admin, routines, schedules, relationship plans and GOAP memory across the whole site. Same importKey = update, not duplicate.</div><div class="toolbar" style="margin-top:10px"><button class="btn primary" data-action="private-import">Upload / update Life JSON</button><button class="btn" data-action="daily-regenerate">Generate today&#39;s GOAP draft</button></div></div><div class="split-line"></div><div class="toolbar"><button class="btn" data-action="export-data">Export JSON</button><button class="btn" data-action="request-notifications">Browser alerts</button><button class="btn danger" data-action="sign-out">Sign out</button></div>'+
-    '</section></div>'+
+    '</section></div>'+renderAiBridgePanel()+
     '<section class="card pad" style="margin-top:18px"><div class="card-head"><h3>Market data API</h3><span class="pill blue">MARKETDATA.APP</span></div><div class="grid-2"><div><div class="api-box"><div class="field"><label>API token</label><input id="marketTokenInput" type="password" autocomplete="off" placeholder="Paste your personal MarketData.app token"></div><div class="toolbar"><button class="btn primary" data-action="save-market-token">Save token</button><button class="btn" data-action="test-market-token">Test with AAPL</button><button class="btn danger" data-action="remove-market-token">Remove</button></div></div></div><div><div class="small muted" style="line-height:1.65">The token is saved under your authenticated Firebase account, not inside this public GitHub source. Never paste market API tokens into chat, GitHub issues or code. Because Pier runs in your browser, a signed-in person can inspect their own network requests, so do not share your Pier login. The free provider plan is useful for building/training data but is delayed; the Market Data page shows freshness instead of labeling it live.</div><div style="margin-top:12px"><a class="btn" target="_blank" rel="noopener noreferrer" href="https://www.marketdata.app/">Create / manage MarketData.app account ↗</a></div></div></div></section>'+
     '<section class="card pad" style="margin-top:18px"><div class="card-head"><h3>Data ownership</h3><span class="pill good">YOUR FIREBASE</span></div><div class="toolbar"><button class="btn" data-action="export-training-data">Export market/training dataset</button><button class="btn" data-view="data">Open Training Data</button></div><div class="small muted" style="margin-top:10px">API secrets are excluded from exports.</div></section>'+
     '<section class="card pad" style="margin-top:18px"><div class="card-head"><h3>GOAP learning memory</h3><span class="pill blue">FIREBASE</span></div><div class="goap-memory"><div class="import-stat"><strong>'+S.goapFeedback.length+'</strong>learned actions</div><div class="import-stat"><strong>'+S.goapFeedback.reduce((n,x)=>n+num(x.approvedCount),0)+'</strong>approvals</div><div class="import-stat"><strong>'+S.goapFeedback.reduce((n,x)=>n+num(x.correctedCount),0)+'</strong>corrections</div><div class="import-stat"><strong>'+S.goapFeedback.reduce((n,x)=>n+num(x.rejectedCount),0)+'</strong>rejections</div></div><div class="small muted" style="margin-top:10px;line-height:1.6">Pier stores approve/correct/reject choices in Firebase. Future daily drafts for the same source task, goal or routine move toward the time and duration you actually accepted and get penalized if you repeatedly reject them.</div></section>'+
@@ -2566,6 +2619,7 @@ function bindViewInputs(){
   const sus=$("#stockUniverseSearch");if(sus)sus.oninput=e=>{S.stockSearch=e.target.value;render()};
   const ss=$("#stockSector");if(ss){ss.value=S.stockSector;ss.onchange=e=>{S.stockSector=e.target.value;render()}};
   const ps=$("#practiceShares"),pm=$("#practiceMove");if(ps&&pm){ps.oninput=updatePracticeMath;pm.oninput=updatePracticeMath;updatePracticeMath()}
+  const af=$("#aiBridgeForm");if(af){af.aiProvider.value=S.profile.aiProvider||"disabled";af.aiProtocol.value=S.profile.aiProtocol||"pier";af.onsubmit=saveAiBridgeSettings}
 }
 
 
@@ -2606,6 +2660,9 @@ async function handleAction(action,id,el){
   if(action==="delete-inbox")return removeDoc("inbox",id,"Delete this inbox item?");
   if(action==="complete-plan")return completePlanItem(id);
   if(action==="export-data")return exportData();
+  if(action==="ai-save-snapshot")return saveAiSnapshot(true);
+  if(action==="ai-export-pack")return downloadAiDataPack();
+  if(action==="ai-test-bridge")return testAiBridge();
   if(action==="request-notifications")return requestNotifications();
   if(action==="learn-tab"){S.learnTab=id;return render()}
   if(action==="learn-done"){const [track,i]=String(id).split(":");return markLesson(track,num(i))}

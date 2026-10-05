@@ -630,21 +630,33 @@ const idSafe=v=>String(v||"").replace(/[^a-zA-Z0-9_-]/g,"");
 
 const EXPENSE_CATEGORIES=["Housing / Rent","Utilities","Groceries","Food / Restaurants","Gas / Fuel","Car / Repairs","Car / Insurance","Transportation","Childcare / School","Medical / Pharmacy","Phone / Internet","Legal / DMV / Court","Debt / Credit","Smoking / Cannabis","Smoke Shop","Personal Care","Clothing","Household","Entertainment","Subscriptions","Business","Education","Gifts / Relationship","Family","Travel","Cash Withdrawal","Fees","Taxes","Savings Transfer","Other"];
 const INCOME_CATEGORIES=["Paycheck","Overtime / Extra Shift","Business Income","Side Gig","Refund","Gift","Sale","Other Income"];
+
+const AI_BRIDGE_PROVIDERS=[
+  {id:"disabled",label:"Disabled / data only",kind:"none"},
+  {id:"huggingface_space",label:"Hugging Face Space / endpoint",kind:"backend"},
+  {id:"openai_compatible",label:"OpenAI-compatible backend",kind:"backend"},
+  {id:"llama_cpp",label:"llama.cpp server",kind:"backend"},
+  {id:"ollama",label:"Ollama server / proxy",kind:"backend"},
+  {id:"lm_studio",label:"LM Studio server / proxy",kind:"backend"},
+  {id:"cloudflare_proxy",label:"Cloudflare Worker / Workers AI proxy",kind:"backend"},
+  {id:"custom",label:"Custom Pier backend",kind:"backend"},
+  {id:"browser_local",label:"Browser-local GGUF / WebGPU later",kind:"local"}
+];
 const DEFAULT_PROFILE={
   name:"Pier",dailyMinutes:240,emergencyReserve:300,urgentDays:3,
   theme:"dark",notifications:false,createdAt:null
 };
 
-const DATA_COLLECTIONS=["tasks","accounts","transactions","bills","goals","routines","inbox","jobs","shifts","timeEntries","paychecks","household","appointments","shopping","paperTrades","relationshipPlans","timeBlocks","focusSessions","marketWatch","marketCache","learningProgress","legalObligations","assets","assetEvents","sessionLogs","dailyDrafts","goapFeedback","smokeLogs"];
+const DATA_COLLECTIONS=["tasks","accounts","transactions","bills","goals","routines","inbox","jobs","shifts","timeEntries","paychecks","household","appointments","shopping","paperTrades","relationshipPlans","timeBlocks","focusSessions","marketWatch","marketCache","learningProgress","legalObligations","assets","assetEvents","sessionLogs","dailyDrafts","goapFeedback","smokeLogs","aiSnapshots"];
 const S={
   user:null,profile:{...DEFAULT_PROFILE},profiles:[],
   tasks:[],accounts:[],transactions:[],bills:[],goals:[],routines:[],inbox:[],
   jobs:[],shifts:[],timeEntries:[],paychecks:[],household:[],appointments:[],shopping:[],paperTrades:[],
-  relationshipPlans:[],timeBlocks:[],focusSessions:[],marketWatch:[],marketCache:[],learningProgress:[],legalObligations:[],assets:[],assetEvents:[],sessionLogs:[],dailyDrafts:[],goapFeedback:[],smokeLogs:[],
+  relationshipPlans:[],timeBlocks:[],focusSessions:[],marketWatch:[],marketCache:[],learningProgress:[],legalObligations:[],assets:[],assetEvents:[],sessionLogs:[],dailyDrafts:[],goapFeedback:[],smokeLogs:[],aiSnapshots:[],
   stockUniverse:[],stockUniverseLoaded:false,stockSearch:"",stockSector:"all",marketTab:"watch",learnTab:"stocks",
   all:{},activeProfileId:localStorage.getItem("pierProfile")||"primary",worldMode:localStorage.getItem("pierWorld")||"live",
   unsubs:[],view:"dashboard",syncError:"",taskSearch:"",taskFilter:"open",plan:null,calendarCursor:new Date(),dayCursor:new Date(),relStore:"all",relBudget:550,relSearch:"",
-  market:{symbol:"SPY",quote:null,candles:[],chain:[],rate:null,error:"",loading:false,lastFetch:null,hasToken:null,autoBusy:false},dailyDraftBusy:false,dailyDraftTimer:null
+  market:{symbol:"SPY",quote:null,candles:[],chain:[],rate:null,error:"",loading:false,lastFetch:null,hasToken:null,autoBusy:false},dailyDraftBusy:false,dailyDraftTimer:null,aiSnapshotBusy:false,aiSnapshotTimer:null
 };
 if(!["live","shadow"].includes(S.worldMode))S.worldMode="live";
 
@@ -662,6 +674,7 @@ function applyContextData(){
   });
   S.plan=generatePlan();
   queueDailyDraftGeneration();
+  queueAiSnapshot();
 }
 function contextCounts(pid,world){
   const out={};DATA_COLLECTIONS.forEach(n=>out[n]=(S.all[n]||[]).filter(d=>(d.profileId||"primary")===pid&&(d.world||"live")===world).length);return out;
@@ -786,13 +799,16 @@ function sortData(name){
   if(name==="dailyDrafts")S.dailyDrafts.sort((a,b)=>String(a.date||"").localeCompare(String(b.date||""))||String(a.start||"").localeCompare(String(b.start||"")));
   if(name==="goapFeedback")S.goapFeedback.sort((a,b)=>String(a.sourceKey||"").localeCompare(String(b.sourceKey||"")));
   if(name==="smokeLogs")S.smokeLogs.sort((a,b)=>String(b.startedAt||b.date||"").localeCompare(String(a.startedAt||a.date||"")));
+  if(name==="aiSnapshots")S.aiSnapshots.sort((a,b)=>String(b.generatedAt||"").localeCompare(String(a.generatedAt||"")));
 }
 function setSynced(){
   if(S.syncError)return;$("#syncDot").className="dot ok";$("#syncLabel").textContent="Synced";$("#syncDetail").textContent=esc(currentProfile().name||"Profile")+" · "+S.worldMode.toUpperCase();
+  const m=$("#mobileLiveState");if(m)m.textContent="● Synced · "+S.worldMode.toUpperCase();
   $("#setupBanner").classList.add("hidden");
 }
 function setSyncError(err){
   S.syncError=friendlyError(err);$("#syncDot").className="dot bad";$("#syncLabel").textContent="Needs setup";$("#syncDetail").textContent="Firestore blocked";
+  const m=$("#mobileLiveState");if(m)m.textContent="● Firebase needs setup";
   $("#setupMessage").textContent=S.syncError;$("#setupBanner").classList.remove("hidden");
 }
 function applyTheme(){document.documentElement.dataset.theme=S.profile.theme==="light"?"light":"dark"}
@@ -1128,9 +1144,119 @@ function renderSmoking(){
     '<section class="card pad" style="margin-top:18px"><div class="card-head"><div><h3>Reduction target</h3><div class="small muted">7-day average '+avg.toFixed(2)+' units/day</div></div><button class="btn" data-action="smoke-target">'+(target?"Edit target":"Set target")+'</button></div>'+(target?'<div class="row-meta">Today '+t.mine.toFixed(2)+' / target '+target.toFixed(2)+'</div><div class="smoke-bar" style="margin-top:9px"><div style="width:'+pct+'%"></div></div><div class="small muted" style="margin-top:8px">'+(t.mine<=target?"At or below your chosen reduction target today.":"Above your chosen target by "+(t.mine-target).toFixed(2)+". Use the number as feedback, not as a reason to give up on reducing tomorrow.")+'</div>':'<div class="empty">Set a target if you want Pier to compare your daily use against a reduction goal.</div>')+'</section>'+
     '<div class="grid-2" style="margin-top:18px"><section class="card pad"><div class="card-head"><h3>Today sessions</h3><span class="pill">'+t.rows.length+'</span></div><div class="stack">'+(t.rows.length?t.rows.map(x=>'<div class="task-row"><div class="row-main"><div class="task-title">'+esc((x.smokeType||"smoke").toUpperCase())+' · '+num(x.units||1)+' unit(s)</div><div class="row-meta">'+esc(x.who==="together"?"Together":x.who==="partner"?"Partner":"Me")+(x.durationMin?' · '+Math.round(num(x.durationMin))+' min':'')+'</div><div class="small muted">'+esc(x.note||"")+'</div></div></div>').join(""):'<div class="empty">Nothing logged today.</div>')+'</div></section><section class="card pad"><div class="card-head"><h3>Recent history</h3><span class="pill blue">CALENDAR-BACKED</span></div><div class="table-wrap"><table><thead><tr><th>Date</th><th>Who</th><th>Type</th><th>Units</th></tr></thead><tbody>'+recent.map(x=>'<tr><td>'+fmtDate(x.date||String(x.startedAt||"").slice(0,10))+'</td><td>'+esc(x.who==="together"?"Together":x.who==="partner"?"Partner":"Me")+'</td><td>'+esc(x.smokeType||"")+'</td><td>'+num(x.units||1)+'</td></tr>').join("")+'</tbody></table></div></section></div>';
 }
+
+function safePlain(v){return JSON.parse(JSON.stringify(v??null))}
+function compactRows(rows,fields,limit=60){
+  return rows.slice(0,limit).map(row=>{const out={};for(const k of fields)if(row[k]!==undefined&&row[k]!==null&&row[k]!=="")out[k]=row[k];return out});
+}
+function aiSmokeLastDays(days=7){
+  const out=[];for(let i=0;i<days;i++){const d=new Date();d.setDate(d.getDate()-i);const key=d.toISOString().slice(0,10),s=smokeStats(key);out.push({date:key,myParticipation:s.mine,partnerParticipation:s.partner,physicalUnits:s.physical,sessions:s.rows.length})}return out.reverse();
+}
+function upcomingCalendarForAi(days=14){
+  const a=today(),d=new Date();d.setDate(d.getDate()+days);const b=d.toISOString().slice(0,10);
+  return calendarEvents(a,b).slice(0,100).map(x=>({date:x.date,kind:x.kind,title:x.title,meta:x.meta}));
+}
+function buildAiDataPack(){
+  const p=plan(),flow=monthFlow(),partner=relationshipPerson(),current=activeSession();
+  const pack={
+    schema:"pier.ai.context.v1",
+    generatedAt:new Date().toISOString(),
+    context:{profileId:S.activeProfileId,world:S.worldMode},
+    identity:{
+      name:S.profile.fullName||S.profile.name||currentProfile().name||"",
+      currentBase:S.profile.currentBase||"",
+      background:S.profile.background||"",
+      lifeSummary:S.profile.lifeSummary||"",
+      currentFocus:S.profile.currentFocus||"",
+      licenseStatus:S.profile.licenseStatus||"unknown"
+    },
+    money:{
+      totalBalance:totalBalance(),spendable:availableMoney(),emergencyReserve:num(S.profile.emergencyReserve),
+      monthIncome:flow.income,monthExpense:flow.expense,monthNet:flow.income-flow.expense,
+      smokeSpendMonth:smokeSpendMonth(),
+      accounts:compactRows(S.accounts,["id","name","type","openingBalance"],20),
+      recentTransactions:compactRows([...S.transactions].sort((a,b)=>String(b.date||"").localeCompare(String(a.date||""))),["date","type","amount","description","category"],40),
+      openBills:compactRows(S.bills.filter(x=>x.status!=="paid"),["name","amount","minimumDue","dueDate","billCategory","consequence","priority","lifeGroup"],40)
+    },
+    planning:{
+      plannerSelected:p.selected.slice(0,15).map(x=>({key:x.key,title:x.title,score:x.score,reason:x.reason,minutes:x.minutes,cashCost:x.cashCost,lifeGroup:x.lifeGroup||""})),
+      plannerBlocked:p.blocked.slice(0,15).map(x=>({key:x.key,title:x.title,reason:x.reason,score:x.score})),
+      pendingDailyDrafts:compactRows(S.dailyDrafts.filter(x=>x.status==="pending"),["date","sourceKey","title","start","end","score","reason","learnedFrom"],30),
+      learnedFeedback:compactRows(S.goapFeedback,["sourceKey","approvedCount","correctedCount","rejectedCount","avgStartMin","avgDurationMin","lastOutcome"],60),
+      upcomingCalendar:upcomingCalendarForAi(14)
+    },
+    actions:{
+      openTasks:compactRows(openTasks(),["id","importKey","title","priority","must","dueAt","estimateMin","moneyCost","category","requiresDriving","plannerEnabled","lifeGroup","notes"],60),
+      openGoals:compactRows(S.goals.filter(x=>x.status!=="done"),["id","importKey","name","kind","priority","current","target","deadline","nextAction","nextActionMinutes","plannerEnabled","lifeGroup"],40),
+      routines:compactRows(S.routines.filter(x=>x.active!==false),["id","importKey","name","days","estimateMin","preferredTime","priority","must","canOverlap","lifeGroup","lastCompletedDate"],40)
+    },
+    work:{
+      jobs:compactRows(S.jobs,["id","name","hourlyRate","payFrequency","nextPayDate","taxPercent","overtimeThreshold","overtimeMultiplier","notes"],20),
+      upcomingShifts:compactRows(S.shifts.filter(x=>x.date>=today()).sort((a,b)=>String(a.date).localeCompare(String(b.date))),["date","start","end","breakMin","notes","jobId"],40)
+    },
+    family:{
+      household:compactRows(S.household,["id","name","relation","birthday","notes"],20),
+      partner:partner?{name:partner.name,relationshipAttention:relationshipAttention(partner.id),daysSinceCompletedPlan:relationshipDaysSince(partner.id)}:null,
+      openRelationshipPlans:compactRows(S.relationshipPlans.filter(x=>x.status!=="done"&&x.status!=="skipped"),["title","targetDate","minutes","budget","foundPrice","store","notes"],20)
+    },
+    lifeAdmin:{
+      legalObligations:compactRows(S.legalObligations.filter(x=>x.status!=="resolved"),["title","jurisdiction","status","amountRemaining","priority","dueDate","nextAction","notes"],30),
+      assets:compactRows(S.assets,["kind","owner","name","specs","condition","mileage","targetBudget","upgradePlan","status"],30)
+    },
+    habits:{
+      activeSession:current?{type:current.type,label:current.label,startedAt:current.startedAt,minutes:sessionElapsed(current)}:null,
+      smoke7Day:aiSmokeLastDays(7),
+      smokeDailyTarget:num(S.profile.smokeMyDailyTarget||0)
+    },
+    market:{
+      watched:compactRows(S.marketWatch,["symbol","name","sector","tier","active","rank"],10),
+      cachedQuotes:S.marketCache.filter(x=>x.quote).slice(0,10).map(x=>({symbol:x.symbol,quote:x.quote,quoteFetchedIso:x.quoteFetchedIso}))
+    },
+    capabilities:{
+      deterministicGOAP:true,firebaseRealtime:true,shadowWorld:true,paperMarkets:true,
+      aiBridge:{provider:S.profile.aiProvider||"disabled",configured:!!S.profile.aiBridgeUrl,model:S.profile.aiModel||""}
+    }
+  };
+  return safePlain(pack);
+}
+function hashText(str){let h=2166136261;for(let i=0;i<str.length;i++){h^=str.charCodeAt(i);h=Math.imul(h,16777619)}return (h>>>0).toString(16)}
+function aiSnapshotId(){return idSafe("current_"+S.activeProfileId+"_"+S.worldMode)}
+function queueAiSnapshot(){
+  if(!S.user)return;
+  clearTimeout(S.aiSnapshotTimer);
+  S.aiSnapshotTimer=setTimeout(()=>saveAiSnapshot(false).catch(e=>console.warn("AI snapshot",e)),1800);
+}
+async function saveAiSnapshot(history=false){
+  if(S.aiSnapshotBusy||!S.user)return;
+  S.aiSnapshotBusy=true;
+  try{
+    const payload=buildAiDataPack(),body=JSON.stringify(payload),hash=hashText(body),key="pier-ai-hash-"+S.activeProfileId+"-"+S.worldMode;
+    if(!history&&localStorage.getItem(key)===hash)return;
+    const id=history?idSafe("snapshot_"+Date.now()):aiSnapshotId();
+    await setDoc(subdoc("aiSnapshots",id),{kind:history?"history":"current",hash,payload,generatedAt:payload.generatedAt,...ctxFields(),createdAt:serverTimestamp()},{merge:true});
+    localStorage.setItem(key,hash);
+    if(history)toast("AI-ready life snapshot saved to Firebase.");
+  }finally{S.aiSnapshotBusy=false}
+}
+function downloadAiDataPack(){
+  const blob=new Blob([JSON.stringify(buildAiDataPack(),null,2)],{type:"application/json"}),url=URL.createObjectURL(blob),a=document.createElement("a");
+  a.href=url;a.download="pier-ai-context-"+today()+".json";a.click();URL.revokeObjectURL(url);toast("AI context pack downloaded.");
+}
+function aiBridgeProviderLabel(){return AI_BRIDGE_PROVIDERS.find(x=>x.id===(S.profile.aiProvider||"disabled"))?.label||"Disabled / data only"}
+function currentScheduledThing(){
+  const now=new Date(),date=today(),m=now.getHours()*60+now.getMinutes(),events=fixedDayEvents(date).filter(x=>x.start);
+  return events.find(x=>{const s=timeToMin(x.start),e=timeToMin(x.end||minToTime(s+60));return m>=s&&m<e})||null;
+}
+function nextShiftInfo(){
+  const rows=S.shifts.filter(x=>x.date>=today()).sort((a,b)=>(a.date+a.start).localeCompare(b.date+b.start));return rows[0]||null
+}
+function renderLivePulse(){
+  const active=currentScheduledThing(),shift=nextShiftInfo(),session=activeSession(),sync=S.syncError?"Firebase issue":"Synced";
+  return '<div class="live-pulse"><div class="live-chip '+(S.syncError?'bad':'')+'"><span class="pulse-dot"></span>'+esc(sync)+' · '+esc(S.worldMode.toUpperCase())+'</div><div class="live-chip"><span class="pulse-dot"></span>'+new Date().toLocaleTimeString([],{hour:"numeric",minute:"2-digit"})+'</div>'+(active?'<div class="live-chip"><span class="pulse-dot"></span>Now · '+esc(active.title)+'</div>':'<div class="live-chip warn"><span class="pulse-dot"></span>No scheduled block now</div>')+(session?'<div class="live-chip"><span class="pulse-dot"></span>'+esc(session.label||sessionLabel(session.type))+' · '+Math.floor(sessionElapsed(session))+'m</div>':'')+(shift?'<div class="live-chip"><span class="pulse-dot"></span>Next shift · '+esc(fmtDate(shift.date))+' '+esc(shift.start)+'</div>':'')+'<div class="live-chip"><span class="pulse-dot"></span>Spendable · '+money(availableMoney())+'</div></div>';
+}
 function renderDashboard(){
   const p=plan(),next=p.selected[0],flow=monthFlow(),name=esc((currentProfile().name||S.profile.name||"Pier").split(" ")[0]||"");
-  return '<div class="hero">'+
+  return renderLivePulse()+'<div class="hero">'+
     '<section class="card hero-card"><div class="eyebrow">PIER / TODAY</div><div class="hero-title">'+greeting()+', '+name+'.</div>'+
       '<div class="hero-sub">'+(next?'Your highest-value move is below. Pier ranked it from urgency, must-do status, deadline, time and money constraints.':'You are clear right now. Add what you need to do and Pier will build the order.')+'</div>'+
       '<div class="next-action">'+(next?'<div class="rank-bubble">'+next.score+'</div><div style="flex:1;min-width:190px"><div class="task-title">'+esc(next.title)+'</div><div class="row-meta">'+esc(next.reason)+'</div></div><button class="btn primary" data-action="complete-plan" data-id="'+esc(next.key)+'">Done</button>':'<button class="btn primary" data-action="add-task">Add your first task</button>')+'</div>'+
@@ -2711,6 +2837,7 @@ function checkNotifications(){
 setInterval(checkNotifications,10*60*1000);
 setInterval(autoRefreshWatchlist,60*1000);
 setInterval(()=>{if(S.view==="sessions"&&activeSession())render()},30*1000);
+setInterval(()=>{if(["dashboard","mylife","day"].includes(S.view))render()},60*1000);
 setTimeout(autoRefreshWatchlist,8000);
 
 document.addEventListener("visibilitychange",async()=>{
@@ -2730,7 +2857,7 @@ setInterval(async()=>{
 },60000);
 
 window.addEventListener("online",()=>{if(!S.syncError)setSynced()});
-window.addEventListener("offline",()=>{$("#syncDot").className="dot";$("#syncLabel").textContent="Offline";$("#syncDetail").textContent="Waiting for connection"});
+window.addEventListener("offline",()=>{$("#syncDot").className="dot";$("#syncLabel").textContent="Offline";$("#syncDetail").textContent="Waiting for connection";const m=$("#mobileLiveState");if(m)m.textContent="● Offline"});
 </script>
 </body>
 </html>

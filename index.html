@@ -247,6 +247,23 @@ tr:last-child td{border-bottom:0}
 .contract{font-size:10px;color:var(--muted)}
 @media(max-width:1100px){.calendar-shell{grid-template-columns:1fr}}
 @media(max-width:700px){.cal-day{min-height:82px;padding:5px}.cal-event{font-size:8px;padding:3px}.score-grid{grid-template-columns:repeat(2,1fr)}}
+
+/* Pier v2.2: personal pay coach + authenticated market data + training dataset */
+.coach-card{padding:16px;border:1px solid var(--line);border-radius:16px;background:var(--panel2)}
+.coach-rank{width:42px;height:42px;border-radius:13px;background:var(--panel3);display:grid;place-items:center;font-weight:950;flex:0 0 auto}
+.coach-action{font-size:12px;font-weight:900;text-transform:uppercase;letter-spacing:.06em}
+.coach-action.pay{color:var(--ok)}.coach-action.wait{color:var(--warn)}.coach-action.short{color:var(--danger)}
+.reason-list{display:grid;gap:5px;margin-top:9px}.reason-line{font-size:11px;color:var(--muted)}
+.market-search{display:grid;grid-template-columns:minmax(180px,1fr) auto auto;gap:8px}
+.quote-hero{font-size:38px;font-weight:950;letter-spacing:-.05em}
+.quote-change.up{color:var(--ok)}.quote-change.down{color:#ff8f8f}
+.market-grid{display:grid;grid-template-columns:1.1fr .9fr;gap:18px}
+.api-box{border:1px solid var(--line);background:var(--panel2);border-radius:15px;padding:14px}
+.secret-state{display:flex;align-items:center;gap:8px;font-size:11px}
+.training-note{border-left:3px solid var(--accent2);padding-left:11px;color:var(--muted);font-size:11px;line-height:1.55}
+.option-table{max-height:520px;overflow:auto}
+@media(max-width:900px){.market-grid{grid-template-columns:1fr}.market-search{grid-template-columns:1fr 1fr}.market-search input{grid-column:1/-1}}
+@media(max-width:550px){.market-search{grid-template-columns:1fr}.market-search input{grid-column:auto}}
 </style>
 </head>
 <body>
@@ -276,13 +293,16 @@ tr:last-child td{border-bottom:0}
       <button class="nav-btn active" data-view="dashboard"><span class="nav-icon">⌂</span>Dashboard</button>
       <button class="nav-btn" data-view="tasks"><span class="nav-icon">✓</span>Tasks</button>
       <button class="nav-btn" data-view="money"><span class="nav-icon">$</span>Money</button>
+      <button class="nav-btn" data-view="coach"><span class="nav-icon">⇅</span>What to Pay</button>
       <button class="nav-btn" data-view="goals"><span class="nav-icon">◎</span>Goals</button>
       <button class="nav-btn" data-view="routines"><span class="nav-icon">↻</span>Routines</button>
       <button class="nav-btn" data-view="planner"><span class="nav-icon">⚡</span>Planner / Why</button>
       <button class="nav-btn" data-view="calendar"><span class="nav-icon">▦</span>Calendar</button>
       <button class="nav-btn" data-view="work"><span class="nav-icon">◷</span>Work & Pay</button>
       <button class="nav-btn" data-view="life"><span class="nav-icon">⌂</span>Family & Life</button>
+      <button class="nav-btn" data-view="market"><span class="nav-icon">⌁</span>Market Data</button>
       <button class="nav-btn" data-view="paper"><span class="nav-icon">↗</span>Paper Markets</button>
+      <button class="nav-btn" data-view="data"><span class="nav-icon">▤</span>Training Data</button>
       <button class="nav-btn" data-view="profiles"><span class="nav-icon">◉</span>Profiles</button>
       <button class="nav-btn" data-view="inbox"><span class="nav-icon">↓</span>Inbox</button>
       <button class="nav-btn" data-view="settings"><span class="nav-icon">⚙</span>Settings</button>
@@ -339,7 +359,7 @@ import {
   signOut,sendPasswordResetEmail
 } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
 import {
-  getFirestore,doc,collection,getDoc,setDoc,addDoc,updateDoc,deleteDoc,onSnapshot,
+  getFirestore,doc,collection,getDoc,getDocs,setDoc,addDoc,updateDoc,deleteDoc,onSnapshot,
   serverTimestamp,writeBatch
 } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 
@@ -380,7 +400,8 @@ const S={
   tasks:[],accounts:[],transactions:[],bills:[],goals:[],routines:[],inbox:[],
   jobs:[],shifts:[],timeEntries:[],paychecks:[],household:[],appointments:[],shopping:[],paperTrades:[],
   all:{},activeProfileId:localStorage.getItem("pierProfile")||"primary",worldMode:localStorage.getItem("pierWorld")||"live",
-  unsubs:[],view:"dashboard",syncError:"",taskSearch:"",taskFilter:"open",plan:null,calendarCursor:new Date()
+  unsubs:[],view:"dashboard",syncError:"",taskSearch:"",taskFilter:"open",plan:null,calendarCursor:new Date(),
+  market:{symbol:"SPY",quote:null,candles:[],chain:[],rate:null,error:"",loading:false,lastFetch:null,hasToken:null}
 };
 if(!["live","shadow"].includes(S.worldMode))S.worldMode="live";
 
@@ -514,7 +535,7 @@ function setSyncError(err){
 function applyTheme(){document.documentElement.dataset.theme=S.profile.theme==="light"?"light":"dark"}
 
 function navigate(view){
-  S.view=view;const titles={dashboard:"Dashboard",tasks:"Tasks",money:"Money",goals:"Goals",routines:"Routines",planner:"Planner / Why",calendar:"Calendar",work:"Work & Pay",life:"Family & Life",paper:"Paper Markets",profiles:"Profiles",inbox:"Inbox",settings:"Settings"};
+  S.view=view;const titles={dashboard:"Dashboard",tasks:"Tasks",money:"Money",coach:"What to Pay",goals:"Goals",routines:"Routines",planner:"Planner / Why",calendar:"Calendar",work:"Work & Pay",life:"Family & Life",market:"Market Data",paper:"Paper Markets",data:"Training Data",profiles:"Profiles",inbox:"Inbox",settings:"Settings"};
   $("#pageTitle").textContent=titles[view]||"Pier";
   $$("[data-view]").forEach(b=>b.classList.toggle("active",b.dataset.view===view));
   render();
@@ -537,13 +558,16 @@ function render(){
   if(S.view==="dashboard")html=renderDashboard();
   else if(S.view==="tasks")html=renderTasks();
   else if(S.view==="money")html=renderMoney();
+  else if(S.view==="coach")html=renderPayCoach();
   else if(S.view==="goals")html=renderGoals();
   else if(S.view==="routines")html=renderRoutines();
   else if(S.view==="planner")html=renderPlanner();
   else if(S.view==="calendar")html=renderCalendar();
   else if(S.view==="work")html=renderWork();
   else if(S.view==="life")html=renderLife();
+  else if(S.view==="market")html=renderMarket();
   else if(S.view==="paper")html=renderPaper();
+  else if(S.view==="data")html=renderTrainingData();
   else if(S.view==="profiles")html=renderProfiles();
   else if(S.view==="inbox")html=renderInbox();
   else html=renderSettings();
@@ -674,7 +698,8 @@ function renderDashboard(){
     '<div class="grid-2" style="margin-top:18px">'+
       '<section class="card pad"><div class="card-head"><h3>Money snapshot</h3><button class="btn ghost" data-view="money">Open money →</button></div>'+renderMiniAccounts()+'</section>'+
       '<section class="card pad"><div class="card-head"><h3>Quick brain dump</h3><span class="small muted">Capture first. Organize second.</span></div><form id="dashInboxForm" class="quick-capture"><input name="text" maxlength="240" placeholder="Anything you do not want to forget…"><button class="btn blue">Capture</button></form><div class="small muted" style="margin-top:10px">Tip: use Tasks for something actionable; Inbox is for messy thoughts.</div></section>'+
-    '</div>';
+    '</div>'+
+    '<section class="card pad" style="margin-top:18px"><div class="card-head"><h3>What should I pay?</h3><button class="btn ghost" data-view="coach">See full pay plan →</button></div>'+renderPayCoachMini()+'</section>';
 }
 function greeting(){const h=new Date().getHours();return h<12?"Good morning":h<18?"Good afternoon":"Good evening"}
 function metric(label,value,sub){return '<div class="metric"><div class="label">'+esc(label)+'</div><div class="value">'+esc(value)+'</div><div class="sub">'+esc(sub)+'</div></div>'}
@@ -712,6 +737,64 @@ function taskCard(t){
   return '<article class="task-row"><div class="priority-bar p'+clamp(num(t.priority)||3,1,5)+'"></div><div class="row-main"><div class="task-title" style="'+(done?'text-decoration:line-through;opacity:.65':'')+'">'+esc(t.title)+'</div><div class="row-meta">'+esc(t.category||"General")+' · Rank '+scoreAction(a)+(t.dueAt?' · '+fmtDate(t.dueAt):'')+' · '+a.minutes+' min'+(a.cashCost?' · '+money(a.cashCost):'')+'</div><div style="margin-top:8px;display:flex;gap:5px;flex-wrap:wrap">'+(t.must?'<span class="pill must">HAVE TO</span>':'')+(d<0&&!done?'<span class="pill urgent">'+Math.abs(d)+'d OVERDUE</span>':'')+'<span class="pill">P'+esc(t.priority||3)+'</span></div></div><div class="row-actions">'+(!done?'<button class="btn icon ghost" data-action="done-task" data-id="'+t.id+'" title="Done">✓</button>':'<button class="btn ghost" data-action="reopen-task" data-id="'+t.id+'">Reopen</button>')+'<button class="btn icon ghost" data-action="edit-task" data-id="'+t.id+'" title="Edit">✎</button></div></article>';
 }
 
+
+const BILL_CATEGORY_WEIGHT={housing:95,utilities:82,childcare:80,food:75,medical:72,transport:70,insurance:68,debt:42,subscription:8,other:25};
+const BILL_CONSEQUENCE_WEIGHT={critical:90,high:55,normal:20,low:0};
+function expectedIncomeEvents(days=45){
+  const end=new Date(Date.now()+days*86400000),events=[];
+  S.jobs.forEach(j=>payDateSeries(j,today(),end.toISOString().slice(0,10)).forEach(date=>{
+    const est=estimatePay(j);events.push({date,amount:est.net,source:j.name,type:"estimated"});
+  }));
+  return events.sort((a,b)=>a.date.localeCompare(b.date));
+}
+function billPriorityBreakdown(b){
+  const parts=[],d=daysUntil(b.dueDate),cat=BILL_CATEGORY_WEIGHT[b.billCategory||"other"]||25,cons=BILL_CONSEQUENCE_WEIGHT[b.consequence||"normal"]||20;
+  parts.push(["Category importance",cat]);parts.push(["Unpaid consequence",cons]);parts.push(["Manual priority",(num(b.priority)||3)*10]);
+  if(d<0)parts.push([Math.abs(d)+" days overdue",130+Math.min(60,Math.abs(d)*8)]);
+  else if(d===0)parts.push(["Due today",110]);
+  else if(d===1)parts.push(["Due tomorrow",90]);
+  else if(d<=3)parts.push(["Due within 3 days",70]);
+  else if(d<=7)parts.push(["Due this week",45]);
+  else if(d<=14)parts.push(["Due within 2 weeks",20]);
+  if(num(b.lateFee)>0)parts.push(["Late-fee exposure",Math.min(35,5+num(b.lateFee)/5)]);
+  return parts;
+}
+function billPriorityScore(b){return Math.round(billPriorityBreakdown(b).reduce((a,x)=>a+x[1],0))}
+function payCoachPlan(){
+  const bills=S.bills.filter(b=>b.status!=="paid").map(b=>({...b,coachScore:billPriorityScore(b),coachParts:billPriorityBreakdown(b)})).sort((a,b)=>b.coachScore-a.coachScore);
+  let cash=Math.max(0,availableMoney()),virtualCash=cash;
+  const incomes=expectedIncomeEvents(45),recommendations=[];
+  for(const b of bills){
+    const dueAmount=num(b.minimumDue)>0?Math.min(num(b.amount),num(b.minimumDue)):num(b.amount),d=daysUntil(b.dueDate);
+    let action="SHORTFALL",when="",reason=[];
+    if(virtualCash>=dueAmount){action="PAY NOW";virtualCash-=dueAmount;reason.push("fits inside current spendable cash after reserve")}
+    else{
+      const inc=incomes.find(x=>x.date<=b.dueDate&&x.amount>0);
+      if(inc){action="WAIT FOR PAYDAY";when=inc.date;reason.push("estimated "+money(inc.amount)+" from "+inc.source+" before this due date")}
+      else if(b.partialAllowed&&virtualCash>0){action="PARTIAL";reason.push("full/minimum amount does not fit, but this bill allows partial payment")}
+      else reason.push("current spendable cash is "+money(virtualCash)+" and no estimated payday covers it before due date");
+    }
+    if((b.billCategory||"other")==="housing")reason.push("housing is protected with the highest category weight");
+    if(["critical","high"].includes(b.consequence))reason.push((b.consequence||"normal")+" consequence if missed");
+    if(d<0)reason.push("already overdue"); else if(d<=3)reason.push("deadline is very close");
+    if(num(b.lateFee)>0)reason.push("possible "+money(b.lateFee)+" late fee");
+    recommendations.push({...b,dueAmount,action,when,reason,remainingAfter:virtualCash});
+  }
+  return {startCash:cash,incomes,recommendations};
+}
+function renderPayCoachMini(){
+  const p=payCoachPlan(),r=p.recommendations[0];
+  if(!r)return '<div class="empty">Add your bills and Pier will tell you what deserves attention first.</div>';
+  return '<div class="coach-card"><div style="display:flex;gap:12px;align-items:flex-start"><div class="coach-rank">1</div><div class="row-main"><div class="coach-action '+(r.action==="PAY NOW"?"pay":r.action==="WAIT FOR PAYDAY"?"wait":"short")+'">'+esc(r.action)+'</div><div class="task-title">'+esc(r.name)+' · '+money(r.dueAmount)+'</div><div class="row-meta">Score '+r.coachScore+' · due '+fmtDate(r.dueDate)+'</div><div class="reason-list">'+r.reason.slice(0,3).map(x=>'<div class="reason-line">• '+esc(x)+'</div>').join("")+'</div></div></div></div>';
+}
+function renderPayCoach(){
+  const p=payCoachPlan(),nextIncome=p.incomes[0];
+  return '<div class="section-title"><div><h1>What should I pay?</h1><p>A personal cash-priority plan that tells you what Pier recommends and exactly why.</p></div><button class="btn primary" data-action="add-bill">＋ Add bill</button></div>'+
+    '<div class="money-hero">'+metric("Cash now",money(totalBalance()),"Across this profile's accounts")+metric("Protected",money(S.profile.emergencyReserve),"Held back by your rule")+metric("Spendable now",money(p.startCash),"Used by this pay plan")+metric("Next estimated pay",nextIncome?money(nextIncome.amount):"$0",nextIncome?fmtDate(nextIncome.date)+" · "+nextIncome.source:"Set up Work & Pay")+'</div>'+
+    '<section class="card pad"><div class="card-head"><h3>Recommended payment order</h3><span class="pill blue">'+p.recommendations.length+' obligations</span></div><div class="stack">'+(p.recommendations.length?p.recommendations.map((r,i)=>'<div class="coach-card"><div style="display:flex;gap:12px;align-items:flex-start"><div class="coach-rank">'+(i+1)+'</div><div class="row-main"><div class="coach-action '+(r.action==="PAY NOW"?"pay":r.action==="WAIT FOR PAYDAY"?"wait":"short")+'">'+esc(r.action)+(r.when?' · '+fmtDate(r.when):'')+'</div><div class="task-title">'+esc(r.name)+' · '+money(r.dueAmount)+'</div><div class="row-meta">'+esc(r.billCategory||"other")+' · score '+r.coachScore+' · due '+fmtDate(r.dueDate)+(num(r.amount)!==r.dueAmount?' · full balance '+money(r.amount):'')+'</div><div class="reason-list">'+r.reason.map(x=>'<div class="reason-line">• '+esc(x)+'</div>').join("")+'</div><div class="score-grid">'+r.coachParts.map(x=>'<div class="score-part"><strong>+'+Math.round(x[1])+'</strong><div class="muted">'+esc(x[0])+'</div></div>').join("")+'</div></div><div class="row-actions"><button class="btn primary" data-action="pay-bill" data-id="'+r.id+'">Record payment</button><button class="btn icon ghost" data-action="edit-bill" data-id="'+r.id+'">✎</button></div></div></div>').join(""):'<div class="empty">No unpaid bills.</div>')+'</div></section>'+
+    '<section class="card pad" style="margin-top:18px"><div class="card-head"><h3>Upcoming expected income</h3><span class="small muted">From your Work & Pay settings</span></div><div class="stack">'+(p.incomes.length?p.incomes.slice(0,8).map(x=>'<div class="setting-row"><div><strong>'+fmtDate(x.date)+'</strong><div class="small muted">'+esc(x.source)+' · estimate</div></div><strong>'+money(x.amount)+'</strong></div>').join(""):'<div class="empty">Add a job, hours and next pay date to give Pier cash-flow context.</div>')+'</div></section>'+
+    '<div class="training-note" style="margin-top:14px">This is a budgeting heuristic, not a lender or legal instruction. Pier protects housing, utilities, childcare, transportation and other high-consequence obligations more aggressively, while still showing the exact weights so you can override them.</div>';
+}
 function renderMoney(){
   const b=balances(),flow=monthFlow(),openBills=S.bills.filter(x=>x.status!=="paid");
   return '<div class="section-title"><div><h1>Money</h1><p>Pier treats cash as a planning constraint, not just a number on a dashboard.</p></div><div class="toolbar"><button class="btn" data-action="add-account">＋ Account</button><button class="btn blue" data-action="add-transaction">＋ Transaction</button><button class="btn primary" data-action="add-bill">＋ Bill</button></div></div>'+
@@ -721,7 +804,7 @@ function renderMoney(){
     '<section class="card pad" style="margin-top:18px"><div class="card-head"><h3>Recent transactions</h3><span class="small muted">'+S.transactions.length+' total</span></div>'+renderTransactions()+'</section>';
 }
 function billCard(b){
-  const d=daysUntil(b.dueDate);return '<div class="bill-row"><div class="priority-bar p5"></div><div class="row-main"><div class="task-title">'+esc(b.name)+'</div><div class="row-meta">'+money(b.amount)+' · '+fmtDate(b.dueDate)+(b.recurrence&&b.recurrence!=="none"?' · '+esc(b.recurrence):"")+'</div></div><div class="row-actions">'+(d<=3?'<span class="pill urgent">'+(d<0?"OVERDUE":d===0?"TODAY":d+"D")+'</span>':'')+'<button class="btn primary" data-action="pay-bill" data-id="'+b.id+'">Pay</button><button class="btn icon ghost" data-action="edit-bill" data-id="'+b.id+'">✎</button></div></div>';
+  const d=daysUntil(b.dueDate);return '<div class="bill-row"><div class="priority-bar p5"></div><div class="row-main"><div class="task-title">'+esc(b.name)+'</div><div class="row-meta">'+money(b.amount)+' · '+esc(b.billCategory||"other")+' · '+fmtDate(b.dueDate)+(b.recurrence&&b.recurrence!=="none"?' · '+esc(b.recurrence):"")+' · coach '+billPriorityScore(b)+'</div></div><div class="row-actions">'+(d<=3?'<span class="pill urgent">'+(d<0?"OVERDUE":d===0?"TODAY":d+"D")+'</span>':'')+'<button class="btn primary" data-action="pay-bill" data-id="'+b.id+'">Pay</button><button class="btn icon ghost" data-action="edit-bill" data-id="'+b.id+'">✎</button></div></div>';
 }
 function renderTransactions(){
   if(!S.transactions.length)return '<div class="empty">No transactions yet.</div>';
@@ -982,6 +1065,106 @@ function openShoppingModal(){
 async function toggleShopping(id){const x=S.shopping.find(i=>i.id===id);if(x)await updateDoc(subdoc("shopping",id),{done:!x.done,updatedAt:serverTimestamp()})}
 
 /* PAPER MARKETS */
+
+async function marketSecret(){
+  const snap=await getDoc(subdoc("marketSecrets","marketdata"));
+  return snap.exists()?snap.data():{};
+}
+async function saveMarketToken(token){
+  await setDoc(subdoc("marketSecrets","marketdata"),{provider:"marketdata.app",token:token.trim(),updatedAt:serverTimestamp()},{merge:true});
+  S.market.hasToken=!!token.trim();toast("Market API token saved to your Firebase account.");
+}
+async function removeMarketToken(){
+  await deleteDoc(subdoc("marketSecrets","marketdata"));S.market.hasToken=false;toast("Market API token removed.");
+}
+async function marketHasToken(){
+  try{const s=await marketSecret();S.market.hasToken=!!s.token;return S.market.hasToken}catch{return false}
+}
+function arrFirst(v){return Array.isArray(v)?v[0]:v}
+function normalizeStockQuote(raw,symbol){
+  return {symbol:String(arrFirst(raw.symbol)||symbol).toUpperCase(),bid:num(arrFirst(raw.bid)),ask:num(arrFirst(raw.ask)),mid:num(arrFirst(raw.mid)),last:num(arrFirst(raw.last)),change:num(arrFirst(raw.change)),changePct:num(arrFirst(raw.changepct)),volume:num(arrFirst(raw.volume)),updated:arrFirst(raw.updated)||null};
+}
+function normalizeCandles(raw){
+  const t=raw.t||[],o=raw.o||[],h=raw.h||[],l=raw.l||[],cl=raw.c||[],v=raw.v||[];
+  return t.map((x,i)=>({t:x,o:num(o[i]),h:num(h[i]),l:num(l[i]),c:num(cl[i]),v:num(v[i])})).slice(-120);
+}
+function normalizeChain(raw){
+  const keys=["optionSymbol","underlying","expiration","strike","side","bid","ask","mid","last","volume","openInterest","iv","delta","gamma","theta","vega","updated"];
+  const len=Math.max(0,...keys.map(k=>Array.isArray(raw[k])?raw[k].length:0));
+  const out=[];for(let i=0;i<len;i++){const x={};keys.forEach(k=>x[k]=Array.isArray(raw[k])?raw[k][i]:raw[k]);out.push(x)}
+  return out.slice(0,80);
+}
+async function saveMarketSample(kind,symbol,payload,meta={}){
+  if(!S.user)return;
+  const clean=JSON.parse(JSON.stringify(payload));
+  await addDoc(subcol("marketSamples"),{schemaVersion:1,provider:"marketdata.app",kind,symbol:String(symbol||"").toUpperCase(),payload:clean,meta,profileId:S.activeProfileId,world:S.worldMode,capturedAtIso:new Date().toISOString(),createdAt:serverTimestamp(),trainingReady:true});
+}
+async function logTrainingEvent(eventType,payload){
+  if(!S.user)return;
+  await addDoc(subcol("trainingEvents"),{schemaVersion:1,eventType,payload:JSON.parse(JSON.stringify(payload)),profileId:S.activeProfileId,world:S.worldMode,capturedAtIso:new Date().toISOString(),createdAt:serverTimestamp()});
+}
+async function marketFetch(path,params={},saveKind=""){
+  const secret=await marketSecret();if(!secret.token)throw new Error("Add your MarketData.app API token in Settings first.");
+  const qs=new URLSearchParams(params),url="https://api.marketdata.app"+path+(qs.toString()?"?"+qs.toString():"");
+  const res=await fetch(url,{headers:{Accept:"application/json",Authorization:"Bearer "+secret.token}});
+  const rate={remaining:res.headers.get("X-Api-Ratelimit-Remaining"),limit:res.headers.get("X-Api-Ratelimit-Limit"),consumed:res.headers.get("X-Api-Ratelimit-Consumed"),reset:res.headers.get("X-Api-Ratelimit-Reset")};S.market.rate=rate;
+  let data={};try{data=await res.json()}catch{}
+  if(!(res.status===200||res.status===203))throw new Error(data.errmsg||("Market API error "+res.status));
+  if(data.s==="error")throw new Error(data.errmsg||"Market API error");
+  if(saveKind)await saveMarketSample(saveKind,S.market.symbol,data,{path,params,rate});
+  return data;
+}
+async function fetchMarketQuote(symbol){
+  S.market.loading=true;S.market.error="";S.market.symbol=String(symbol||S.market.symbol||"SPY").trim().toUpperCase();render();
+  try{
+    const raw=await marketFetch("/v1/stocks/quotes/"+encodeURIComponent(S.market.symbol)+"/",{"52week":"true"});
+    S.market.quote=normalizeStockQuote(raw,S.market.symbol);
+    const from=new Date(Date.now()-45*86400000).toISOString().slice(0,10);
+    const candlesRaw=await marketFetch("/v1/stocks/candles/D/"+encodeURIComponent(S.market.symbol)+"/",{from,to:today()});
+    S.market.candles=normalizeCandles(candlesRaw);
+    S.market.lastFetch=new Date();await saveMarketSample("stock_quote",S.market.symbol,S.market.quote,{rate:S.market.rate});await saveMarketSample("stock_candles",S.market.symbol,S.market.candles,{resolution:"D"});
+  }catch(e){S.market.error=e.message||String(e);toast(S.market.error,"error")}finally{S.market.loading=false;render()}
+}
+async function fetchMarketOptions(symbol){
+  S.market.loading=true;S.market.error="";S.market.symbol=String(symbol||S.market.symbol||"SPY").trim().toUpperCase();render();
+  try{
+    const raw=await marketFetch("/v1/options/chain/"+encodeURIComponent(S.market.symbol)+"/",{dte:"30",strikeLimit:"3"});
+    S.market.chain=normalizeChain(raw);S.market.lastFetch=new Date();
+    await saveMarketSample("option_chain",S.market.symbol,S.market.chain,{dte:30,strikeLimit:3,rate:S.market.rate});
+  }catch(e){S.market.error=e.message||String(e);toast(S.market.error,"error")}finally{S.market.loading=false;render()}
+}
+function marketCandleChart(rows){
+  if(!rows?.length)return '<div class="empty">Fetch a ticker to load its stored daily price history.</div>';
+  const vals=rows.map(x=>x.c),min=Math.min(...vals),max=Math.max(...vals),span=max-min||1,w=720,h=190,p=16;
+  const pts=rows.map((x,i)=>((p+i*(w-2*p)/Math.max(1,rows.length-1)).toFixed(1)+","+(h-p-(x.c-min)/span*(h-2*p)).toFixed(1))).join(" ");
+  return '<svg viewBox="0 0 '+w+' '+h+'" preserveAspectRatio="none"><polyline points="'+pts+'" fill="none" stroke="currentColor" stroke-width="3" vector-effect="non-scaling-stroke"/><text x="'+p+'" y="15" fill="currentColor" opacity=".65" font-size="10">'+money(max)+'</text><text x="'+p+'" y="'+(h-3)+'" fill="currentColor" opacity=".65" font-size="10">'+money(min)+'</text></svg>';
+}
+function renderMarket(){
+  const q=S.market.quote,rate=S.market.rate||{},chain=S.market.chain||[],pct=q?num(q.changePct)*100:0;
+  const has=S.market.hasToken;
+  if(has===null)setTimeout(()=>marketHasToken().then(()=>{if(S.view==="market")render()}),0);
+  return '<div class="section-title"><div><h1>Market Data</h1><p>Authenticated market information for your personal Pier account. API secrets are not hard-coded into GitHub.</p></div><button class="btn" data-view="paper">Open paper portfolio →</button></div>'+
+    '<section class="card pad"><div class="market-search"><input id="marketSymbolInput" value="'+esc(S.market.symbol||"SPY")+'" placeholder="Ticker: SPY, AAPL, NVDA…"><button class="btn primary" data-action="market-stock">'+(S.market.loading?"Loading…":"Stock quote")+'</button><button class="btn" data-action="market-options">Options chain</button></div><div class="small muted" style="margin-top:9px">'+(has===false?'No API token saved. Go to Settings → Market data API.':has===true?'MarketData.app token is connected to this Firebase login.':'Checking API setup…')+(rate.remaining!==null&&rate.remaining!==undefined?' · credits '+esc(rate.remaining)+' / '+esc(rate.limit||"?"):'')+'</div>'+(S.market.error?'<div class="pill must" style="margin-top:10px">'+esc(S.market.error)+'</div>':'')+'</section>'+
+    '<div class="market-grid" style="margin-top:18px"><section class="card pad"><div class="card-head"><h3>'+esc(q?.symbol||S.market.symbol||"Ticker")+'</h3><span class="pill blue">'+(q?.updated?'provider timestamp '+esc(String(q.updated)):'not loaded')+'</span></div>'+(q?'<div class="quote-hero">'+money(q.last||q.mid)+'</div><div class="quote-change '+(pct>=0?'up':'down')+'">'+(pct>=0?"+":"")+pct.toFixed(2)+'% · '+(q.change>=0?"+":"")+money(q.change)+'</div><div class="grid-3" style="margin-top:15px">'+metric("Bid",money(q.bid),"")+metric("Ask",money(q.ask),"")+metric("Volume",Math.round(q.volume).toLocaleString(),"")+'</div>':'<div class="empty">Enter a ticker and fetch a stock quote.</div>')+'</section>'+
+    '<section class="card pad"><div class="card-head"><h3>Historical chart</h3><span class="small muted">'+S.market.candles.length+' saved points</span></div><div class="chart-wrap">'+marketCandleChart(S.market.candles)+'</div></section></div>'+
+    '<section class="card pad" style="margin-top:18px"><div class="card-head"><h3>Options around ~30 DTE</h3><span class="pill blue">'+chain.length+' contracts loaded</span></div>'+(chain.length?'<div class="table-wrap option-table"><table><thead><tr><th>Contract</th><th>Exp</th><th>Side</th><th>Strike</th><th>Bid</th><th>Ask</th><th>IV</th><th>Delta</th><th>OI</th></tr></thead><tbody>'+chain.map(x=>'<tr><td class="mono">'+esc(x.optionSymbol||"")+'</td><td>'+esc(String(x.expiration||""))+'</td><td>'+esc(String(x.side||""))+'</td><td>'+money(x.strike)+'</td><td>'+money(x.bid)+'</td><td>'+money(x.ask)+'</td><td>'+((num(x.iv)*100)||0).toFixed(1)+'%</td><td>'+num(x.delta).toFixed(3)+'</td><td>'+Math.round(num(x.openInterest)).toLocaleString()+'</td></tr>').join("")+'</tbody></table></div>':'<div class="empty">Press Options chain after entering a ticker.</div>')+'</section>'+
+    '<div class="training-note" style="margin-top:14px">Every successful quote/candle/option-chain fetch is also saved as structured Firebase marketSamples data for your future Q-learning/research pipeline. Free MarketData.app accounts currently provide 100 API credits/day, up to 1 year of history, and delayed stock/options data; Pier displays the provider data as-is rather than pretending it is real-time.</div>';
+}
+function renderTrainingData(){
+  return '<div class="section-title"><div><h1>Training Data</h1><p>Pier is building clean event data you can reuse later instead of scraping your own UI.</p></div><button class="btn primary" data-action="export-training-data">Download dataset JSON</button></div>'+
+    '<div class="grid-2"><section class="card pad"><div class="card-head"><h3>What is being saved</h3><span class="pill good">FIREBASE</span></div><div class="stack">'+
+      '<div class="setting-row"><div><strong>marketSamples</strong><div class="small muted">Normalized stock quotes, daily candles and filtered options chains</div></div><span class="pill blue">STATE</span></div>'+
+      '<div class="setting-row"><div><strong>paperTrades</strong><div class="small muted">Every BUY / SELL / MARK action with contract details and timestamps</div></div><span class="pill blue">ACTION</span></div>'+
+      '<div class="setting-row"><div><strong>trainingEvents</strong><div class="small muted">Structured decision events for future state/action/reward work</div></div><span class="pill blue">EVENT</span></div>'+
+    '</div></section><section class="card pad"><div class="card-head"><h3>Recommended future Q-learning shape</h3></div><div class="mono small" style="line-height:1.8">state: cash, positions, quote, option greeks, time<br>action: buy / sell / hold / contract selection<br>next_state: resulting market + portfolio state<br>reward: realized/unrealized return minus risk penalty<br>episode: trading day / strategy run</div><div class="training-note" style="margin-top:16px">Pier stores raw structured evidence now. Do not invent reward labels yet; later your C++/Q-learning system can derive them consistently from outcomes.</div></section></div>'+
+    '<section class="card pad" style="margin-top:18px"><div class="card-head"><h3>Privacy / separation</h3></div><div class="small muted" style="line-height:1.65">Market API tokens are stored separately under your authenticated Firebase user and are intentionally excluded from normal JSON backups and training exports. LIVE and SHADOW tags are included in samples so your training pipeline can separate actual-life context from experiments.</div></section>';
+}
+async function exportTrainingData(){
+  toast("Building training export…");
+  const names=["marketSamples","trainingEvents","paperTrades"],out={schemaVersion:1,exportedAt:new Date().toISOString(),uid:S.user?.uid||"",collections:{}};
+  for(const name of names){const snap=await getDocs(subcol(name));out.collections[name]=snap.docs.map(d=>({id:d.id,...d.data()}))}
+  const blob=new Blob([JSON.stringify(out,null,2)],{type:"application/json"}),url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download="pier-training-data-"+today()+".json";a.click();URL.revokeObjectURL(url);toast("Training dataset exported.");
+}
 function paperStartingCash(){const p=currentProfile();return num(S.worldMode==="shadow"?(p.paperCashShadow??10000):(p.paperCashLive??10000))}
 function paperKey(t){
   const s=String(t.symbol||"").toUpperCase();
@@ -1035,7 +1218,7 @@ function openPaperTradeModal(prefill={}){
     const probe={instrument,symbol,optionType,strike,expiration},key=paperKey(probe),cost=qty*price*mult;
     if(side==="buy"&&cost>paperState().cash)throw new Error("Not enough paper cash for "+money(cost)+".");
     if(side==="sell"){const pos=paperState().positions.find(x=>x.key===key);if(!pos||pos.qty<qty)throw new Error("Not enough of that paper position to sell.");}
-    await addDoc(subcol("paperTrades"),{instrument,side,symbol,qty,price,optionType:instrument==="option"?optionType:"",strike:instrument==="option"?strike:0,expiration:instrument==="option"?expiration:"",dateTime:new Date(fd.get("dateTime")).toISOString(),date:String(fd.get("dateTime")).slice(0,10),...ctxFields(),createdAt:serverTimestamp()});toast("Paper action recorded.");
+    const before=paperState(),action={instrument,side,symbol,qty,price,optionType:instrument==="option"?optionType:"",strike:instrument==="option"?strike:0,expiration:instrument==="option"?expiration:"",dateTime:new Date(fd.get("dateTime")).toISOString(),date:String(fd.get("dateTime")).slice(0,10)};await addDoc(subcol("paperTrades"),{...action,...ctxFields(),createdAt:serverTimestamp()});await logTrainingEvent("paper_action",{stateBefore:{cash:before.cash,equity:before.equity,market:before.market,positions:before.positions},action});toast("Paper action recorded.");
   });
   $("#cancelModalBtn").onclick=closeModal;
   const instrument=$("#modalBody select[name=instrument]"),fields=$("#optionFields");
@@ -1061,6 +1244,8 @@ function renderSettings(){
       '<div class="split-line"></div><div class="small muted" style="line-height:1.55">If Firestore says permission denied: Firebase Console → Authentication → Sign-in method → enable Email/Password. Then Firestore → Rules → publish the contents of <span class="mono">firestore.rules</span> from this repository.</div>'+
       '<div class="split-line"></div><div class="toolbar"><button class="btn" data-action="export-data">Export JSON</button><button class="btn" data-action="request-notifications">Browser alerts</button><button class="btn danger" data-action="sign-out">Sign out</button></div>'+
     '</section></div>'+
+    '<section class="card pad" style="margin-top:18px"><div class="card-head"><h3>Market data API</h3><span class="pill blue">MARKETDATA.APP</span></div><div class="grid-2"><div><div class="api-box"><div class="field"><label>API token</label><input id="marketTokenInput" type="password" autocomplete="off" placeholder="Paste your personal MarketData.app token"></div><div class="toolbar"><button class="btn primary" data-action="save-market-token">Save token</button><button class="btn" data-action="test-market-token">Test with AAPL</button><button class="btn danger" data-action="remove-market-token">Remove</button></div></div></div><div><div class="small muted" style="line-height:1.65">The token is saved under your authenticated Firebase account, not inside this public GitHub source. Because Pier runs in your browser, a signed-in person can still inspect their own network requests, so do not share your Pier login. The free provider plan is useful for building/training data but is delayed; the Market Data page shows freshness instead of labeling it live.</div><div style="margin-top:12px"><a class="btn" target="_blank" rel="noopener noreferrer" href="https://www.marketdata.app/">Create / manage MarketData.app account ↗</a></div></div></div></section>'+
+    '<section class="card pad" style="margin-top:18px"><div class="card-head"><h3>Data ownership</h3><span class="pill good">YOUR FIREBASE</span></div><div class="toolbar"><button class="btn" data-action="export-training-data">Export market/training dataset</button><button class="btn" data-view="data">Open Training Data</button></div><div class="small muted" style="margin-top:10px">API secrets are excluded from exports.</div></section>'+
     '<section class="card pad" style="margin-top:18px"><div class="card-head"><h3>How Pier ranks your life</h3><span class="pill blue">DETERMINISTIC GOAP</span></div><div class="small muted" style="line-height:1.7">Pier builds actions from open tasks, unpaid bills, due routines and goal next-actions. Each action has preconditions (time and spendable cash), effects (uses minutes/cash), and a score from priority, HAVE TO status and deadline pressure. Overdue and mandatory actions rise hardest. Your emergency reserve is removed before money actions are considered. If an urgent action cannot fit, it is shown as a blocker instead of silently disappearing.</div></section>';
 }
 
@@ -1095,6 +1280,12 @@ async function handleAction(action,id,el){
   if(action==="complete-plan")return completePlanItem(id);
   if(action==="export-data")return exportData();
   if(action==="request-notifications")return requestNotifications();
+  if(action==="market-stock")return fetchMarketQuote($("#marketSymbolInput")?.value||S.market.symbol);
+  if(action==="market-options")return fetchMarketOptions($("#marketSymbolInput")?.value||S.market.symbol);
+  if(action==="save-market-token"){const v=$("#marketTokenInput")?.value||"";if(!v.trim())return toast("Paste a token first.","error");return saveMarketToken(v)}
+  if(action==="test-market-token"){const v=$("#marketTokenInput")?.value||"";if(v.trim())await saveMarketToken(v);return fetchMarketQuote("AAPL")}
+  if(action==="remove-market-token")return removeMarketToken();
+  if(action==="export-training-data")return exportTrainingData();
   if(action==="replan-now"){S.plan=generatePlan();toast("Plan rebuilt.");return render()}
   if(action==="cal-prev"){S.calendarCursor=new Date(S.calendarCursor.getFullYear(),S.calendarCursor.getMonth()-1,1);return render()}
   if(action==="cal-next"){S.calendarCursor=new Date(S.calendarCursor.getFullYear(),S.calendarCursor.getMonth()+1,1);return render()}
@@ -1187,13 +1378,13 @@ function openTransactionModal(prefill={}){
 function openBillModal(b={}){
   const isEdit=!!b.id;
   showModal(isEdit?"Edit bill":"Add bill / obligation",
-    '<form><div class="field"><label>Name</label><input name="name" required value="'+esc(b.name||"")+'" placeholder="Rent, phone, school, insurance…"></div><div class="modal-grid"><div class="field"><label>Amount</label><input name="amount" type="number" min="0" step=".01" required value="'+num(b.amount||0)+'"></div><div class="field"><label>Due date</label><input name="dueDate" type="date" required value="'+esc(b.dueDate||today())+'"></div><div class="field"><label>Recurrence</label><select name="recurrence"><option value="none">One time</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option></select></div><div class="field"><label>Priority</label><select name="priority">'+[3,4,5].map(x=>'<option value="'+x+'" '+(num(b.priority||5)===x?'selected':'')+'>P'+x+'</option>').join("")+'</select></div></div><div class="modal-foot">'+(isEdit?'<button class="btn danger" type="button" id="deleteBillBtn">Delete</button>':'')+'<button class="btn ghost" type="button" id="cancelModalBtn">Cancel</button><button class="btn primary" type="submit">Save</button></div></form>',
-    async fd=>{const data={name:fd.get("name").trim(),amount:num(fd.get("amount")),dueDate:fd.get("dueDate"),recurrence:fd.get("recurrence"),priority:num(fd.get("priority")),status:"open",updatedAt:serverTimestamp()};if(isEdit)await updateDoc(subdoc("bills",b.id),data);else await addDoc(subcol("bills"),{...data,...ctxFields(),createdAt:serverTimestamp()});toast("Bill saved.")});
-  $("#cancelModalBtn").onclick=closeModal;$("#modalBody select[name=recurrence]").value=b.recurrence||"none";
+    '<form><div class="field"><label>Name</label><input name="name" required value="'+esc(b.name||"")+'" placeholder="Rent, phone, school, insurance…"></div><div class="modal-grid"><div class="field"><label>Amount due</label><input name="amount" type="number" min="0" step=".01" required value="'+num(b.amount||0)+'"></div><div class="field"><label>Minimum acceptable payment</label><input name="minimumDue" type="number" min="0" step=".01" value="'+num(b.minimumDue||0)+'" placeholder="Leave 0 to use full amount"></div><div class="field"><label>Due date</label><input name="dueDate" type="date" required value="'+esc(b.dueDate||today())+'"></div><div class="field"><label>Category</label><select name="billCategory"><option value="housing">Housing / rent</option><option value="utilities">Utilities</option><option value="childcare">Childcare / school</option><option value="transport">Transportation / car</option><option value="insurance">Insurance</option><option value="medical">Medical</option><option value="food">Food / essentials</option><option value="debt">Debt / credit</option><option value="subscription">Subscription</option><option value="other">Other</option></select></div><div class="field"><label>If unpaid</label><select name="consequence"><option value="critical">Critical: housing, shutoff, job/family risk</option><option value="high">High consequence</option><option value="normal">Normal</option><option value="low">Low consequence</option></select></div><div class="field"><label>Late fee</label><input name="lateFee" type="number" min="0" step=".01" value="'+num(b.lateFee||0)+'"></div><div class="field"><label>Recurrence</label><select name="recurrence"><option value="none">One time</option><option value="weekly">Weekly</option><option value="biweekly">Every 2 weeks</option><option value="monthly">Monthly</option></select></div><div class="field"><label>Priority</label><select name="priority">'+[1,2,3,4,5].map(x=>'<option value="'+x+'" '+(num(b.priority||5)===x?'selected':'')+'>P'+x+'</option>').join("")+'</select></div></div><div class="field"><label>Why this matters / notes</label><input name="consequenceNote" value="'+esc(b.consequenceNote||"")+'" placeholder="Landlord deadline, service shutoff, needed for work…"></div><label class="check"><input name="partialAllowed" type="checkbox" '+(b.partialAllowed?'checked':'')+'> Partial payment can help</label><div class="modal-foot">'+(isEdit?'<button class="btn danger" type="button" id="deleteBillBtn">Delete</button>':'')+'<button class="btn ghost" type="button" id="cancelModalBtn">Cancel</button><button class="btn primary" type="submit">Save</button></div></form>',
+    async fd=>{const data={name:fd.get("name").trim(),amount:num(fd.get("amount")),minimumDue:num(fd.get("minimumDue")),dueDate:fd.get("dueDate"),billCategory:fd.get("billCategory"),consequence:fd.get("consequence"),lateFee:num(fd.get("lateFee")),partialAllowed:fd.get("partialAllowed")==="on",consequenceNote:fd.get("consequenceNote").trim(),recurrence:fd.get("recurrence"),priority:num(fd.get("priority")),status:"open",updatedAt:serverTimestamp()};if(isEdit)await updateDoc(subdoc("bills",b.id),data);else await addDoc(subcol("bills"),{...data,...ctxFields(),createdAt:serverTimestamp()});toast("Bill saved.")});
+  $("#cancelModalBtn").onclick=closeModal;$("#modalBody select[name=recurrence]").value=b.recurrence||"none";$("#modalBody select[name=billCategory]").value=b.billCategory||"other";$("#modalBody select[name=consequence]").value=b.consequence||"normal";
   if(isEdit)$("#deleteBillBtn").onclick=async()=>{if(confirm("Delete this bill?")){await deleteDoc(subdoc("bills",b.id));closeModal()}};
 }
 function addPeriod(dateStr,recurrence){
-  const d=new Date(dateStr+"T12:00:00");if(recurrence==="weekly")d.setDate(d.getDate()+7);if(recurrence==="monthly")d.setMonth(d.getMonth()+1);
+  const d=new Date(dateStr+"T12:00:00");if(recurrence==="weekly")d.setDate(d.getDate()+7);if(recurrence==="biweekly")d.setDate(d.getDate()+14);if(recurrence==="monthly")d.setMonth(d.getMonth()+1);
   return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
 }
 async function payBill(id){
@@ -1203,7 +1394,7 @@ async function payBill(id){
   showModal("Pay "+b.name,'<form><div class="field"><label>Amount</label><input name="amount" type="number" min="0" step=".01" value="'+num(b.amount)+'"></div><div class="field"><label>Pay from</label><select name="accountId">'+opts+'</select></div><div class="field"><label>Payment date</label><input name="date" type="date" value="'+today()+'"></div><div class="modal-foot"><button class="btn ghost" type="button" id="cancelModalBtn">Cancel</button><button class="btn primary" type="submit">Record payment</button></div></form>',
     async fd=>{
       const batch=writeBatch(db),txRef=doc(subcol("transactions"));
-      batch.set(txRef,{type:"expense",amount:num(fd.get("amount")),accountId:fd.get("accountId"),date:fd.get("date"),description:b.name,category:"Bills",...ctxFields(),createdAt:serverTimestamp()});
+      batch.set(txRef,{type:"expense",amount:num(fd.get("amount")),accountId:fd.get("accountId"),date:fd.get("date"),description:b.name,category:b.billCategory||"Bills",...ctxFields(),createdAt:serverTimestamp()});
       if(b.recurrence&&b.recurrence!=="none")batch.update(subdoc("bills",id),{dueDate:addPeriod(b.dueDate,b.recurrence),lastPaidDate:fd.get("date"),status:"open",updatedAt:serverTimestamp()});
       else batch.update(subdoc("bills",id),{status:"paid",lastPaidDate:fd.get("date"),updatedAt:serverTimestamp()});
       await batch.commit();toast("Payment recorded.");

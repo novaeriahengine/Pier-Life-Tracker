@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-10-07T20:07:34.769Z",
+  "generatedAt": "2026-10-07T20:31:35.769Z",
   "note": "Planning catalog only. Earnings and time-to-first-money are rough ranges, not guarantees. Platform availability, eligibility and fees vary.",
-  "count": 51,
+  "count": 71,
   "gigs": [
     {
       "id": "firebase-fix",
@@ -1590,6 +1590,657 @@
         "Cut into 3 short clips",
         "Use direct titles",
         "Measure retention/leads rather than assuming virality"
+      ]
+    },
+    {
+      "id": "pc-recycler-builds",
+      "title": "Build and resell gaming PCs from recycler parts",
+      "category": "PC Resale",
+      "lane": "build",
+      "online": false,
+      "setupCost": 1000,
+      "firstMoneyDays": 7,
+      "weeklyMin": 0,
+      "weeklyMax": 500,
+      "requirements": [
+        "phone",
+        "laptop",
+        "sales"
+      ],
+      "skills": [
+        "tech support",
+        "PC building"
+      ],
+      "platforms": [
+        "local recycler",
+        "Facebook Marketplace",
+        "OfferUp",
+        "eBay"
+      ],
+      "minutes": 720,
+      "confidence": "medium",
+      "customizer": "pc_build_resale",
+      "steps": [
+        "Set a hard capital budget and number of builds",
+        "Inventory recycler parts before buying",
+        "Build/test each PC completely",
+        "Photograph benchmark/spec sheet",
+        "List locally first to avoid shipping risk",
+        "Track sale price, fees, returns and net profit"
+      ]
+    },
+    {
+      "id": "pc-one-build",
+      "title": "Build one budget gaming PC to flip",
+      "category": "PC Resale",
+      "lane": "fast",
+      "online": false,
+      "setupCost": 180,
+      "firstMoneyDays": 4,
+      "weeklyMin": 40,
+      "weeklyMax": 250,
+      "requirements": [
+        "phone",
+        "laptop",
+        "sales"
+      ],
+      "skills": [
+        "tech support",
+        "PC building"
+      ],
+      "platforms": [
+        "local recycler",
+        "Facebook Marketplace",
+        "OfferUp"
+      ],
+      "minutes": 300,
+      "confidence": "medium",
+      "customizer": "pc_build_resale",
+      "steps": [
+        "Choose one proven parts combo",
+        "Keep total parts cost below your sale target",
+        "Stress-test CPU/GPU/RAM/storage",
+        "Install clean Windows legally and disclose activation state",
+        "Create benchmark/spec listing",
+        "Sell locally and log actual margin"
+      ]
+    },
+    {
+      "id": "pc-upgrade-service",
+      "title": "RAM / SSD / GPU upgrade service",
+      "category": "PC Services",
+      "lane": "fast",
+      "online": false,
+      "setupCost": 0,
+      "firstMoneyDays": 2,
+      "weeklyMin": 40,
+      "weeklyMax": 250,
+      "requirements": [
+        "phone",
+        "laptop"
+      ],
+      "skills": [
+        "tech support"
+      ],
+      "platforms": [
+        "Facebook Marketplace",
+        "local groups",
+        "direct"
+      ],
+      "minutes": 90,
+      "confidence": "medium",
+      "steps": [
+        "Offer install labor separately from parts",
+        "Ask customer for exact model/specs first",
+        "Quote labor before buying anything",
+        "Test after install",
+        "Do not keep customer passwords"
+      ]
+    },
+    {
+      "id": "windows-clean-install",
+      "title": "Clean Windows install + driver setup service",
+      "category": "PC Services",
+      "lane": "fast",
+      "online": false,
+      "setupCost": 0,
+      "firstMoneyDays": 2,
+      "weeklyMin": 30,
+      "weeklyMax": 180,
+      "requirements": [
+        "phone",
+        "laptop"
+      ],
+      "skills": [
+        "tech support"
+      ],
+      "platforms": [
+        "local groups",
+        "Facebook Marketplace",
+        "direct"
+      ],
+      "minutes": 120,
+      "confidence": "medium",
+      "steps": [
+        "Use official Microsoft install media",
+        "Back up only with customer permission",
+        "Install drivers/updates",
+        "Use customer/OEM license or disclose unactivated Windows",
+        "Charge for labor, not pirated keys"
+      ]
+    },
+    {
+      "id": "gaming-pc-tune",
+      "title": "Gaming PC cleanup / optimization service",
+      "category": "PC Services",
+      "lane": "fast",
+      "online": true,
+      "setupCost": 0,
+      "firstMoneyDays": 2,
+      "weeklyMin": 30,
+      "weeklyMax": 180,
+      "requirements": [
+        "phone",
+        "internet"
+      ],
+      "skills": [
+        "tech support"
+      ],
+      "platforms": [
+        "direct",
+        "local groups"
+      ],
+      "minutes": 75,
+      "confidence": "medium",
+      "steps": [
+        "Offer startup cleanup/updates/thermal check",
+        "Do not promise impossible FPS gains",
+        "Document changes",
+        "Charge fixed labor fee"
+      ]
+    },
+    {
+      "id": "used-gpu-flip",
+      "title": "Test and flip used GPUs",
+      "category": "PC Resale",
+      "lane": "fast",
+      "online": false,
+      "setupCost": 100,
+      "firstMoneyDays": 3,
+      "weeklyMin": 20,
+      "weeklyMax": 250,
+      "requirements": [
+        "phone",
+        "laptop"
+      ],
+      "skills": [
+        "tech support",
+        "sales"
+      ],
+      "platforms": [
+        "recycler",
+        "Facebook Marketplace",
+        "eBay"
+      ],
+      "minutes": 120,
+      "confidence": "medium",
+      "steps": [
+        "Buy only cards you can test",
+        "Record model/VRAM/condition",
+        "Run stress test and screenshot result",
+        "Price from current comparable sold listings before buying",
+        "Track returns/fees"
+      ]
+    },
+    {
+      "id": "ram-bundle-flip",
+      "title": "Bundle and resell tested DDR4 RAM",
+      "category": "PC Resale",
+      "lane": "fast",
+      "online": false,
+      "setupCost": 50,
+      "firstMoneyDays": 3,
+      "weeklyMin": 10,
+      "weeklyMax": 150,
+      "requirements": [
+        "phone",
+        "laptop"
+      ],
+      "skills": [
+        "tech support",
+        "sales"
+      ],
+      "platforms": [
+        "recycler",
+        "eBay",
+        "Facebook Marketplace"
+      ],
+      "minutes": 90,
+      "confidence": "medium",
+      "steps": [
+        "Sort by DDR generation/speed/capacity",
+        "Test sticks",
+        "Bundle matching pairs",
+        "Photograph labels",
+        "Track shipping/marketplace fees"
+      ]
+    },
+    {
+      "id": "free-item-resell",
+      "title": "Find legitimate free items and resell after cleanup",
+      "category": "Resale",
+      "lane": "fast",
+      "online": false,
+      "setupCost": 0,
+      "firstMoneyDays": 2,
+      "weeklyMin": 20,
+      "weeklyMax": 200,
+      "requirements": [
+        "phone",
+        "internet"
+      ],
+      "skills": [
+        "sales"
+      ],
+      "platforms": [
+        "Facebook Marketplace Free",
+        "Buy Nothing groups",
+        "Craigslist free",
+        "curb alerts where lawful"
+      ],
+      "minutes": 120,
+      "confidence": "variable",
+      "steps": [
+        "Only claim items offered legally/free",
+        "Avoid unsafe or infested items",
+        "Clean/test before listing",
+        "Disclose defects",
+        "Use local pickup when possible"
+      ]
+    },
+    {
+      "id": "electronics-lot-sort",
+      "title": "Buy a small recycler electronics lot and sort for resale",
+      "category": "Resale",
+      "lane": "build",
+      "online": false,
+      "setupCost": 150,
+      "firstMoneyDays": 5,
+      "weeklyMin": 0,
+      "weeklyMax": 300,
+      "requirements": [
+        "phone",
+        "laptop"
+      ],
+      "skills": [
+        "tech support",
+        "sales"
+      ],
+      "platforms": [
+        "local recycler",
+        "eBay",
+        "Facebook Marketplace"
+      ],
+      "minutes": 240,
+      "confidence": "medium",
+      "steps": [
+        "Start with a small lot, not $1,000",
+        "Separate working/repair/parts-only",
+        "Test everything",
+        "Sell highest-value items first",
+        "Reinvest only proven profit"
+      ]
+    },
+    {
+      "id": "ebay-starter",
+      "title": "Set up an eBay resale workflow with 5 low-risk listings",
+      "category": "Resale",
+      "lane": "foundation",
+      "online": true,
+      "setupCost": 0,
+      "firstMoneyDays": 7,
+      "weeklyMin": 0,
+      "weeklyMax": 150,
+      "requirements": [
+        "phone",
+        "internet"
+      ],
+      "skills": [
+        "sales"
+      ],
+      "platforms": [
+        "eBay"
+      ],
+      "minutes": 180,
+      "confidence": "medium",
+      "steps": [
+        "Create seller account",
+        "Read fee/return rules",
+        "List 5 items you already own or can source safely",
+        "Use accurate condition photos",
+        "Track fees, shipping and net profit"
+      ]
+    },
+    {
+      "id": "marketplace-pc-listing",
+      "title": "Offer custom budget gaming PC builds locally",
+      "category": "PC Services",
+      "lane": "build",
+      "online": true,
+      "setupCost": 0,
+      "firstMoneyDays": 5,
+      "weeklyMin": 0,
+      "weeklyMax": 300,
+      "requirements": [
+        "phone",
+        "internet",
+        "sales"
+      ],
+      "skills": [
+        "tech support"
+      ],
+      "platforms": [
+        "Facebook Marketplace",
+        "OfferUp",
+        "local groups"
+      ],
+      "minutes": 150,
+      "confidence": "medium",
+      "steps": [
+        "Post sample build tiers without buying inventory",
+        "Take deposit only with clear written scope",
+        "Source after buyer commits",
+        "Document parts and warranty limits",
+        "Log true margin"
+      ]
+    },
+    {
+      "id": "game-release-small",
+      "title": "Release a small paid game",
+      "category": "Game Dev",
+      "lane": "build",
+      "online": true,
+      "setupCost": 0,
+      "firstMoneyDays": 7,
+      "weeklyMin": 0,
+      "weeklyMax": 300,
+      "requirements": [
+        "laptop",
+        "internet",
+        "coding"
+      ],
+      "skills": [
+        "game design"
+      ],
+      "platforms": [
+        "itch.io",
+        "Steam later",
+        "game communities"
+      ],
+      "minutes": 900,
+      "confidence": "low-variable",
+      "customizer": "game_release",
+      "steps": [
+        "Freeze a tiny release scope",
+        "Create store page/screenshots",
+        "Set price and launch target",
+        "Ship a playable build",
+        "Promote with clips/devlog/posts",
+        "Track wishlists/downloads/sales/refunds",
+        "Decide update/stop based on actual traction"
+      ]
+    },
+    {
+      "id": "game-free-donation",
+      "title": "Release a free game with optional donation",
+      "category": "Game Dev",
+      "lane": "build",
+      "online": true,
+      "setupCost": 0,
+      "firstMoneyDays": 7,
+      "weeklyMin": 0,
+      "weeklyMax": 150,
+      "requirements": [
+        "laptop",
+        "internet",
+        "coding"
+      ],
+      "skills": [
+        "game design"
+      ],
+      "platforms": [
+        "itch.io",
+        "Ko-fi"
+      ],
+      "minutes": 720,
+      "confidence": "low-variable",
+      "customizer": "game_release",
+      "steps": [
+        "Finish one polished loop",
+        "Publish free/donation build",
+        "Add clear screenshots/video",
+        "Ask for feedback",
+        "Track downloads/donations and conversion"
+      ]
+    },
+    {
+      "id": "game-demo-presell",
+      "title": "Ship a demo and test paid demand before full game",
+      "category": "Game Dev",
+      "lane": "build",
+      "online": true,
+      "setupCost": 0,
+      "firstMoneyDays": 10,
+      "weeklyMin": 0,
+      "weeklyMax": 300,
+      "requirements": [
+        "laptop",
+        "internet",
+        "coding"
+      ],
+      "skills": [
+        "game design"
+      ],
+      "platforms": [
+        "itch.io",
+        "Steam later",
+        "own site"
+      ],
+      "minutes": 720,
+      "confidence": "low-medium",
+      "customizer": "game_release",
+      "steps": [
+        "Build a 10–20 minute demo",
+        "Publish store page",
+        "Collect wishlists/emails",
+        "Post short clips",
+        "Only expand scope if demand appears"
+      ]
+    },
+    {
+      "id": "game-system-commission",
+      "title": "Sell one reusable game system as a commission",
+      "category": "Game Dev",
+      "lane": "fast",
+      "online": true,
+      "setupCost": 0,
+      "firstMoneyDays": 4,
+      "weeklyMin": 50,
+      "weeklyMax": 350,
+      "requirements": [
+        "laptop",
+        "internet",
+        "coding"
+      ],
+      "skills": [
+        "game design"
+      ],
+      "platforms": [
+        "developer communities",
+        "direct"
+      ],
+      "minutes": 240,
+      "confidence": "medium",
+      "steps": [
+        "Pick one system you already know",
+        "Show demo video",
+        "Define exact deliverable",
+        "Charge milestone/fixed price",
+        "Reuse non-client-specific code later"
+      ]
+    },
+    {
+      "id": "youtube-repair-dev",
+      "title": "Post repair/build/dev Shorts from work you're already doing",
+      "category": "Content",
+      "lane": "build",
+      "online": true,
+      "setupCost": 0,
+      "firstMoneyDays": 30,
+      "weeklyMin": 0,
+      "weeklyMax": 150,
+      "requirements": [
+        "phone",
+        "internet"
+      ],
+      "skills": [
+        "content"
+      ],
+      "platforms": [
+        "YouTube Shorts"
+      ],
+      "minutes": 60,
+      "confidence": "low-variable",
+      "steps": [
+        "Record actual PC/game/dev progress",
+        "Hook with result/problem",
+        "Keep under one point per clip",
+        "Link service/game/product",
+        "Track leads as well as views"
+      ]
+    },
+    {
+      "id": "pc-build-content",
+      "title": "Turn each PC build into listing photos + YouTube content",
+      "category": "Content",
+      "lane": "build",
+      "online": true,
+      "setupCost": 0,
+      "firstMoneyDays": 14,
+      "weeklyMin": 0,
+      "weeklyMax": 150,
+      "requirements": [
+        "phone",
+        "internet"
+      ],
+      "skills": [
+        "content",
+        "tech support"
+      ],
+      "platforms": [
+        "YouTube",
+        "Facebook Marketplace"
+      ],
+      "minutes": 90,
+      "confidence": "low-variable",
+      "steps": [
+        "Film before/after",
+        "Show specs and benchmark",
+        "Reuse media in sale listing",
+        "Track whether content helps sales"
+      ]
+    },
+    {
+      "id": "local-tech-subscription",
+      "title": "Monthly basic tech-help plan for local families",
+      "category": "Tech Support",
+      "lane": "steady",
+      "online": true,
+      "setupCost": 0,
+      "firstMoneyDays": 7,
+      "weeklyMin": 50,
+      "weeklyMax": 300,
+      "requirements": [
+        "phone",
+        "internet"
+      ],
+      "skills": [
+        "tech support"
+      ],
+      "platforms": [
+        "direct",
+        "local groups"
+      ],
+      "minutes": 180,
+      "confidence": "medium",
+      "steps": [
+        "Offer a clear monthly limit",
+        "Remote help first",
+        "No passwords stored",
+        "Charge recurring only after first satisfied client"
+      ]
+    },
+    {
+      "id": "website-hosting-care",
+      "title": "Simple website care/maintenance monthly plan",
+      "category": "Coding",
+      "lane": "steady",
+      "online": true,
+      "setupCost": 0,
+      "firstMoneyDays": 7,
+      "weeklyMin": 50,
+      "weeklyMax": 300,
+      "requirements": [
+        "laptop",
+        "internet",
+        "coding"
+      ],
+      "skills": [
+        "web"
+      ],
+      "platforms": [
+        "direct clients"
+      ],
+      "minutes": 120,
+      "confidence": "medium",
+      "steps": [
+        "Offer updates/backups/text changes",
+        "Set monthly scope limit",
+        "Automate where possible",
+        "Use recurring payment after trust"
+      ]
+    },
+    {
+      "id": "micro-game-template",
+      "title": "Sell a tiny reusable game starter/template",
+      "category": "Digital Product",
+      "lane": "build",
+      "online": true,
+      "setupCost": 0,
+      "firstMoneyDays": 10,
+      "weeklyMin": 0,
+      "weeklyMax": 200,
+      "requirements": [
+        "laptop",
+        "internet",
+        "coding"
+      ],
+      "skills": [
+        "game design"
+      ],
+      "platforms": [
+        "itch.io",
+        "Gumroad",
+        "GitHub"
+      ],
+      "minutes": 360,
+      "confidence": "low-variable",
+      "steps": [
+        "Extract one clean reusable system",
+        "Remove private assets",
+        "Write setup docs",
+        "Publish demo",
+        "Use buyer questions to improve it"
       ]
     }
   ]

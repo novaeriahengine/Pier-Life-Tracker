@@ -3029,7 +3029,7 @@ function showBuddyBubble(text,ms=9000){
   const b=$("#pierBuddyBubble");if(!b)return;b.textContent=text;b.classList.remove("hidden");clearTimeout(showBuddyBubble.t);showBuddyBubble.t=setTimeout(()=>b.classList.add("hidden"),ms);
 }
 function renderBuddyNav(){
-  const views=[["dashboard","⌂","Home"],["mylife","✦","My Life"],["gigs","↗","Gigs"],["money","$","Money"],["savings","⌁","Savings"],["day","◫","Day"],["tasks","✓","Tasks"],["calendar","▦","Calendar"],["work","◷","Work"],["relationship","♡","Relationship"],["smoking","◌","Smoke"],["admin","!","Legal"],["assets","▣","Devices"],["market","⌁","Market"],["paper","↗","Paper"],["settings","⚙","Settings"]];
+  const views=[["dashboard","⌂","Home"],["mylife","✦","My Life"],["gigs","↗","Gigs"],["money","$","Money"],["savings","⌁","Savings"],["coach","⇅","What to Pay"],["tasks","✓","Tasks"],["goals","◎","Goals"],["routines","↻","Routines"],["planner","⚡","Planner"],["day","◫","Day"],["calendar","▦","Calendar"],["work","◷","Work"],["life","⌂","Family"],["relationship","♡","Relationship"],["sessions","◉","Sessions"],["smoking","◌","Smoke"],["admin","!","Legal"],["assets","▣","Devices"],["market","⌁","Market"],["learn","◈","Options 101"],["paper","↗","Paper"],["data","▤","Training"],["profiles","◉","Profiles"],["inbox","↓","Inbox"],["settings","⚙","Settings"]];
   return '<div class="buddy-nav-grid">'+views.map(v=>'<button class="btn" type="button" data-buddy-view="'+v[0]+'">'+v[1]+'<br>'+v[2]+'</button>').join("")+'</div>';
 }
 function openBuddy(){

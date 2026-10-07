@@ -753,6 +753,7 @@ const money=n=>new Intl.NumberFormat("en-US",{style:"currency",currency:"USD"}).
 const esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
 const num=v=>Number.isFinite(Number(v))?Number(v):0;
 const clamp=(v,a,b)=>Math.min(b,Math.max(a,v));
+const dateMs=v=>{if(!v)return 0;if(typeof v==="number")return v;if(v instanceof Date)return v.getTime();if(typeof v==="string")return Date.parse(v)||0;if(typeof v.toMillis==="function")return v.toMillis();if(typeof v.toDate==="function")return v.toDate().getTime();if(v.seconds)return num(v.seconds)*1000;return 0};
 const today=()=>{const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")};
 const localDateTimeValue=(d=new Date())=>{const z=new Date(d.getTime()-d.getTimezoneOffset()*60000);return z.toISOString().slice(0,16)};
 const daysUntil=v=>{if(!v)return 9999;const d=new Date(v.length<=10?v+"T23:59:59":v);return Math.ceil((d-new Date())/86400000)};
@@ -1025,7 +1026,11 @@ function openTasks(){return S.tasks.filter(t=>t.status!=="done")}
 function overdueCount(){return openTasks().filter(t=>t.dueAt&&daysUntil(t.dueAt)<0).length}
 function mustCount(){return openTasks().filter(t=>t.must).length}
 function dueSoonCount(){return openTasks().filter(t=>t.dueAt&&daysUntil(t.dueAt)>=0&&daysUntil(t.dueAt)<=num(S.profile.urgentDays)).length}
-function availableMoney(){return totalBalance()-num(S.profile.emergencyReserve)}
+function protectedUpcomingBills(){
+  const horizon=Math.max(1,num(S.profile.protectBillsDays||7));
+  return S.bills.filter(b=>b.status!=="paid"&&b.dueDate&&daysUntil(b.dueDate)<=horizon).reduce((n,b)=>n+Math.max(0,num(b.minimumDue||b.amount)),0);
+}
+function availableMoney(){return totalBalance()-num(S.profile.emergencyReserve)-protectedUpcomingBills()}
 
 function toTaskAction(t){return {key:"task:"+t.id,type:"task",id:t.id,title:t.title||"Untitled",priority:num(t.priority)||3,must:!!t.must,due:t.dueAt||"",minutes:Math.max(1,num(t.estimateMin)||15),cashCost:Math.max(0,num(t.moneyCost)),category:t.category||"General",requiresDriving:!!t.requiresDriving,lifeGroup:t.lifeGroup||""}}
 function toBillAction(b){return {key:"bill:"+b.id,type:"bill",id:b.id,title:"Pay "+(b.name||"bill"),priority:num(b.priority)||5,must:true,due:b.dueDate||"",minutes:5,cashCost:Math.max(0,num(b.amount)),category:"Bill",lifeGroup:b.lifeGroup||""}}
@@ -3073,7 +3078,7 @@ function personalityLine(kind,text){
 
 function buddyStats(){
   const flow=monthFlow(),target=Math.max(25,num(S.profile.weeklyIncomeTarget||100)),earned=weeklyGigIncome(),activeGig=S.gigPlans.some(x=>x.status==="active");
-  const completed7=S.tasks.filter(t=>t.status==="done"&&t.completedAt&&Date.now()-Date.parse(t.completedAt)<7*86400000).length;
+  const completed7=S.tasks.filter(t=>t.status==="done"&&dateMs(t.completedAt)&&Date.now()-dateMs(t.completedAt)<7*86400000).length;
   const overdue=overdueCount(),unpaidDue=S.bills.filter(b=>b.status!=="paid"&&b.dueDate&&daysUntil(b.dueDate)<0).length;
   const moneyScore=clamp(Math.round(48+(flow.income-flow.expense)/(target||100)*18+(availableMoney()>=0?12:-18)-(unpaidDue*8)),0,100);
   const incomeScore=clamp(Math.round((earned/target)*65+(S.shifts.some(x=>x.date>=today())?15:0)+(activeGig?15:0)+Math.min(10,S.gigAttempts.filter(x=>num(x.earned)>0).length*2)),0,100);

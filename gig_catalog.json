@@ -1,0 +1,1596 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-10-07T20:07:34.769Z",
+  "note": "Planning catalog only. Earnings and time-to-first-money are rough ranges, not guarantees. Platform availability, eligibility and fees vary.",
+  "count": 51,
+  "gigs": [
+    {
+      "id": "firebase-fix",
+      "title": "Firebase setup / bug-fix micro-gig",
+      "category": "Coding",
+      "lane": "fast",
+      "online": true,
+      "setupCost": 0,
+      "firstMoneyDays": 2,
+      "weeklyMin": 50,
+      "weeklyMax": 250,
+      "requirements": [
+        "laptop",
+        "internet",
+        "coding"
+      ],
+      "skills": [
+        "Firebase",
+        "JavaScript"
+      ],
+      "platforms": [
+        "Fiverr",
+        "Upwork",
+        "Contra",
+        "direct outreach"
+      ],
+      "minutes": 120,
+      "confidence": "medium",
+      "steps": [
+        "Create a one-page offer: Firebase Auth/Firestore fixes",
+        "Show 2–3 screenshots from Pier or another demo",
+        "Post offer and message 10 relevant leads",
+        "Deliver one narrow fix fast and ask for a review"
+      ]
+    },
+    {
+      "id": "landing-page",
+      "title": "Build a simple landing page for a local business",
+      "category": "Coding",
+      "lane": "fast",
+      "online": true,
+      "setupCost": 0,
+      "firstMoneyDays": 2,
+      "weeklyMin": 75,
+      "weeklyMax": 300,
+      "requirements": [
+        "laptop",
+        "internet",
+        "coding"
+      ],
+      "skills": [
+        "HTML",
+        "CSS",
+        "JavaScript"
+      ],
+      "platforms": [
+        "direct outreach",
+        "Fiverr",
+        "Upwork",
+        "Contra"
+      ],
+      "minutes": 180,
+      "confidence": "medium",
+      "steps": [
+        "Make one reusable template",
+        "Target businesses with weak/no mobile page",
+        "Offer a fixed-price one-page build",
+        "Reuse the template and customize copy/colors"
+      ]
+    },
+    {
+      "id": "website-mobile-fix",
+      "title": "Mobile responsiveness / CSS fix gig",
+      "category": "Coding",
+      "lane": "fast",
+      "online": true,
+      "setupCost": 0,
+      "firstMoneyDays": 1,
+      "weeklyMin": 40,
+      "weeklyMax": 200,
+      "requirements": [
+        "laptop",
+        "internet",
+        "coding"
+      ],
+      "skills": [
+        "CSS",
+        "HTML"
+      ],
+      "platforms": [
+        "Fiverr",
+        "Upwork",
+        "direct outreach"
+      ],
+      "minutes": 90,
+      "confidence": "medium",
+      "steps": [
+        "Create before/after screenshots",
+        "Sell one narrow service: fix mobile layout",
+        "Quote small fixed jobs",
+        "Log time and profit in Pier"
+      ]
+    },
+    {
+      "id": "small-js-tool",
+      "title": "Build a tiny custom JavaScript tool",
+      "category": "Coding",
+      "lane": "fast",
+      "online": true,
+      "setupCost": 0,
+      "firstMoneyDays": 2,
+      "weeklyMin": 50,
+      "weeklyMax": 300,
+      "requirements": [
+        "laptop",
+        "internet",
+        "coding"
+      ],
+      "skills": [
+        "JavaScript"
+      ],
+      "platforms": [
+        "Fiverr",
+        "Upwork",
+        "direct"
+      ],
+      "minutes": 180,
+      "confidence": "medium",
+      "steps": [
+        "Offer calculators/forms/dashboards",
+        "Keep scope to one screen",
+        "Use a written checklist before starting",
+        "Collect payment and reuse components"
+      ]
+    },
+    {
+      "id": "firebase-consult",
+      "title": "30-minute Firebase troubleshooting session",
+      "category": "Coding",
+      "lane": "fast",
+      "online": true,
+      "setupCost": 0,
+      "firstMoneyDays": 2,
+      "weeklyMin": 30,
+      "weeklyMax": 180,
+      "requirements": [
+        "laptop",
+        "internet",
+        "coding"
+      ],
+      "skills": [
+        "Firebase"
+      ],
+      "platforms": [
+        "Contra",
+        "Fiverr",
+        "direct"
+      ],
+      "minutes": 45,
+      "confidence": "medium",
+      "steps": [
+        "Write what you can diagnose",
+        "Offer screen-share troubleshooting",
+        "Charge per session",
+        "Send a short fix summary afterward"
+      ]
+    },
+    {
+      "id": "ai-receptionist-setup",
+      "title": "AI receptionist / booking setup for one small business",
+      "category": "Business",
+      "lane": "fast",
+      "online": true,
+      "setupCost": 0,
+      "firstMoneyDays": 3,
+      "weeklyMin": 100,
+      "weeklyMax": 500,
+      "requirements": [
+        "laptop",
+        "internet",
+        "sales"
+      ],
+      "skills": [
+        "sales",
+        "automation"
+      ],
+      "platforms": [
+        "direct outreach"
+      ],
+      "minutes": 240,
+      "confidence": "medium",
+      "steps": [
+        "Use your existing Fugth Management knowledge",
+        "Target one service business",
+        "Offer a narrow demo before a full build",
+        "Collect setup fee or first month before extra customization"
+      ]
+    },
+    {
+      "id": "resume-format",
+      "title": "Resume cleanup / formatting service",
+      "category": "Services",
+      "lane": "fast",
+      "online": true,
+      "setupCost": 0,
+      "firstMoneyDays": 1,
+      "weeklyMin": 30,
+      "weeklyMax": 150,
+      "requirements": [
+        "laptop",
+        "internet"
+      ],
+      "skills": [
+        "writing"
+      ],
+      "platforms": [
+        "Fiverr",
+        "Facebook groups",
+        "direct"
+      ],
+      "minutes": 60,
+      "confidence": "medium",
+      "steps": [
+        "Create 2 clean templates",
+        "Offer formatting + wording cleanup",
+        "Deliver PDF + editable copy",
+        "Ask for referral"
+      ]
+    },
+    {
+      "id": "virtual-assistant",
+      "title": "Remote virtual-assistant micro-work",
+      "category": "Remote Work",
+      "lane": "steady",
+      "online": true,
+      "setupCost": 0,
+      "firstMoneyDays": 7,
+      "weeklyMin": 50,
+      "weeklyMax": 250,
+      "requirements": [
+        "laptop",
+        "internet"
+      ],
+      "skills": [
+        "organization"
+      ],
+      "platforms": [
+        "Upwork",
+        "Contra",
+        "remote job boards"
+      ],
+      "minutes": 300,
+      "confidence": "medium",
+      "steps": [
+        "List tasks you can do: inbox, data entry, scheduling",
+        "Create a short profile",
+        "Apply only to small clear scopes",
+        "Track hourly net pay"
+      ]
+    },
+    {
+      "id": "remote-support",
+      "title": "Remote chat/customer-support shifts",
+      "category": "Remote Work",
+      "lane": "steady",
+      "online": true,
+      "setupCost": 0,
+      "firstMoneyDays": 14,
+      "weeklyMin": 100,
+      "weeklyMax": 500,
+      "requirements": [
+        "laptop",
+        "internet",
+        "quietSpace"
+      ],
+      "skills": [
+        "customer service"
+      ],
+      "platforms": [
+        "remote job boards",
+        "company career pages"
+      ],
+      "minutes": 480,
+      "confidence": "medium",
+      "steps": [
+        "Use concierge/front-desk experience",
+        "Create support-focused resume",
+        "Apply to chat/email roles",
+        "Prioritize roles compatible with weekend work"
+      ]
+    },
+    {
+      "id": "data-entry",
+      "title": "Short data-entry / spreadsheet cleanup jobs",
+      "category": "Remote Work",
+      "lane": "fast",
+      "online": true,
+      "setupCost": 0,
+      "firstMoneyDays": 3,
+      "weeklyMin": 25,
+      "weeklyMax": 150,
+      "requirements": [
+        "laptop",
+        "internet"
+      ],
+      "skills": [
+        "organization"
+      ],
+      "platforms": [
+        "Upwork",
+        "Fiverr",
+        "Contra"
+      ],
+      "minutes": 180,
+      "confidence": "low-medium",
+      "steps": [
+        "Offer one concrete deliverable",
+        "Avoid jobs asking you to pay upfront",
+        "Track actual hourly earnings",
+        "Stop if pay is too low"
+      ]
+    },
+    {
+      "id": "user-testing",
+      "title": "Website/app usability testing",
+      "category": "Testing",
+      "lane": "fast",
+      "online": true,
+      "setupCost": 0,
+      "firstMoneyDays": 3,
+      "weeklyMin": 10,
+      "weeklyMax": 100,
+      "requirements": [
+        "phone",
+        "internet",
+        "microphone"
+      ],
+      "skills": [
+        "communication"
+      ],
+      "platforms": [
+        "UserTesting",
+        "uTest",
+        "other usability panels"
+      ],
+      "minutes": 60,
+      "confidence": "variable",
+      "steps": [
+        "Create profiles on legitimate testing platforms",
+        "Complete screeners accurately",
+        "Speak clearly while testing",
+        "Treat availability as variable, not guaranteed income"
+      ]
+    },
+    {
+      "id": "research-studies",
+      "title": "Online research-study participation",
+      "category": "Research",
+      "lane": "fast",
+      "online": true,
+      "setupCost": 0,
+      "firstMoneyDays": 3,
+      "weeklyMin": 10,
+      "weeklyMax": 100,
+      "requirements": [
+        "phone",
+        "internet"
+      ],
+      "skills": [],
+      "platforms": [
+        "Prolific",
+        "Respondent",
+        "research panels"
+      ],
+      "minutes": 60,
+      "confidence": "variable",
+      "steps": [
+        "Fill profiles accurately",
+        "Only accept studies you qualify for",
+        "Never pay to join",
+        "Track payout/time in Pier"
+      ]
+    },
+    {
+      "id": "game-testing",
+      "title": "Remote game/app playtesting",
+      "category": "Testing",
+      "lane": "fast",
+      "online": true,
+      "setupCost": 0,
+      "firstMoneyDays": 5,
+      "weeklyMin": 10,
+      "weeklyMax": 100,
+      "requirements": [
+        "phone",
+        "internet"
+      ],
+      "skills": [
+        "games"
+      ],
+      "platforms": [
+        "PlaytestCloud",
+        "uTest",
+        "developer communities"
+      ],
+      "minutes": 90,
+      "confidence": "variable",
+      "steps": [
+        "Set up tester profiles",
+        "Use clear verbal feedback",
+        "Watch for platform/device requirements",
+        "Do not count on daily tests"
+      ]
+    },
+    {
+      "id": "code-tutoring",
+      "title": "Beginner HTML/C++/coding tutoring",
+      "category": "Education",
+      "lane": "fast",
+      "online": true,
+      "setupCost": 0,
+      "firstMoneyDays": 3,
+      "weeklyMin": 40,
+      "weeklyMax": 200,
+      "requirements": [
+        "laptop",
+        "internet",
+        "coding"
+      ],
+      "skills": [
+        "coding",
+        "teaching"
+      ],
+      "platforms": [
+        "direct",
+        "community groups",
+        "tutoring marketplaces"
+      ],
+      "minutes": 120,
+      "confidence": "medium",
+      "steps": [
+        "Offer beginner sessions only in topics you know",
+        "Prepare one starter lesson",
+        "Charge per hour/session",
+        "Use screen share"
+      ]
+    },
+    {
+      "id": "roblox-prototype",
+      "title": "Small Roblox prototype / system commission",
+      "category": "Game Dev",
+      "lane": "fast",
+      "online": true,
+      "setupCost": 0,
+      "firstMoneyDays": 5,
+      "weeklyMin": 50,
+      "weeklyMax": 300,
+      "requirements": [
+        "laptop",
+        "internet",
+        "coding"
+      ],
+      "skills": [
+        "Roblox",
+        "game design"
+      ],
+      "platforms": [
+        "developer communities",
+        "direct commissions"
+      ],
+      "minutes": 300,
+      "confidence": "medium",
+      "steps": [
+        "Show one small playable system",
+        "Offer fixed-scope prototype work",
+        "Avoid giant full-game promises",
+        "Take milestone payments"
+      ]
+    },
+    {
+      "id": "itch-small-game",
+      "title": "Release a tiny paid/donation game on itch.io",
+      "category": "Game Dev",
+      "lane": "build",
+      "online": true,
+      "setupCost": 0,
+      "firstMoneyDays": 7,
+      "weeklyMin": 0,
+      "weeklyMax": 150,
+      "requirements": [
+        "laptop",
+        "internet",
+        "coding"
+      ],
+      "skills": [
+        "game design"
+      ],
+      "platforms": [
+        "itch.io"
+      ],
+      "minutes": 600,
+      "confidence": "low-variable",
+      "steps": [
+        "Scope to 1 mechanic and 10–20 minutes",
+        "Finish before adding features",
+        "Publish screenshots/trailer",
+        "Add donation/price and keep updating only if players respond"
+      ]
+    },
+    {
+      "id": "game-jam",
+      "title": "Ship a game-jam sized game and reuse it as portfolio",
+      "category": "Game Dev",
+      "lane": "build",
+      "online": true,
+      "setupCost": 0,
+      "firstMoneyDays": 7,
+      "weeklyMin": 0,
+      "weeklyMax": 100,
+      "requirements": [
+        "laptop",
+        "internet",
+        "coding"
+      ],
+      "skills": [
+        "game design"
+      ],
+      "platforms": [
+        "itch.io jams",
+        "developer communities"
+      ],
+      "minutes": 480,
+      "confidence": "low-variable",
+      "steps": [
+        "Pick a tiny jam/theme",
+        "Ship by deadline",
+        "Use as portfolio even if it earns $0",
+        "Offer follow-up commission work from the demo"
+      ]
+    },
+    {
+      "id": "asset-pack",
+      "title": "Sell a small game-dev asset/tool pack",
+      "category": "Digital Product",
+      "lane": "build",
+      "online": true,
+      "setupCost": 0,
+      "firstMoneyDays": 7,
+      "weeklyMin": 0,
+      "weeklyMax": 150,
+      "requirements": [
+        "laptop",
+        "internet",
+        "coding"
+      ],
+      "skills": [
+        "game dev"
+      ],
+      "platforms": [
+        "itch.io",
+        "Gumroad",
+        "Ko-fi"
+      ],
+      "minutes": 360,
+      "confidence": "low-variable",
+      "steps": [
+        "Package something you already built",
+        "Document exactly what it does",
+        "Add screenshots/demo",
+        "Price low initially and improve from feedback"
+      ]
+    },
+    {
+      "id": "code-template",
+      "title": "Sell a reusable code/template starter kit",
+      "category": "Digital Product",
+      "lane": "build",
+      "online": true,
+      "setupCost": 0,
+      "firstMoneyDays": 7,
+      "weeklyMin": 0,
+      "weeklyMax": 200,
+      "requirements": [
+        "laptop",
+        "internet",
+        "coding"
+      ],
+      "skills": [
+        "coding"
+      ],
+      "platforms": [
+        "Gumroad",
+        "Ko-fi",
+        "itch.io"
+      ],
+      "minutes": 360,
+      "confidence": "low-medium",
+      "steps": [
+        "Turn an existing working subsystem into a clean template",
+        "Remove secrets/private data",
+        "Write setup instructions",
+        "Publish demo and screenshots"
+      ]
+    },
+    {
+      "id": "pier-template",
+      "title": "Package a generic personal planner template from Pier ideas",
+      "category": "Digital Product",
+      "lane": "build",
+      "online": true,
+      "setupCost": 0,
+      "firstMoneyDays": 10,
+      "weeklyMin": 0,
+      "weeklyMax": 150,
+      "requirements": [
+        "laptop",
+        "internet",
+        "coding"
+      ],
+      "skills": [
+        "product design"
+      ],
+      "platforms": [
+        "Gumroad",
+        "Ko-fi"
+      ],
+      "minutes": 480,
+      "confidence": "low-variable",
+      "steps": [
+        "Do not sell your private Pier data",
+        "Extract a generic template/checklist",
+        "Create screenshots",
+        "Test demand before spending money"
+      ]
+    },
+    {
+      "id": "youtube-short",
+      "title": "Post one useful YouTube Short",
+      "category": "Content",
+      "lane": "build",
+      "online": true,
+      "setupCost": 0,
+      "firstMoneyDays": 30,
+      "weeklyMin": 0,
+      "weeklyMax": 100,
+      "requirements": [
+        "phone",
+        "internet"
+      ],
+      "skills": [
+        "content"
+      ],
+      "platforms": [
+        "YouTube"
+      ],
+      "minutes": 60,
+      "confidence": "low-variable",
+      "steps": [
+        "Use a topic you already know",
+        "Make one clear hook + one useful point",
+        "Post consistently instead of chasing one viral hit",
+        "Track views/leads, not expected ad money"
+      ]
+    },
+    {
+      "id": "youtube-devlog",
+      "title": "Developer/build-in-public YouTube video",
+      "category": "Content",
+      "lane": "build",
+      "online": true,
+      "setupCost": 0,
+      "firstMoneyDays": 30,
+      "weeklyMin": 0,
+      "weeklyMax": 200,
+      "requirements": [
+        "phone",
+        "internet",
+        "laptop"
+      ],
+      "skills": [
+        "content",
+        "coding"
+      ],
+      "platforms": [
+        "YouTube"
+      ],
+      "minutes": 180,
+      "confidence": "low-variable",
+      "steps": [
+        "Record what you already build",
+        "Show problem → fix → result",
+        "Link portfolio/product/contact",
+        "Reuse clips as Shorts"
+      ]
+    },
+    {
+      "id": "blog-post",
+      "title": "Publish a useful coding/business blog post",
+      "category": "Content",
+      "lane": "build",
+      "online": true,
+      "setupCost": 0,
+      "firstMoneyDays": 30,
+      "weeklyMin": 0,
+      "weeklyMax": 100,
+      "requirements": [
+        "phone",
+        "internet"
+      ],
+      "skills": [
+        "writing"
+      ],
+      "platforms": [
+        "Substack",
+        "Medium",
+        "own site"
+      ],
+      "minutes": 120,
+      "confidence": "low-variable",
+      "steps": [
+        "Answer one specific question",
+        "Use your own project screenshots",
+        "Add a call-to-action for a service/product",
+        "Reuse as social content"
+      ]
+    },
+    {
+      "id": "newsletter",
+      "title": "Start a small build/dev newsletter",
+      "category": "Content",
+      "lane": "build",
+      "online": true,
+      "setupCost": 0,
+      "firstMoneyDays": 30,
+      "weeklyMin": 0,
+      "weeklyMax": 100,
+      "requirements": [
+        "phone",
+        "internet"
+      ],
+      "skills": [
+        "writing"
+      ],
+      "platforms": [
+        "Substack",
+        "Beehiiv",
+        "own site"
+      ],
+      "minutes": 90,
+      "confidence": "low-variable",
+      "steps": [
+        "Pick one topic",
+        "Publish weekly",
+        "Use it to sell services/products later",
+        "Do not expect immediate subscription revenue"
+      ]
+    },
+    {
+      "id": "affiliate-content",
+      "title": "Affiliate-style useful comparison content",
+      "category": "Content",
+      "lane": "build",
+      "online": true,
+      "setupCost": 0,
+      "firstMoneyDays": 30,
+      "weeklyMin": 0,
+      "weeklyMax": 100,
+      "requirements": [
+        "phone",
+        "internet"
+      ],
+      "skills": [
+        "writing",
+        "content"
+      ],
+      "platforms": [
+        "blog",
+        "YouTube"
+      ],
+      "minutes": 180,
+      "confidence": "low-variable",
+      "steps": [
+        "Only recommend things you can actually evaluate",
+        "Disclose affiliate relationships",
+        "Focus on search/usefulness",
+        "Treat earnings as long-term"
+      ]
+    },
+    {
+      "id": "digital-guide",
+      "title": "Sell a short practical PDF/guide",
+      "category": "Digital Product",
+      "lane": "build",
+      "online": true,
+      "setupCost": 0,
+      "firstMoneyDays": 7,
+      "weeklyMin": 0,
+      "weeklyMax": 150,
+      "requirements": [
+        "phone",
+        "internet"
+      ],
+      "skills": [
+        "writing"
+      ],
+      "platforms": [
+        "Gumroad",
+        "Ko-fi"
+      ],
+      "minutes": 240,
+      "confidence": "low-variable",
+      "steps": [
+        "Choose a narrow problem you know",
+        "Write 10–20 useful pages, not filler",
+        "Create a simple cover",
+        "Test demand with free excerpts"
+      ]
+    },
+    {
+      "id": "notion-sheet",
+      "title": "Sell a spreadsheet/checklist/template",
+      "category": "Digital Product",
+      "lane": "build",
+      "online": true,
+      "setupCost": 0,
+      "firstMoneyDays": 7,
+      "weeklyMin": 0,
+      "weeklyMax": 100,
+      "requirements": [
+        "laptop",
+        "internet"
+      ],
+      "skills": [
+        "organization"
+      ],
+      "platforms": [
+        "Gumroad",
+        "Ko-fi"
+      ],
+      "minutes": 180,
+      "confidence": "low-variable",
+      "steps": [
+        "Build from a process you already use",
+        "Make instructions clear",
+        "Include sample data",
+        "Price/test before making more"
+      ]
+    },
+    {
+      "id": "voiceover-edit",
+      "title": "Basic short-form clip editing / captions",
+      "category": "Services",
+      "lane": "fast",
+      "online": true,
+      "setupCost": 0,
+      "firstMoneyDays": 3,
+      "weeklyMin": 30,
+      "weeklyMax": 200,
+      "requirements": [
+        "phone",
+        "internet"
+      ],
+      "skills": [
+        "content"
+      ],
+      "platforms": [
+        "Fiverr",
+        "direct outreach"
+      ],
+      "minutes": 120,
+      "confidence": "medium",
+      "steps": [
+        "Offer captioning/cuts for 30–60 second clips",
+        "Use phone/free editor",
+        "Make 2 sample edits",
+        "Sell a small package"
+      ]
+    },
+    {
+      "id": "social-posts",
+      "title": "Create a week of social posts for one small business",
+      "category": "Services",
+      "lane": "fast",
+      "online": true,
+      "setupCost": 0,
+      "firstMoneyDays": 3,
+      "weeklyMin": 40,
+      "weeklyMax": 200,
+      "requirements": [
+        "phone",
+        "internet"
+      ],
+      "skills": [
+        "content",
+        "sales"
+      ],
+      "platforms": [
+        "direct outreach",
+        "Fiverr"
+      ],
+      "minutes": 150,
+      "confidence": "medium",
+      "steps": [
+        "Offer 5–7 simple posts",
+        "Use client photos/info",
+        "Keep revision limit clear",
+        "Ask for recurring weekly work"
+      ]
+    },
+    {
+      "id": "lead-list",
+      "title": "Build a clean local-business lead list",
+      "category": "Services",
+      "lane": "fast",
+      "online": true,
+      "setupCost": 0,
+      "firstMoneyDays": 2,
+      "weeklyMin": 25,
+      "weeklyMax": 120,
+      "requirements": [
+        "phone",
+        "internet"
+      ],
+      "skills": [
+        "research"
+      ],
+      "platforms": [
+        "direct",
+        "Upwork",
+        "Fiverr"
+      ],
+      "minutes": 120,
+      "confidence": "medium",
+      "steps": [
+        "Define city + business type + fields",
+        "Use public business info",
+        "Clean duplicates",
+        "Sell the research service, not scraped private data"
+      ]
+    },
+    {
+      "id": "appointment-setting",
+      "title": "Remote appointment-setting / outbound calling",
+      "category": "Sales",
+      "lane": "steady",
+      "online": true,
+      "setupCost": 0,
+      "firstMoneyDays": 7,
+      "weeklyMin": 50,
+      "weeklyMax": 300,
+      "requirements": [
+        "phone",
+        "internet",
+        "quietSpace"
+      ],
+      "skills": [
+        "sales",
+        "communication"
+      ],
+      "platforms": [
+        "remote job boards",
+        "direct"
+      ],
+      "minutes": 300,
+      "confidence": "medium",
+      "steps": [
+        "Use field-sales experience",
+        "Target hourly/base-pay roles first",
+        "Avoid commission-only offers you cannot verify",
+        "Track conversion and hours"
+      ]
+    },
+    {
+      "id": "cold-outreach-own-service",
+      "title": "Daily outreach for your own web/AI service",
+      "category": "Sales",
+      "lane": "fast",
+      "online": true,
+      "setupCost": 0,
+      "firstMoneyDays": 3,
+      "weeklyMin": 0,
+      "weeklyMax": 500,
+      "requirements": [
+        "phone",
+        "internet",
+        "sales"
+      ],
+      "skills": [
+        "sales",
+        "coding"
+      ],
+      "platforms": [
+        "email",
+        "phone",
+        "social"
+      ],
+      "minutes": 90,
+      "confidence": "medium",
+      "steps": [
+        "Pick ONE offer",
+        "Contact 10–20 qualified businesses/day",
+        "Track reply/demo/close rate",
+        "Do not build custom work before a clear buyer"
+      ]
+    },
+    {
+      "id": "marketplace-flip-small",
+      "title": "Sell unused items locally/online",
+      "category": "Resale",
+      "lane": "fast",
+      "online": false,
+      "setupCost": 0,
+      "firstMoneyDays": 1,
+      "weeklyMin": 20,
+      "weeklyMax": 200,
+      "requirements": [
+        "phone",
+        "internet"
+      ],
+      "skills": [
+        "sales"
+      ],
+      "platforms": [
+        "Facebook Marketplace",
+        "OfferUp",
+        "eBay"
+      ],
+      "minutes": 90,
+      "confidence": "medium",
+      "steps": [
+        "Start with things you already own",
+        "Use clear photos and honest condition",
+        "Avoid buying inventory until sales prove demand",
+        "Do not drive while license is suspended"
+      ]
+    },
+    {
+      "id": "device-cleanup-service",
+      "title": "Remote phone/PC cleanup coaching",
+      "category": "Tech Support",
+      "lane": "fast",
+      "online": true,
+      "setupCost": 0,
+      "firstMoneyDays": 3,
+      "weeklyMin": 30,
+      "weeklyMax": 150,
+      "requirements": [
+        "phone",
+        "internet"
+      ],
+      "skills": [
+        "tech support"
+      ],
+      "platforms": [
+        "direct",
+        "community groups"
+      ],
+      "minutes": 60,
+      "confidence": "medium",
+      "steps": [
+        "Offer storage/app cleanup and setup help",
+        "Do not request passwords",
+        "Use screen share only with consent",
+        "Charge per session"
+      ]
+    },
+    {
+      "id": "website-audit",
+      "title": "Small-business website/mobile audit",
+      "category": "Services",
+      "lane": "fast",
+      "online": true,
+      "setupCost": 0,
+      "firstMoneyDays": 2,
+      "weeklyMin": 25,
+      "weeklyMax": 150,
+      "requirements": [
+        "phone",
+        "internet"
+      ],
+      "skills": [
+        "web",
+        "sales"
+      ],
+      "platforms": [
+        "direct outreach"
+      ],
+      "minutes": 45,
+      "confidence": "medium",
+      "steps": [
+        "Record 3 concrete issues",
+        "Offer paid fix after audit",
+        "Keep audit short",
+        "Use it to feed landing-page/mobile-fix gigs"
+      ]
+    },
+    {
+      "id": "bug-bounty-learning",
+      "title": "Bug-bounty learning / responsible testing",
+      "category": "Security",
+      "lane": "build",
+      "online": true,
+      "setupCost": 0,
+      "firstMoneyDays": 30,
+      "weeklyMin": 0,
+      "weeklyMax": 200,
+      "requirements": [
+        "laptop",
+        "internet"
+      ],
+      "skills": [
+        "coding"
+      ],
+      "platforms": [
+        "authorized bug bounty platforms"
+      ],
+      "minutes": 300,
+      "confidence": "low-variable",
+      "steps": [
+        "Only test explicitly authorized programs",
+        "Start with training labs",
+        "Never test random sites",
+        "Treat income as uncertain"
+      ]
+    },
+    {
+      "id": "open-source-sponsor",
+      "title": "Open-source utility + sponsor/donation page",
+      "category": "Digital Product",
+      "lane": "build",
+      "online": true,
+      "setupCost": 0,
+      "firstMoneyDays": 30,
+      "weeklyMin": 0,
+      "weeklyMax": 100,
+      "requirements": [
+        "laptop",
+        "internet",
+        "coding"
+      ],
+      "skills": [
+        "coding"
+      ],
+      "platforms": [
+        "GitHub",
+        "Ko-fi"
+      ],
+      "minutes": 360,
+      "confidence": "low-variable",
+      "steps": [
+        "Publish something genuinely useful",
+        "Write clean README",
+        "Add sponsor/donation option",
+        "Use it as portfolio even if donations are zero"
+      ]
+    },
+    {
+      "id": "micro-saas-presell",
+      "title": "Pre-sell a tiny software tool before building it",
+      "category": "Business",
+      "lane": "build",
+      "online": true,
+      "setupCost": 0,
+      "firstMoneyDays": 7,
+      "weeklyMin": 0,
+      "weeklyMax": 300,
+      "requirements": [
+        "laptop",
+        "internet",
+        "coding",
+        "sales"
+      ],
+      "skills": [
+        "coding",
+        "sales"
+      ],
+      "platforms": [
+        "direct outreach",
+        "own site"
+      ],
+      "minutes": 240,
+      "confidence": "low-medium",
+      "steps": [
+        "Pick one painful workflow",
+        "Make mockup/demo first",
+        "Ask for paid pilot",
+        "Build only after someone commits"
+      ]
+    },
+    {
+      "id": "game-dev-service-page",
+      "title": "Publish a one-page game-dev commission portfolio",
+      "category": "Game Dev",
+      "lane": "build",
+      "online": true,
+      "setupCost": 0,
+      "firstMoneyDays": 5,
+      "weeklyMin": 0,
+      "weeklyMax": 200,
+      "requirements": [
+        "laptop",
+        "internet",
+        "coding"
+      ],
+      "skills": [
+        "game design"
+      ],
+      "platforms": [
+        "GitHub Pages",
+        "itch.io",
+        "direct"
+      ],
+      "minutes": 180,
+      "confidence": "medium",
+      "steps": [
+        "Show 3 systems, not giant projects",
+        "State fixed-price micro-services",
+        "Add contact method",
+        "Link from communities where allowed"
+      ]
+    },
+    {
+      "id": "firebase-template-video",
+      "title": "Video + downloadable Firebase starter",
+      "category": "Digital Product",
+      "lane": "build",
+      "online": true,
+      "setupCost": 0,
+      "firstMoneyDays": 14,
+      "weeklyMin": 0,
+      "weeklyMax": 150,
+      "requirements": [
+        "laptop",
+        "internet",
+        "coding"
+      ],
+      "skills": [
+        "Firebase",
+        "content"
+      ],
+      "platforms": [
+        "YouTube",
+        "Gumroad",
+        "GitHub"
+      ],
+      "minutes": 360,
+      "confidence": "low-variable",
+      "steps": [
+        "Build one clean starter",
+        "Record setup walkthrough",
+        "Offer code free or low-cost",
+        "Use video to attract paid Firebase fixes"
+      ]
+    },
+    {
+      "id": "translation-creole",
+      "title": "Haitian Creole / English basic translation or localization",
+      "category": "Language",
+      "lane": "fast",
+      "online": true,
+      "setupCost": 0,
+      "firstMoneyDays": 3,
+      "weeklyMin": 30,
+      "weeklyMax": 200,
+      "requirements": [
+        "phone",
+        "internet"
+      ],
+      "skills": [
+        "language"
+      ],
+      "platforms": [
+        "Fiverr",
+        "Upwork",
+        "direct"
+      ],
+      "minutes": 120,
+      "confidence": "medium",
+      "steps": [
+        "Only accept material you understand well",
+        "Offer short documents/captions first",
+        "State turnaround and word limit",
+        "Protect private client data"
+      ]
+    },
+    {
+      "id": "voice-creole",
+      "title": "Haitian Creole voice recording / dataset tasks",
+      "category": "Language",
+      "lane": "fast",
+      "online": true,
+      "setupCost": 0,
+      "firstMoneyDays": 7,
+      "weeklyMin": 20,
+      "weeklyMax": 150,
+      "requirements": [
+        "phone",
+        "internet",
+        "quietSpace"
+      ],
+      "skills": [
+        "language",
+        "voice"
+      ],
+      "platforms": [
+        "freelance/data collection platforms"
+      ],
+      "minutes": 90,
+      "confidence": "variable",
+      "steps": [
+        "Use legitimate contracts only",
+        "Check usage rights",
+        "Avoid identity/financial-data requests",
+        "Track pay per finished hour"
+      ]
+    },
+    {
+      "id": "concierge-cover",
+      "title": "Ask for open concierge coverage at another building",
+      "category": "Work",
+      "lane": "fast",
+      "online": false,
+      "setupCost": 0,
+      "firstMoneyDays": 1,
+      "weeklyMin": 50,
+      "weeklyMax": 300,
+      "requirements": [
+        "phone"
+      ],
+      "skills": [
+        "concierge"
+      ],
+      "platforms": [
+        "current employer"
+      ],
+      "minutes": 15,
+      "confidence": "high",
+      "steps": [
+        "Text/call scheduling manager",
+        "Say you are available for call-outs/coverage",
+        "List exact days/hours you can take",
+        "Follow up twice weekly"
+      ]
+    },
+    {
+      "id": "remote-night-monitor",
+      "title": "Remote overnight monitoring / dispatch roles",
+      "category": "Remote Work",
+      "lane": "steady",
+      "online": true,
+      "setupCost": 0,
+      "firstMoneyDays": 14,
+      "weeklyMin": 100,
+      "weeklyMax": 500,
+      "requirements": [
+        "laptop",
+        "internet",
+        "quietSpace"
+      ],
+      "skills": [
+        "concierge",
+        "security"
+      ],
+      "platforms": [
+        "remote job boards",
+        "company career pages"
+      ],
+      "minutes": 360,
+      "confidence": "medium",
+      "steps": [
+        "Search monitoring/dispatch/chat roles",
+        "Use security/front-desk background",
+        "Avoid roles requiring driving",
+        "Apply in batches and track response rate"
+      ]
+    },
+    {
+      "id": "ugc-demo",
+      "title": "Simple UGC/product demo clips with phone",
+      "category": "Content",
+      "lane": "build",
+      "online": true,
+      "setupCost": 0,
+      "firstMoneyDays": 7,
+      "weeklyMin": 0,
+      "weeklyMax": 200,
+      "requirements": [
+        "phone",
+        "internet"
+      ],
+      "skills": [
+        "content"
+      ],
+      "platforms": [
+        "direct outreach",
+        "creator marketplaces"
+      ],
+      "minutes": 120,
+      "confidence": "variable",
+      "steps": [
+        "Use products you already have for samples",
+        "Make 2–3 clean demo clips",
+        "Pitch small brands",
+        "Never buy expensive gear before paid demand"
+      ]
+    },
+    {
+      "id": "community-moderation",
+      "title": "Remote community/chat moderation",
+      "category": "Remote Work",
+      "lane": "steady",
+      "online": true,
+      "setupCost": 0,
+      "firstMoneyDays": 14,
+      "weeklyMin": 50,
+      "weeklyMax": 300,
+      "requirements": [
+        "phone",
+        "internet"
+      ],
+      "skills": [
+        "customer service"
+      ],
+      "platforms": [
+        "remote job boards",
+        "community platforms"
+      ],
+      "minutes": 300,
+      "confidence": "medium",
+      "steps": [
+        "Use front-desk conflict-resolution experience",
+        "Apply to legitimate companies/communities",
+        "Avoid unpaid 24/7 moderation",
+        "Track hourly pay"
+      ]
+    },
+    {
+      "id": "qa-manual",
+      "title": "Manual QA / bug-report micro-contract",
+      "category": "Testing",
+      "lane": "fast",
+      "online": true,
+      "setupCost": 0,
+      "firstMoneyDays": 5,
+      "weeklyMin": 30,
+      "weeklyMax": 200,
+      "requirements": [
+        "phone",
+        "internet",
+        "laptop"
+      ],
+      "skills": [
+        "testing"
+      ],
+      "platforms": [
+        "uTest",
+        "Upwork",
+        "developer communities"
+      ],
+      "minutes": 180,
+      "confidence": "medium",
+      "steps": [
+        "Learn clear repro steps",
+        "Attach screenshots/device info",
+        "Offer small test passes",
+        "Build a sample bug report"
+      ]
+    },
+    {
+      "id": "local-business-google-profile",
+      "title": "Help a business clean up its public profile/info",
+      "category": "Services",
+      "lane": "fast",
+      "online": true,
+      "setupCost": 0,
+      "firstMoneyDays": 3,
+      "weeklyMin": 40,
+      "weeklyMax": 200,
+      "requirements": [
+        "phone",
+        "internet",
+        "sales"
+      ],
+      "skills": [
+        "research",
+        "sales"
+      ],
+      "platforms": [
+        "direct outreach"
+      ],
+      "minutes": 90,
+      "confidence": "medium",
+      "steps": [
+        "Audit hours/photos/contact info",
+        "Only edit with owner authorization",
+        "Offer a fixed cleanup package",
+        "Upsell website/mobile fix only if needed"
+      ]
+    },
+    {
+      "id": "portfolio-site",
+      "title": "Build your own one-page paid-services portfolio",
+      "category": "Foundation",
+      "lane": "foundation",
+      "online": true,
+      "setupCost": 0,
+      "firstMoneyDays": 2,
+      "weeklyMin": 0,
+      "weeklyMax": 0,
+      "requirements": [
+        "laptop",
+        "internet"
+      ],
+      "skills": [
+        "coding"
+      ],
+      "platforms": [
+        "GitHub Pages"
+      ],
+      "minutes": 180,
+      "confidence": "high",
+      "steps": [
+        "List 3 services only",
+        "Show proof/screenshots",
+        "Add fixed starting prices",
+        "Add contact button and reuse in outreach"
+      ]
+    },
+    {
+      "id": "daily-outreach",
+      "title": "10 qualified money-making outreach messages",
+      "category": "Foundation",
+      "lane": "foundation",
+      "online": true,
+      "setupCost": 0,
+      "firstMoneyDays": 1,
+      "weeklyMin": 0,
+      "weeklyMax": 0,
+      "requirements": [
+        "phone",
+        "internet"
+      ],
+      "skills": [
+        "sales"
+      ],
+      "platforms": [
+        "email",
+        "social",
+        "direct"
+      ],
+      "minutes": 45,
+      "confidence": "high",
+      "steps": [
+        "Pick one offer",
+        "Find 10 actual prospects",
+        "Send personalized short pitches",
+        "Track sent/reply/demo/paid"
+      ]
+    },
+    {
+      "id": "weekly-content-batch",
+      "title": "Batch 3 useful short videos from work you already did",
+      "category": "Content",
+      "lane": "build",
+      "online": true,
+      "setupCost": 0,
+      "firstMoneyDays": 30,
+      "weeklyMin": 0,
+      "weeklyMax": 100,
+      "requirements": [
+        "phone",
+        "internet"
+      ],
+      "skills": [
+        "content"
+      ],
+      "platforms": [
+        "YouTube Shorts",
+        "other short-video platforms"
+      ],
+      "minutes": 120,
+      "confidence": "low-variable",
+      "steps": [
+        "Record existing builds/repairs/lessons",
+        "Cut into 3 short clips",
+        "Use direct titles",
+        "Measure retention/leads rather than assuming virality"
+      ]
+    }
+  ]
+}

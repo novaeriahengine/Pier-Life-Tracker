@@ -557,6 +557,44 @@ tr:last-child td{border-bottom:0}
   #quickAddBtn{display:none!important}
   .buddy-nav-grid{grid-template-columns:repeat(2,1fr)}
 }
+
+/* Pier v3.2 emergency mobile scroll fix */
+@media(max-width:820px){
+  html{
+    height:auto!important;
+    min-height:100%!important;
+    overflow-x:hidden!important;
+    overflow-y:auto!important;
+    overscroll-behavior-y:auto!important;
+    touch-action:pan-y pinch-zoom!important;
+    -webkit-overflow-scrolling:touch;
+  }
+  body{
+    position:static!important;
+    height:auto!important;
+    min-height:100%!important;
+    overflow-x:hidden!important;
+    overflow-y:auto!important;
+    overscroll-behavior-y:auto!important;
+    touch-action:pan-y pinch-zoom!important;
+    -webkit-overflow-scrolling:touch;
+  }
+  #appShell,.main,.content,#viewRoot{
+    position:relative;
+    height:auto!important;
+    max-height:none!important;
+    min-height:0;
+    overflow-y:visible!important;
+    touch-action:pan-y pinch-zoom!important;
+  }
+  #appShell{min-height:100dvh!important}
+  .main{min-height:100dvh!important;overflow-x:hidden!important}
+  .content{overflow-x:clip!important;padding-bottom:110px!important}
+  .gig-grid,.card,.gig-card,.hero,.section-title{touch-action:pan-y pinch-zoom!important}
+  .table-wrap,.metrics,.money-hero,.saving-grid,.smoke-metrics,.rel-stats,.paper-hero,.mobile-section-rail,.market-tabs,.learn-tabs{
+    touch-action:pan-x pan-y pinch-zoom!important;
+  }
+}
 </style>
 </head>
 <body>

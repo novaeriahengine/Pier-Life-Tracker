@@ -708,7 +708,7 @@ const EXPENSE_CATEGORIES=["Housing / Rent","Utilities","Groceries","Food / Resta
 const INCOME_CATEGORIES=["Paycheck","Overtime / Extra Shift","Business Income","Side Gig","Refund","Gift","Sale","Other Income"];
 
 const AI_BRIDGE_PROVIDERS=[
-  {id:"disabled",label:"Disabled / data only",kind:"none"},
+  {id:"disabled",label:"Pier Basic Brain (no external AI)",kind:"rules"},
   {id:"huggingface_space",label:"Hugging Face Space / endpoint",kind:"backend"},
   {id:"openai_compatible",label:"OpenAI-compatible backend",kind:"backend"},
   {id:"llama_cpp",label:"llama.cpp server",kind:"backend"},
@@ -751,6 +751,7 @@ function applyContextData(){
   S.plan=generatePlan();
   queueDailyDraftGeneration();
   queueAiSnapshot();
+  setTimeout(detectGigUnlocks,500);
 }
 function contextCounts(pid,world){
   const out={};DATA_COLLECTIONS.forEach(n=>out[n]=(S.all[n]||[]).filter(d=>(d.profileId||"primary")===pid&&(d.world||"live")===world).length);return out;
@@ -814,7 +815,9 @@ onAuthStateChanged(auth,async user=>{
   stopListeners();S.user=user;
   if(!user){$("#authScreen").classList.remove("hidden");$("#appShell").classList.add("hidden");return}
   $("#authScreen").classList.add("hidden");$("#appShell").classList.remove("hidden");$("#userEmail").textContent=user.email||"Signed in";
-  await bootstrapUser();await Promise.all([loadStockUniverse(),loadGigCatalog()]);startListeners();navigate("dashboard");
+  await bootstrapUser();await Promise.all([loadStockUniverse(),loadGigCatalog()]);startListeners();
+  const requested=new URLSearchParams(location.search).get("view"),allowed=["dashboard","mylife","tasks","money","savings","gigs","coach","goals","routines","planner","calendar","work","life","admin","assets","sessions","smoking","relationship","day","market","learn","paper","data","profiles","inbox","settings"];
+  navigate(allowed.includes(requested)?requested:"dashboard");
 });
 
 
@@ -1433,8 +1436,22 @@ function buildAiDataPack(){
       watched:compactRows(S.marketWatch,["symbol","name","sector","tier","active","rank"],10),
       cachedQuotes:S.marketCache.filter(x=>x.quote).slice(0,10).map(x=>({symbol:x.symbol,quote:x.quote,quoteFetchedIso:x.quoteFetchedIso}))
     },
+    incomeEngine:{
+      weeklyTarget:num(S.profile.weeklyIncomeTarget||100),
+      earnedThisWeek:weeklyGigIncome(),
+      gap:Math.max(0,num(S.profile.weeklyIncomeTarget||100)-weeklyGigIncome()),
+      topRecommendations:topGigRecommendations(8).map(g=>({id:g.id,title:g.title,fit:gigFitScore(g),q:gigQ(g.id),weeklyMin:g.weeklyMin,weeklyMax:g.weeklyMax,firstMoneyDays:g.firstMoneyDays})),
+      activeGigPlans:compactRows(S.gigPlans.filter(x=>x.status==="active"),["gigId","title","stepIndex","weeklyTarget","lastEarned","lastCost","lastResult"],20),
+      recentGigAttempts:compactRows(S.gigAttempts,["gigId","date","earned","cost","minutes","leads","result","notes","qBefore"],30)
+    },
+    assistant:{
+      avatarName:avatarProfile().avatarName||"Pier",
+      personality:avatarProfile().avatarPersonality||"money-coach",
+      skin:avatarProfile().avatarSkin||"aqua",
+      recentCoachEvents:compactRows(S.coachEvents,["kind","gigId","title","earned","cost","minutes","leads","result","reward","targetView","createdAtIso"],30)
+    },
     capabilities:{
-      deterministicGOAP:true,firebaseRealtime:true,shadowWorld:true,paperMarkets:true,
+      deterministicGOAP:true,firebaseRealtime:true,shadowWorld:true,paperMarkets:true,gigQScore:true,basicRuleCoach:true,
       aiBridge:{provider:S.profile.aiProvider||"disabled",configured:!!S.profile.aiBridgeUrl,model:S.profile.aiModel||""}
     }
   };
@@ -1463,7 +1480,7 @@ function downloadAiDataPack(){
   const blob=new Blob([JSON.stringify(buildAiDataPack(),null,2)],{type:"application/json"}),url=URL.createObjectURL(blob),a=document.createElement("a");
   a.href=url;a.download="pier-ai-context-"+today()+".json";a.click();URL.revokeObjectURL(url);toast("AI context pack downloaded.");
 }
-function aiBridgeProviderLabel(){return AI_BRIDGE_PROVIDERS.find(x=>x.id===(S.profile.aiProvider||"disabled"))?.label||"Disabled / data only"}
+function aiBridgeProviderLabel(){return AI_BRIDGE_PROVIDERS.find(x=>x.id===(S.profile.aiProvider||"disabled"))?.label||"Pier Basic Brain (no external AI)"}
 function currentScheduledThing(){
   const now=new Date(),date=today(),m=now.getHours()*60+now.getMinutes(),events=fixedDayEvents(date).filter(x=>x.start);
   return events.find(x=>{const s=timeToMin(x.start),e=timeToMin(x.end||minToTime(s+60));return m>=s&&m<e})||null;
@@ -2820,6 +2837,21 @@ async function saveCoachNotificationSettings(e){
   await setDoc(userDoc(),{coachNotifications:fd.get("enabled")==="on",coachNotifyMinutes:num(fd.get("minutes"))||60,coachNotifyMode:fd.get("mode")||"persistent",coachNotifyGigs:fd.get("gigs")==="on",coachNotifyMoney:fd.get("money")==="on",coachNotifyTasks:fd.get("tasks")==="on",coachNotifyRelationship:fd.get("relationship")==="on",updatedAt:serverTimestamp()},{merge:true});
   localStorage.removeItem("pier-last-coach-notify");toast("Coach notification setup saved.");
 }
+
+function currentUnlockedGigIds(){return S.gigCatalog.filter(g=>gigRequirementResult(g).unlocked).map(g=>g.id).sort()}
+async function detectGigUnlocks(){
+  if(!S.user||!S.gigCatalogLoaded||!S.gigCatalog.length)return;
+  const key="pier-unlocked-gigs-"+S.activeProfileId+"-"+S.worldMode,current=currentUnlockedGigIds(),raw=localStorage.getItem(key);
+  if(!raw){localStorage.setItem(key,JSON.stringify(current));return}
+  let before=[];try{before=JSON.parse(raw)||[]}catch{}
+  const newIds=current.filter(id=>!before.includes(id));localStorage.setItem(key,JSON.stringify(current));
+  if(!newIds.length)return;
+  const g=S.gigCatalog.find(x=>x.id===newIds[0]);if(!g)return;
+  const body=g.title+" just became available based on your current Pier setup.";
+  showBuddyBubble("Gig unlocked: "+body,14000);
+  if(Notification?.permission==="granted")await showPierNotification("Pier · gig unlocked",body,{tag:"pier-gig-unlock",view:"gigs"});
+  await addDoc(subcol("coachEvents"),{kind:"gig_unlocked",gigId:g.id,title:g.title,createdAtIso:new Date().toISOString(),...ctxFields(),createdAt:serverTimestamp()}).catch(()=>{});
+}
 function coachNudgeCandidates(){
   const out=[],target=num(S.profile.weeklyIncomeTarget||100),gigEarn=weeklyGigIncome(),gap=Math.max(0,target-gigEarn),p=plan(),flow=monthFlow();
   if(S.profile.coachNotifyTasks!==false){
@@ -3315,7 +3347,10 @@ setInterval(async()=>{
   if(S.view==="day")render();
 },60000);
 
-if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js").catch(e=>console.warn("service worker",e)))}
+if("serviceWorker" in navigator){
+  window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js").catch(e=>console.warn("service worker",e)));
+  navigator.serviceWorker.addEventListener("message",e=>{if(e.data?.type==="PIER_NAVIGATE"&&e.data.view)navigate(e.data.view)});
+}
 window.addEventListener("online",()=>{if(!S.syncError)setSynced()});
 window.addEventListener("offline",()=>{$("#syncDot").className="dot";$("#syncLabel").textContent="Offline";$("#syncDetail").textContent="Waiting for connection";const m=$("#mobileLiveState");if(m)m.textContent="● Offline"});
 </script>

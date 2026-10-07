@@ -534,6 +534,7 @@ tr:last-child td{border-bottom:0}
       <button class="nav-btn" data-view="tasks"><span class="nav-icon">✓</span>Tasks</button>
       <button class="nav-btn" data-view="money"><span class="nav-icon">$</span>Money</button>
       <button class="nav-btn" data-view="savings"><span class="nav-icon">⌁</span>Savings</button>
+      <button class="nav-btn" data-view="gigs"><span class="nav-icon">↗</span>Gigs / $100 Week</button>
       <button class="nav-btn" data-view="coach"><span class="nav-icon">⇅</span>What to Pay</button>
       <button class="nav-btn" data-view="goals"><span class="nav-icon">◎</span>Goals</button>
       <button class="nav-btn" data-view="routines"><span class="nav-icon">↻</span>Routines</button>
@@ -658,13 +659,13 @@ const DEFAULT_PROFILE={
   theme:"dark",notifications:false,createdAt:null
 };
 
-const DATA_COLLECTIONS=["tasks","accounts","transactions","bills","goals","routines","inbox","jobs","shifts","timeEntries","paychecks","household","appointments","shopping","paperTrades","relationshipPlans","timeBlocks","focusSessions","marketWatch","marketCache","learningProgress","legalObligations","assets","assetEvents","sessionLogs","dailyDrafts","goapFeedback","smokeLogs","aiSnapshots"];
+const DATA_COLLECTIONS=["tasks","accounts","transactions","bills","goals","routines","inbox","jobs","shifts","timeEntries","paychecks","household","appointments","shopping","paperTrades","relationshipPlans","timeBlocks","focusSessions","marketWatch","marketCache","learningProgress","legalObligations","assets","assetEvents","sessionLogs","dailyDrafts","goapFeedback","smokeLogs","aiSnapshots","gigPlans","gigAttempts","coachEvents"];
 const S={
   user:null,profile:{...DEFAULT_PROFILE},profiles:[],
   tasks:[],accounts:[],transactions:[],bills:[],goals:[],routines:[],inbox:[],
   jobs:[],shifts:[],timeEntries:[],paychecks:[],household:[],appointments:[],shopping:[],paperTrades:[],
-  relationshipPlans:[],timeBlocks:[],focusSessions:[],marketWatch:[],marketCache:[],learningProgress:[],legalObligations:[],assets:[],assetEvents:[],sessionLogs:[],dailyDrafts:[],goapFeedback:[],smokeLogs:[],aiSnapshots:[],
-  stockUniverse:[],stockUniverseLoaded:false,stockSearch:"",stockSector:"all",marketTab:"watch",learnTab:"stocks",
+  relationshipPlans:[],timeBlocks:[],focusSessions:[],marketWatch:[],marketCache:[],learningProgress:[],legalObligations:[],assets:[],assetEvents:[],sessionLogs:[],dailyDrafts:[],goapFeedback:[],smokeLogs:[],aiSnapshots:[],gigPlans:[],gigAttempts:[],coachEvents:[],
+  stockUniverse:[],stockUniverseLoaded:false,gigCatalog:[],gigCatalogLoaded:false,gigSearch:"",gigLane:"all",stockSearch:"",stockSector:"all",marketTab:"watch",learnTab:"stocks",
   all:{},activeProfileId:localStorage.getItem("pierProfile")||"primary",worldMode:localStorage.getItem("pierWorld")||"live",
   unsubs:[],view:"dashboard",syncError:"",taskSearch:"",taskFilter:"open",plan:null,calendarCursor:new Date(),dayCursor:new Date(),relStore:"all",relBudget:550,relSearch:"",
   market:{symbol:"SPY",quote:null,candles:[],chain:[],rate:null,error:"",loading:false,lastFetch:null,hasToken:null,autoBusy:false},dailyDraftBusy:false,dailyDraftTimer:null,aiSnapshotBusy:false,aiSnapshotTimer:null
@@ -749,7 +750,7 @@ onAuthStateChanged(auth,async user=>{
   stopListeners();S.user=user;
   if(!user){$("#authScreen").classList.remove("hidden");$("#appShell").classList.add("hidden");return}
   $("#authScreen").classList.add("hidden");$("#appShell").classList.remove("hidden");$("#userEmail").textContent=user.email||"Signed in";
-  await bootstrapUser();await loadStockUniverse();startListeners();navigate("dashboard");
+  await bootstrapUser();await Promise.all([loadStockUniverse(),loadGigCatalog()]);startListeners();navigate("dashboard");
 });
 
 
@@ -759,6 +760,14 @@ async function loadStockUniverse(){
     const r=await fetch("./stock_universe.json",{cache:"force-cache"});if(!r.ok)throw new Error("stock universe "+r.status);
     const j=await r.json();S.stockUniverse=Array.isArray(j.stocks)?j.stocks:[];S.stockUniverseLoaded=true;
   }catch(e){console.warn("stock universe",e);S.stockUniverse=[];S.stockUniverseLoaded=true}
+}
+
+async function loadGigCatalog(){
+  if(S.gigCatalogLoaded)return;
+  try{
+    const r=await fetch("./gig_catalog.json",{cache:"force-cache"});if(!r.ok)throw new Error("gig catalog "+r.status);
+    const j=await r.json();S.gigCatalog=Array.isArray(j.gigs)?j.gigs:[];S.gigCatalogLoaded=true;
+  }catch(e){console.warn("gig catalog",e);S.gigCatalog=[];S.gigCatalogLoaded=true}
 }
 function userDoc(){return doc(db,"users",S.user.uid)}
 function subcol(name){return collection(db,"users",S.user.uid,name)}
@@ -811,6 +820,9 @@ function sortData(name){
   if(name==="goapFeedback")S.goapFeedback.sort((a,b)=>String(a.sourceKey||"").localeCompare(String(b.sourceKey||"")));
   if(name==="smokeLogs")S.smokeLogs.sort((a,b)=>String(b.startedAt||b.date||"").localeCompare(String(a.startedAt||a.date||"")));
   if(name==="aiSnapshots")S.aiSnapshots.sort((a,b)=>String(b.generatedAt||"").localeCompare(String(a.generatedAt||"")));
+  if(name==="gigPlans")S.gigPlans.sort((a,b)=>String(b.updatedAtIso||b.createdAtIso||"").localeCompare(String(a.updatedAtIso||a.createdAtIso||"")));
+  if(name==="gigAttempts")S.gigAttempts.sort((a,b)=>String(b.date||b.createdAtIso||"").localeCompare(String(a.date||a.createdAtIso||"")));
+  if(name==="coachEvents")S.coachEvents.sort((a,b)=>String(b.createdAtIso||"").localeCompare(String(a.createdAtIso||"")));
 }
 function setSynced(){
   if(S.syncError)return;$("#syncDot").className="dot ok";$("#syncLabel").textContent="Synced";$("#syncDetail").textContent=esc(currentProfile().name||"Profile")+" · "+S.worldMode.toUpperCase();
@@ -825,7 +837,7 @@ function setSyncError(err){
 function applyTheme(){document.documentElement.dataset.theme=S.profile.theme==="light"?"light":"dark"}
 
 function navigate(view){
-  S.view=view;const titles={dashboard:"Dashboard",mylife:"My Life",tasks:"Tasks",money:"Money",savings:"Savings",coach:"What to Pay",goals:"Goals",routines:"Routines",planner:"Planner / Why",calendar:"Calendar",work:"Work & Pay",life:"Family & Life",admin:"Admin / Legal",assets:"Devices & Cars",sessions:"Sessions",smoking:"Smoke Tracker",relationship:"Relationship",day:"Day Plan",market:"Market Data",learn:"Stocks & Options 101",paper:"Paper Markets",data:"Training Data",profiles:"Profiles",inbox:"Inbox",settings:"Settings"};
+  S.view=view;const titles={dashboard:"Dashboard",mylife:"My Life",tasks:"Tasks",money:"Money",savings:"Savings",gigs:"Gigs / $100 Week",coach:"What to Pay",goals:"Goals",routines:"Routines",planner:"Planner / Why",calendar:"Calendar",work:"Work & Pay",life:"Family & Life",admin:"Admin / Legal",assets:"Devices & Cars",sessions:"Sessions",smoking:"Smoke Tracker",relationship:"Relationship",day:"Day Plan",market:"Market Data",learn:"Stocks & Options 101",paper:"Paper Markets",data:"Training Data",profiles:"Profiles",inbox:"Inbox",settings:"Settings"};
   $("#pageTitle").textContent=titles[view]||"Pier";
   $$("[data-view]").forEach(b=>b.classList.toggle("active",b.dataset.view===view));
   render();
@@ -850,6 +862,7 @@ function render(){
   else if(S.view==="tasks")html=renderTasks();
   else if(S.view==="money")html=renderMoney();
   else if(S.view==="savings")html=renderSavings();
+  else if(S.view==="gigs")html=renderGigs();
   else if(S.view==="coach")html=renderPayCoach();
   else if(S.view==="goals")html=renderGoals();
   else if(S.view==="routines")html=renderRoutines();
@@ -2648,7 +2661,7 @@ async function installPier(){
   if(choice.outcome==="accepted")toast("Installing Pier…");
 }
 function openMobileMore(){
-  const views=[["tasks","✓","Tasks"],["savings","⌁","Savings"],["goals","◎","Goals"],["routines","↻","Routines"],["planner","⚡","Planner / Why"],["calendar","▦","Calendar"],["work","◷","Work & Pay"],["life","⌂","Family & Life"],["admin","!","Admin / Legal"],["assets","▣","Devices & Cars"],["sessions","◉","Sessions"],["smoking","◌","Smoke Tracker"],["relationship","♡","Relationship"],["market","⌁","Market Data"],["learn","◈","Stocks & Options 101"],["paper","↗","Paper Markets"],["profiles","◉","Profiles"],["inbox","↓","Inbox"],["settings","⚙","Settings"]];
+  const views=[["tasks","✓","Tasks"],["savings","⌁","Savings"],["gigs","↗","Gigs / $100 Week"],["goals","◎","Goals"],["routines","↻","Routines"],["planner","⚡","Planner / Why"],["calendar","▦","Calendar"],["work","◷","Work & Pay"],["life","⌂","Family & Life"],["admin","!","Admin / Legal"],["assets","▣","Devices & Cars"],["sessions","◉","Sessions"],["smoking","◌","Smoke Tracker"],["relationship","♡","Relationship"],["market","⌁","Market Data"],["learn","◈","Stocks & Options 101"],["paper","↗","Paper Markets"],["profiles","◉","Profiles"],["inbox","↓","Inbox"],["settings","⚙","Settings"]];
   showModal("Pier menu",'<div class="quick-session">'+views.map(v=>'<button class="btn" type="button" data-mobile-view="'+v[0]+'">'+v[1]+' '+v[2]+'</button>').join("")+'<button class="btn primary" type="button" data-action="install-pier">⬇ Install Pier</button></div>');
   $$("#modalBody [data-mobile-view]").forEach(b=>b.onclick=()=>{closeModal();navigate(b.dataset.mobileView)});
 }

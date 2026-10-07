@@ -1312,7 +1312,7 @@ function gigQ(id){
   const rows=gigAttemptsFor(id).slice().sort((a,b)=>String(a.date||"").localeCompare(String(b.date||"")));
   let q=0;const alpha=.25;
   for(const x of rows){
-    const net=num(x.earned)-num(x.cost),timePenalty=Math.max(0,num(x.minutes)/60*2),leadBonus=Math.min(10,num(x.leads)*1.5),reward=net-timePenalty+leadBonus;
+    const net=num(x.earned)-num(x.cost),timePenalty=Math.max(0,num(x.minutes)/60*2),leadBonus=Math.min(10,num(x.leads)*1.5),resultBonus=x.result==="completed"?8:x.result==="worked"?4:x.result==="failed"?-15:x.result==="no_money"?-5:0,reward=net-timePenalty+leadBonus+resultBonus;
     q=q+alpha*(reward-q);
   }
   return q;
@@ -1458,7 +1458,7 @@ function openGigOutcome(id){
   showModal("Log gig outcome · "+g.title,'<form><div class="modal-grid"><div class="field"><label>Money earned</label><input name="earned" type="number" min="0" step=".01" value="0"></div><div class="field"><label>Money spent</label><input name="cost" type="number" min="0" step=".01" value="0"></div><div class="field"><label>Minutes spent</label><input name="minutes" type="number" min="0" value="'+num(g.minutes||60)+'"></div><div class="field"><label>Leads/replies generated</label><input name="leads" type="number" min="0" value="0"></div></div><div class="field"><label>Result</label><select name="result"><option value="worked">Worked / made progress</option><option value="no_money">No money yet</option><option value="failed">Bad fit / failed</option><option value="completed">Completed / pause it</option></select></div>'+(accounts?'<label class="check"><input name="recordMoney" type="checkbox" checked> Add earned/spent amounts to Pier Money</label><div class="field"><label>Money account</label><select name="accountId">'+accounts+'</select></div>':'')+''+(plan.custom?.kind==="game_release"?'<div class="modal-grid"><div class="field"><label>Copies/downloads this update</label><input name="unitsSold" type="number" min="0" value="0"></div><div class="field"><label>Refunds this update</label><input name="unitsRefunded" type="number" min="0" value="0"></div></div>':plan.custom?.kind==="pc_build_resale"?'<div class="modal-grid"><div class="field"><label>PCs built this update</label><input name="pcsBuilt" type="number" min="0" value="0"></div><div class="field"><label>PCs sold this update</label><input name="pcsSold" type="number" min="0" value="0"></div></div>':'')+'<div class="field"><label>What happened?</label><textarea name="notes" placeholder="What worked, what failed, what should Pier learn?"></textarea></div><div class="modal-foot"><button class="btn ghost" type="button" id="cancelModalBtn">Cancel</button><button class="btn primary" type="submit">Save outcome</button></div></form>',async fd=>{
     const earned=num(fd.get("earned")),cost=num(fd.get("cost")),minutes=num(fd.get("minutes")),leads=num(fd.get("leads")),result=fd.get("result"),date=today(),now=new Date().toISOString();
     const unitsSold=num(fd.get("unitsSold")),unitsRefunded=num(fd.get("unitsRefunded")),pcsBuilt=num(fd.get("pcsBuilt")),pcsSold=num(fd.get("pcsSold"));
-    await addDoc(subcol("gigAttempts"),{gigId:id,gigPlanId:plan.id,date,earned,cost,minutes,leads,result,unitsSold,unitsRefunded,pcsBuilt,pcsSold,notes:fd.get("notes").trim(),qBefore:gigQ(id),createdAtIso:now,...ctxFields(),createdAt:serverTimestamp()});
+    await addDoc(subcol("gigAttempts"),{gigId:id,gigPlanId:plan.id,date,earned,cost,minutes,leads,result,skills:g.skills||[],unitsSold,unitsRefunded,pcsBuilt,pcsSold,notes:fd.get("notes").trim(),qBefore:gigQ(id),createdAtIso:now,...ctxFields(),createdAt:serverTimestamp()});
     if(fd.get("recordMoney")==="on"&&fd.get("accountId")){
       if(earned>0)await addDoc(subcol("transactions"),{type:"income",amount:earned,accountId:fd.get("accountId"),date,description:"Gig: "+g.title,category:"Side Gig",gigId:id,...ctxFields(),createdAt:serverTimestamp()});
       if(cost>0)await addDoc(subcol("transactions"),{type:"expense",amount:cost,accountId:fd.get("accountId"),date,description:"Gig cost: "+g.title,category:"Business",gigId:id,...ctxFields(),createdAt:serverTimestamp()});
@@ -1468,7 +1468,7 @@ function openGigOutcome(id){
     if(custom.kind==="game_release"){custom.unitsSold=num(custom.unitsSold)+unitsSold-unitsRefunded;custom.revenue=num(custom.revenue)+earned}
     if(custom.kind==="pc_build_resale"){custom.pcsBuilt=num(custom.pcsBuilt)+pcsBuilt;custom.pcsSold=num(custom.pcsSold)+pcsSold;custom.revenue=num(custom.revenue)+earned}
     await updateDoc(subdoc("gigPlans",plan.id),{stepIndex:Math.max(0,nextStep),status:done?"done":"active",lastEarned:earned,lastCost:cost,lastResult:result,custom,updatedAtIso:now,updatedAt:serverTimestamp()});
-    await addDoc(subcol("coachEvents"),{kind:"gig_outcome",gigId:id,title:g.title,earned,cost,minutes,leads,result,reward:earned-cost-Math.max(0,minutes/60*2)+Math.min(10,leads*1.5),createdAtIso:now,...ctxFields(),createdAt:serverTimestamp()});
+    await addDoc(subcol("coachEvents"),{kind:"gig_outcome",gigId:id,title:g.title,earned,cost,minutes,leads,result,reward:earned-cost-Math.max(0,minutes/60*2)+Math.min(10,leads*1.5)+(result==="completed"?8:result==="worked"?4:result==="failed"?-15:result==="no_money"?-5:0),createdAtIso:now,...ctxFields(),createdAt:serverTimestamp()});
     if(!done&&nextStep>num(plan.stepIndex))await ensureNextGigTask(g,plan,nextStep);
     toast("Outcome saved. Pier's money Q-score and next GOAP step will adjust.");
   });$("#cancelModalBtn").onclick=closeModal;
@@ -3153,10 +3153,21 @@ function buddyStatCards(){
   return '<div class="buddy-stats">'+rows.map(([n,v])=>'<div class="buddy-stat"><div class="small muted">'+esc(n)+'</div><strong>'+v+'</strong><div class="buddy-stat-track"><div style="width:'+v+'%"></div></div></div>').join("")+'</div>';
 }
 
+
+function gigSkillXp(){
+  const xp={};
+  for(const a of S.gigAttempts){
+    const g=S.gigCatalog.find(x=>x.id===a.gigId);if(!g)continue;
+    const base=a.result==="completed"?8:a.result==="worked"?5:a.result==="no_money"?2:1;
+    const moneyBonus=Math.min(12,Math.max(0,num(a.earned)-num(a.cost))/20);
+    for(const s of (g.skills||[])){const k=String(s).toLowerCase();xp[k]=(xp[k]||0)+base+moneyBonus}
+  }
+  return xp;
+}
 function buddyLearningSummary(){
   const tried=S.gigCatalog.filter(g=>gigAttemptsFor(g.id).length).map(g=>({g,q:gigQ(g.id)})).sort((a,b)=>b.q-a.q);
-  const best=tried[0],weak=tried.length>1?tried[tried.length-1]:null,skills=gigSkills().slice(0,12);
-  return '<div class="buddy-learning"><div class="small muted">PIER LEARNING</div><div class="life-line"><span>Best learned gig</span><strong>'+(best?esc(best.g.title)+" · Q "+best.q.toFixed(1):"Not enough outcomes yet")+'</strong></div><div class="life-line"><span>Weakest learned gig</span><strong>'+(weak?esc(weak.g.title)+" · Q "+weak.q.toFixed(1):"Not enough outcomes yet")+'</strong></div><div class="small muted">Skills Pier currently sees</div><div class="buddy-skill-list">'+(skills.length?skills.map(x=>'<span class="gig-req ok">'+esc(x)+'</span>').join(""):'<span class="muted small">Add skills in Gigs → My gig setup.</span>')+'</div></div>';
+  const best=tried[0],weak=tried.length>1?tried[tried.length-1]:null,xp=gigSkillXp(),skills=gigSkills().slice(0,12);
+  return '<div class="buddy-learning"><div class="small muted">PIER LEARNING</div><div class="life-line"><span>Best learned gig</span><strong>'+(best?esc(best.g.title)+" · Q "+best.q.toFixed(1):"Not enough outcomes yet")+'</strong></div><div class="life-line"><span>Weakest learned gig</span><strong>'+(weak?esc(weak.g.title)+" · Q "+weak.q.toFixed(1):"Not enough outcomes yet")+'</strong></div><div class="small muted">Skills Pier currently sees</div><div class="buddy-skill-list">'+(skills.length?skills.map(x=>'<span class="gig-req ok">'+esc(x)+(xp[x]?(" · XP "+Math.round(xp[x])):"")+'</span>').join(""):'<span class="muted small">Add skills in Gigs → My gig setup.</span>')+'</div></div>';
 }
 function basicCoachInsight(prompt=""){
   const q=String(prompt||"").toLowerCase(),target=num(S.profile.weeklyIncomeTarget||100),gigEarn=weeklyGigIncome(),p=plan(),flow=monthFlow(),topGigs=topGigRecommendations(3);

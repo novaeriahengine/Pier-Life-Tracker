@@ -719,8 +719,8 @@ const AI_BRIDGE_PROVIDERS=[
   {id:"browser_local",label:"Browser-local GGUF / WebGPU later",kind:"local"}
 ];
 const DEFAULT_PROFILE={
-  name:"Pier",dailyMinutes:240,emergencyReserve:300,urgentDays:3,
-  theme:"dark",notifications:false,createdAt:null
+  name:"Pier",dailyMinutes:240,emergencyReserve:300,urgentDays:3,weeklyIncomeTarget:100,
+  theme:"dark",notifications:false,coachNotifications:true,coachNotifyMinutes:60,coachNotifyGigs:true,coachNotifyMoney:true,coachNotifyTasks:true,coachNotifyRelationship:true,createdAt:null
 };
 
 const DATA_COLLECTIONS=["tasks","accounts","transactions","bills","goals","routines","inbox","jobs","shifts","timeEntries","paychecks","household","appointments","shopping","paperTrades","relationshipPlans","timeBlocks","focusSessions","marketWatch","marketCache","learningProgress","legalObligations","assets","assetEvents","sessionLogs","dailyDrafts","goapFeedback","smokeLogs","aiSnapshots","gigPlans","gigAttempts","coachEvents"];
@@ -2810,6 +2810,53 @@ async function testAiBridge(){
     toast("AI bridge responded successfully.");
   }catch(e){toast("Bridge unavailable: "+friendlyError(e),"error")}
 }
+
+function renderCoachNotificationPanel(){
+  const perm=("Notification" in window)?Notification.permission:"unsupported";
+  return '<section class="card pad" style="margin-top:18px"><div class="card-head"><div><h3>Pier coach notifications</h3><div class="small muted">Use Chrome/PWA notifications and avatar nudges so Pier keeps pulling you back to money, tasks and the day plan.</div></div><span class="pill '+(perm==="granted"?"good":perm==="denied"?"must":"")+'">'+esc(String(perm).toUpperCase())+'</span></div><form id="coachNotifyForm"><div class="modal-grid"><div class="field"><label>Nudge frequency while Pier is running</label><select name="minutes"><option value="15">Every 15 minutes</option><option value="30">Every 30 minutes</option><option value="60">Every hour</option><option value="120">Every 2 hours</option><option value="240">Every 4 hours</option></select></div><div class="field"><label>Mode</label><select name="mode"><option value="persistent">Persistent / bother me</option><option value="normal">Normal</option><option value="quiet">Quiet</option></select></div></div><label class="check"><input name="enabled" type="checkbox" '+(S.profile.coachNotifications!==false?'checked':'')+'> Enable Pier coach nudges</label><div class="grid-2"><label class="check"><input name="gigs" type="checkbox" '+(S.profile.coachNotifyGigs!==false?'checked':'')+'> Money / gig reminders</label><label class="check"><input name="money" type="checkbox" '+(S.profile.coachNotifyMoney!==false?'checked':'')+'> Bills / saving / spending</label><label class="check"><input name="tasks" type="checkbox" '+(S.profile.coachNotifyTasks!==false?'checked':'')+'> Important tasks / day plan</label><label class="check"><input name="relationship" type="checkbox" '+(S.profile.coachNotifyRelationship!==false?'checked':'')+'> Relationship reminders</label></div><div class="toolbar" style="margin-top:12px"><button class="btn primary" type="submit">Save notification setup</button><button class="btn" type="button" data-action="request-notifications">Enable Chrome notifications</button><button class="btn ghost" type="button" data-action="test-notification">Send test</button></div></form><div class="reason-box" style="margin-top:12px"><strong>Background note:</strong> while Pier/PWA is running, these reminders can fire on schedule. When the app is fully closed, reliable scheduled notifications require Web Push/FCM or another backend. The service worker is prepared for that later.</div></section>';
+}
+async function saveCoachNotificationSettings(e){
+  e.preventDefault();const fd=new FormData(e.currentTarget);
+  await setDoc(userDoc(),{coachNotifications:fd.get("enabled")==="on",coachNotifyMinutes:num(fd.get("minutes"))||60,coachNotifyMode:fd.get("mode")||"persistent",coachNotifyGigs:fd.get("gigs")==="on",coachNotifyMoney:fd.get("money")==="on",coachNotifyTasks:fd.get("tasks")==="on",coachNotifyRelationship:fd.get("relationship")==="on",updatedAt:serverTimestamp()},{merge:true});
+  localStorage.removeItem("pier-last-coach-notify");toast("Coach notification setup saved.");
+}
+function coachNudgeCandidates(){
+  const out=[],target=num(S.profile.weeklyIncomeTarget||100),gigEarn=weeklyGigIncome(),gap=Math.max(0,target-gigEarn),p=plan(),flow=monthFlow();
+  if(S.profile.coachNotifyTasks!==false){
+    const urgent=p.selected.filter(x=>x.must||daysUntil(x.due)<=1).slice(0,2);
+    urgent.forEach(x=>out.push({score:120+num(x.score),title:"Pier · do this next",body:x.title+(x.reason?" · "+x.reason:""),view:"day",kind:"task"}));
+    const pending=S.dailyDrafts.filter(x=>x.date===today()&&x.status==="pending").length;
+    if(pending)out.push({score:88,title:"Pier · your day is waiting",body:pending+" GOAP block"+(pending===1?"":"s")+" need approval/correction.",view:"day",kind:"task"});
+  }
+  if(S.profile.coachNotifyGigs!==false&&gap>0){
+    const active=S.gigPlans.find(x=>x.status==="active"),g=active?S.gigCatalog.find(x=>x.id===active.gigId):topGigRecommendations(1)[0];
+    if(g)out.push({score:110,title:"Pier · "+money(gap)+" weekly money gap",body:(active?"Continue ":"Try ")+g.title+". Log the result so I learn what actually pays.",view:"gigs",kind:"gig"});
+    else out.push({score:78,title:"Pier · weekly money target",body:money(gap)+" still needed. Open Gigs and finish your setup.",view:"gigs",kind:"gig"});
+  }
+  if(S.profile.coachNotifyMoney!==false){
+    const due=S.bills.filter(b=>b.status!=="paid"&&b.dueDate&&daysUntil(b.dueDate)>=0&&daysUntil(b.dueDate)<=3).sort((a,b)=>daysUntil(a.dueDate)-daysUntil(b.dueDate))[0];
+    if(due)out.push({score:105,title:"Pier · bill coming up",body:(due.name||"Bill")+" · "+money(due.amount)+" · due "+fmtDate(due.dueDate),view:"coach",kind:"money"});
+    if(flow.income-flow.expense<0)out.push({score:72,title:"Pier · spending check",body:"This month is "+money(flow.income-flow.expense)+" net. Open Savings to see where it is going.",view:"savings",kind:"money"});
+    const smoke=smokeSpendMonth();if(smoke>=50)out.push({score:64,title:"Pier · smoking spend",body:money(smoke)+" tracked this month. Open Savings/Smoke Tracker if you want to keep reducing it.",view:"smoking",kind:"money"});
+  }
+  if(S.profile.coachNotifyRelationship!==false){
+    const person=relationshipPerson(),attention=relationshipAttention(person?.id||"");
+    if(attention>=70)out.push({score:60+attention/3,title:"Pier · relationship check",body:(person?.name||"Your partner")+" attention pressure is "+attention+"/100. Plan something small if today allows it.",view:"relationship",kind:"relationship"});
+  }
+  return out.sort((a,b)=>b.score-a.score);
+}
+async function showPierNotification(title,body,data={}){
+  if(!("Notification" in window)||Notification.permission!=="granted")return false;
+  try{
+    const reg=await navigator.serviceWorker?.ready;
+    if(reg){await reg.showNotification(title,{body,tag:data.tag||"pier-coach",renotify:true,icon:"./icon-192.svg",badge:"./icon-192.svg",data:{url:"./",view:data.view||"dashboard"}});return true}
+  }catch(e){console.warn("sw notification",e)}
+  try{new Notification(title,{body});return true}catch{return false}
+}
+async function sendTestNotification(){
+  if(Notification?.permission!=="granted"){await requestNotifications();if(Notification?.permission!=="granted")return}
+  await showPierNotification("Pier is awake","I can nudge you about money, gigs, tasks and your day while Pier is running.",{tag:"pier-test",view:"dashboard"});showBuddyBubble("Notifications are working. I’ll keep you on the plan.");
+}
 function renderSettings(){
   return '<div class="section-title"><div><h1>Settings</h1><p>These values change how Pier decides what comes first.</p></div></div>'+
     '<div class="settings-grid"><section class="card pad"><div class="card-head"><h3>Planner rules</h3></div><form id="settingsForm">'+
@@ -2826,7 +2873,7 @@ function renderSettings(){
       '<div class="setting-row"><div><strong>Firestore</strong><div class="small muted">'+(S.syncError?esc(S.syncError):"Realtime sync active")+'</div></div><span class="pill '+(S.syncError?'must':'good')+'">'+(S.syncError?"SETUP":"LIVE")+'</span></div>'+
       '<div class="split-line"></div><div class="small muted" style="line-height:1.55">If Firestore says permission denied: Firebase Console → Authentication → Sign-in method → enable Email/Password. Then Firestore → Rules → publish the contents of <span class="mono">firestore.rules</span> from this repository.</div>'+
       '<div class="split-line"></div><div class="import-zone"><strong>Life JSON → Firebase</strong><div class="small muted" style="margin-top:5px">Upload one JSON file to merge/update tasks, goals, devices, vehicles, household, work, bills, legal/admin, routines, schedules, relationship plans and GOAP memory across the whole site. Same importKey = update, not duplicate.</div><div class="toolbar" style="margin-top:10px"><button class="btn primary" data-action="private-import">Upload / update Life JSON</button><button class="btn" data-action="daily-regenerate">Generate today&#39;s GOAP draft</button></div></div><div class="split-line"></div><div class="toolbar"><button class="btn primary" data-action="install-pier">Install Pier on this device</button><button class="btn" data-action="export-data">Export JSON</button><button class="btn" data-action="request-notifications">Browser alerts</button><button class="btn danger" data-action="sign-out">Sign out</button></div>'+
-    '</section></div>'+renderAiBridgePanel()+
+    '</section></div>'+renderCoachNotificationPanel()+renderAiBridgePanel()+
     '<section class="card pad" style="margin-top:18px"><div class="card-head"><h3>Market data API</h3><span class="pill blue">MARKETDATA.APP</span></div><div class="grid-2"><div><div class="api-box"><div class="field"><label>API token</label><input id="marketTokenInput" type="password" autocomplete="off" placeholder="Paste your personal MarketData.app token"></div><div class="toolbar"><button class="btn primary" data-action="save-market-token">Save token</button><button class="btn" data-action="test-market-token">Test with AAPL</button><button class="btn danger" data-action="remove-market-token">Remove</button></div></div></div><div><div class="small muted" style="line-height:1.65">The token is saved under your authenticated Firebase account, not inside this public GitHub source. Never paste market API tokens into chat, GitHub issues or code. Because Pier runs in your browser, a signed-in person can inspect their own network requests, so do not share your Pier login. The free provider plan is useful for building/training data but is delayed; the Market Data page shows freshness instead of labeling it live.</div><div style="margin-top:12px"><a class="btn" target="_blank" rel="noopener noreferrer" href="https://www.marketdata.app/">Create / manage MarketData.app account ↗</a></div></div></div></section>'+
     '<section class="card pad" style="margin-top:18px"><div class="card-head"><h3>Data ownership</h3><span class="pill good">YOUR FIREBASE</span></div><div class="toolbar"><button class="btn" data-action="export-training-data">Export market/training dataset</button><button class="btn" data-view="data">Open Training Data</button></div><div class="small muted" style="margin-top:10px">API secrets are excluded from exports.</div></section>'+
     '<section class="card pad" style="margin-top:18px"><div class="card-head"><h3>GOAP learning memory</h3><span class="pill blue">FIREBASE</span></div><div class="goap-memory"><div class="import-stat"><strong>'+S.goapFeedback.length+'</strong>learned actions</div><div class="import-stat"><strong>'+S.goapFeedback.reduce((n,x)=>n+num(x.approvedCount),0)+'</strong>approvals</div><div class="import-stat"><strong>'+S.goapFeedback.reduce((n,x)=>n+num(x.correctedCount),0)+'</strong>corrections</div><div class="import-stat"><strong>'+S.goapFeedback.reduce((n,x)=>n+num(x.rejectedCount),0)+'</strong>rejections</div></div><div class="small muted" style="margin-top:10px;line-height:1.6">Pier stores approve/correct/reject choices in Firebase. Future daily drafts for the same source task, goal or routine move toward the time and duration you actually accepted and get penalized if you repeatedly reject them.</div></section>'+
@@ -2847,6 +2894,7 @@ function bindViewInputs(){
   const af=$("#aiBridgeForm");if(af){af.aiProvider.value=S.profile.aiProvider||"disabled";af.aiProtocol.value=S.profile.aiProtocol||"pier";af.onsubmit=saveAiBridgeSettings}
   const gs=$("#gigSearch");if(gs)gs.oninput=e=>{S.gigSearch=e.target.value;render()};
   const gl=$("#gigLane");if(gl){gl.value=S.gigLane||"all";gl.onchange=e=>{S.gigLane=e.target.value;render()}};
+  const nf=$("#coachNotifyForm");if(nf){nf.minutes.value=String(S.profile.coachNotifyMinutes||60);nf.mode.value=S.profile.coachNotifyMode||"persistent";nf.onsubmit=saveCoachNotificationSettings}
 }
 
 
@@ -3011,6 +3059,7 @@ async function handleAction(action,id,el){
   if(action==="ai-export-pack")return downloadAiDataPack();
   if(action==="ai-test-bridge")return testAiBridge();
   if(action==="request-notifications")return requestNotifications();
+  if(action==="test-notification")return sendTestNotification();
   if(action==="learn-tab"){S.learnTab=id;return render()}
   if(action==="learn-done"){const [track,i]=String(id).split(":");return markLesson(track,num(i))}
   if(action==="paper-practice-stock"){const x=cachedMarket(id),q=x?.quote;if(q)return openPaperTradeModal({instrument:"stock",symbol:id,qty:1,price:q.ask||q.last||q.mid||""})}
@@ -3229,16 +3278,22 @@ function exportData(){
 }
 async function requestNotifications(){
   if(!("Notification" in window))return toast("This browser does not support notifications.","error");
-  const p=await Notification.requestPermission();toast(p==="granted"?"Browser alerts enabled while Pier is open.":"Notification permission was not granted.",p==="granted"?"ok":"error");
+  const p=await Notification.requestPermission();toast(p==="granted"?"Chrome/PWA notifications enabled.":"Notification permission was not granted.",p==="granted"?"ok":"error");
+  if(p==="granted")sendTestNotification();
 }
-function checkNotifications(){
-  if(Notification?.permission!=="granted")return;
-  const key="pier-notify-"+today();if(localStorage.getItem(key))return;
-  const p=plan(),urgent=p.selected.filter(a=>daysUntil(a.due)<=0||a.must).slice(0,3);if(!urgent.length)return;
-  new Notification("Pier: "+urgent.length+" important item"+(urgent.length>1?"s":""),{body:urgent.map(a=>a.title).join(" · ")});
-  localStorage.setItem(key,"1");
+async function checkNotifications(){
+  if(S.profile.coachNotifications===false||!S.user)return;
+  const mode=S.profile.coachNotifyMode||"persistent",base=Math.max(15,num(S.profile.coachNotifyMinutes||60)),minutes=mode==="persistent"?Math.min(base,60):mode==="quiet"?Math.max(base,240):base;
+  const last=num(localStorage.getItem("pier-last-coach-notify")||0);if(Date.now()-last<minutes*60000)return;
+  const choices=coachNudgeCandidates();if(!choices.length)return;
+  const index=num(localStorage.getItem("pier-nudge-index")||0)%Math.min(choices.length,4),n=choices[index];
+  localStorage.setItem("pier-nudge-index",String(index+1));localStorage.setItem("pier-last-coach-notify",String(Date.now()));
+  showBuddyBubble(n.body,12000);
+  if(Notification?.permission==="granted")await showPierNotification(n.title,n.body,{tag:"pier-"+n.kind,view:n.view});
+  await addDoc(subcol("coachEvents"),{kind:"coach_nudge",title:n.title,body:n.body,targetView:n.view,score:n.score,createdAtIso:new Date().toISOString(),...ctxFields(),createdAt:serverTimestamp()}).catch(()=>{});
 }
-setInterval(checkNotifications,10*60*1000);
+setInterval(checkNotifications,5*60*1000);
+setTimeout(checkNotifications,15000);
 setInterval(autoRefreshWatchlist,60*1000);
 setInterval(()=>{if(S.view==="sessions"&&activeSession())render()},30*1000);
 setInterval(()=>{if(["dashboard","mylife","day"].includes(S.view))render()},60*1000);

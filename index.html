@@ -776,7 +776,7 @@ const AI_BRIDGE_PROVIDERS=[
   {id:"browser_local",label:"Browser-local GGUF / WebGPU later",kind:"local"}
 ];
 const DEFAULT_PROFILE={
-  name:"Pier",dailyMinutes:240,emergencyReserve:300,urgentDays:3,weeklyIncomeTarget:100,
+  name:"Pier",dailyMinutes:240,emergencyReserve:300,protectBillsDays:7,urgentDays:3,weeklyIncomeTarget:100,
   theme:"dark",notifications:false,coachNotifications:true,coachNotifyMinutes:60,coachNotifyGigs:true,coachNotifyMoney:true,coachNotifyTasks:true,coachNotifyRelationship:true,createdAt:null
 };
 
@@ -786,7 +786,7 @@ const S={
   tasks:[],accounts:[],transactions:[],bills:[],goals:[],routines:[],inbox:[],
   jobs:[],shifts:[],timeEntries:[],paychecks:[],household:[],appointments:[],shopping:[],paperTrades:[],
   relationshipPlans:[],timeBlocks:[],focusSessions:[],marketWatch:[],marketCache:[],learningProgress:[],legalObligations:[],assets:[],assetEvents:[],sessionLogs:[],dailyDrafts:[],goapFeedback:[],smokeLogs:[],aiSnapshots:[],gigPlans:[],gigAttempts:[],coachEvents:[],
-  stockUniverse:[],stockUniverseLoaded:false,gigCatalog:[],gigCatalogLoaded:false,gigSearch:"",gigLane:"all",stockSearch:"",stockSector:"all",marketTab:"watch",learnTab:"stocks",
+  stockUniverse:[],stockUniverseLoaded:false,gigCatalog:[],gigCatalogLoaded:false,gigSearch:"",gigLane:"all",gigCategory:"all",stockSearch:"",stockSector:"all",marketTab:"watch",learnTab:"stocks",
   all:{},activeProfileId:localStorage.getItem("pierProfile")||"primary",worldMode:localStorage.getItem("pierWorld")||"live",
   unsubs:[],view:"dashboard",syncError:"",taskSearch:"",taskFilter:"open",plan:null,calendarCursor:new Date(),dayCursor:new Date(),relStore:"all",relBudget:550,relSearch:"",
   market:{symbol:"SPY",quote:null,candles:[],chain:[],rate:null,error:"",loading:false,lastFetch:null,hasToken:null,autoBusy:false},dailyDraftBusy:false,dailyDraftTimer:null,aiSnapshotBusy:false,aiSnapshotTimer:null
@@ -1324,8 +1324,8 @@ function gigFitScore(g){
 }
 function gigPlanFor(id){return S.gigPlans.find(x=>x.gigId===id&&x.status!=="done"&&x.status!=="dropped")||null}
 function filteredGigs(){
-  const q=String(S.gigSearch||"").toLowerCase(),lane=S.gigLane||"all";
-  return S.gigCatalog.filter(g=>(lane==="all"||g.lane===lane)&&(!q||(g.title+" "+g.category+" "+(g.skills||[]).join(" ")+" "+(g.platforms||[]).join(" ")).toLowerCase().includes(q))).sort((a,b)=>gigFitScore(b)-gigFitScore(a));
+  const q=String(S.gigSearch||"").toLowerCase(),lane=S.gigLane||"all",cat=S.gigCategory||"all";
+  return S.gigCatalog.filter(g=>(lane==="all"||g.lane===lane)&&(cat==="all"||g.category===cat)&&(!q||(g.title+" "+g.category+" "+(g.skills||[]).join(" ")+" "+(g.platforms||[]).join(" ")).toLowerCase().includes(q))).sort((a,b)=>gigFitScore(b)-gigFitScore(a));
 }
 function topGigRecommendations(limit=5){return filteredGigs().filter(g=>gigRequirementResult(g).unlocked).slice(0,limit)}
 function renderGigRequirements(g){
@@ -1336,12 +1336,12 @@ function renderGigCard(g){
   return '<article class="gig-card '+(!req.unlocked?'blocked ':'')+(plan?'active':'')+'"><div class="card-head"><div><span class="pill '+(g.lane==="fast"?"good":g.lane==="steady"?"blue":"")+'">'+esc(String(g.lane||"build").toUpperCase())+'</span></div><span class="gig-score">FIT '+score+'</span></div><div class="task-title">'+esc(g.title)+'</div><div class="row-meta">'+esc(g.category)+' · est. first money '+num(g.firstMoneyDays)+'d · '+esc(g.confidence||"variable")+' confidence</div><div class="gig-money">'+money(g.weeklyMin)+'–'+money(g.weeklyMax)+'<span class="small muted"> / wk planning range</span></div>'+renderGigRequirements(g)+'<div class="q-meter"><div class="q-track"><div style="width:'+clamp(50+q,0,100)+'%"></div></div><span class="small muted">Q '+q.toFixed(1)+'</span></div><div class="small muted">'+esc((g.platforms||[]).join(" · "))+'</div>'+(req.unlocked?'':'<div class="pill must">Locked: '+esc(req.missing.join(", "))+'</div>')+(plan?'<div class="pill good">ACTIVE · step '+(num(plan.stepIndex)+1)+'</div>':'')+(attempts.length?'<div class="small muted">'+attempts.length+' attempt(s) · net '+money(net)+'</div>':'')+'<div class="toolbar"><button class="btn" data-action="gig-details" data-id="'+g.id+'">Details</button>'+(plan?'<button class="btn primary" data-action="gig-log" data-id="'+g.id+'">Log outcome</button>':req.unlocked?'<button class="btn primary" data-action="gig-start" data-id="'+g.id+'">Start this gig</button>':num(g.setupCost)>Math.max(0,availableMoney())?'<button class="btn" data-action="gig-unlock-plan" data-id="'+g.id+'">Plan the money</button>':'<button class="btn" data-action="gig-setup">Fix requirements</button>')+'</div></article>';
 }
 function renderGigs(){
-  const target=Math.max(25,num(S.profile.weeklyIncomeTarget||100)),earned=weeklyGigIncome(),pct=clamp(earned/target*100,0,100),top=topGigRecommendations(3),active=S.gigPlans.filter(x=>x.status==="active"),rows=filteredGigs().slice(0,60);
-  return '<div class="section-title"><div><h1>Gigs / $'+target+' Week</h1><p>Pier ranks ways to make money from what you already have, then learns from what actually earns, costs, or wastes your time.</p></div><div class="toolbar"><button class="btn" data-action="gig-setup">My gig setup</button><button class="btn primary" data-action="gig-target">Set weekly target</button></div></div>'+
+  const target=Math.max(25,num(S.profile.weeklyIncomeTarget||100)),earned=weeklyGigIncome(),pct=clamp(earned/target*100,0,100),top=topGigRecommendations(3),active=S.gigPlans.filter(x=>x.status==="active"),rows=filteredGigs().slice(0,100),categories=Array.from(new Set(S.gigCatalog.map(g=>g.category))).sort();
+  return '<div class="section-title"><div><h1>Gigs / $'+target+' Week</h1><p>Pier ranks ways to make money from what you already have, then learns from what actually earns, costs, or wastes your time.</p></div><div class="toolbar"><button class="btn" data-action="gig-setup">My gig setup</button><button class="btn primary" data-action="gig-target">Set weekly target</button><button class="btn ghost" data-action="gig-target-quick" data-id="100">$100/wk</button><button class="btn ghost" data-action="gig-target-quick" data-id="200">$200/wk</button></div></div>'+
     '<section class="gig-hero"><div class="eyebrow">WEEKLY EXTRA-INCOME TARGET</div><div class="gig-money" style="font-size:34px">'+money(earned)+' / '+money(target)+'</div><div class="row-meta">'+(earned>=target?"Target reached this week. Keep only the gigs with the best net return.":money(target-earned)+" still needed this week.")+'</div><div class="gig-progress"><div style="width:'+pct+'%"></div></div></section>'+
     '<div class="grid-3" style="margin-top:14px">'+(top.length?top.map(g=>'<section class="card pad"><div class="card-head"><h3>'+esc(g.title)+'</h3><span class="gig-score">FIT '+gigFitScore(g)+'</span></div><div class="row-meta">'+money(g.weeklyMin)+'–'+money(g.weeklyMax)+' / wk · '+num(g.firstMoneyDays)+'d est. first money</div><button class="btn primary wide" style="margin-top:9px" data-action="'+(gigPlanFor(g.id)?"gig-log":"gig-start")+'" data-id="'+g.id+'">'+(gigPlanFor(g.id)?"Log outcome":"Start")+'</button></section>').join(""):'<section class="card pad"><div class="empty">Fill in My gig setup so Pier can unlock better recommendations.</div></section>')+'</div>'+
     '<section class="card pad" style="margin-top:18px"><div class="card-head"><div><h3>Active money experiments</h3><div class="small muted">Do not try 15 things at once. Run a few, measure them, keep what actually pays.</div></div><span class="pill blue">'+active.length+'</span></div><div class="stack">'+(active.length?active.map(p=>{const g=S.gigCatalog.find(x=>x.id===p.gigId);return '<div class="task-row"><div class="row-main"><div class="task-title">'+esc(g?.title||p.title||p.gigId)+'</div><div class="row-meta">Step '+(num(p.stepIndex)+1)+' · Q '+gigQ(p.gigId).toFixed(1)+' · target '+money(p.weeklyTarget||target)+'</div></div><div class="row-actions"><button class="btn" data-action="gig-details" data-id="'+p.gigId+'">Open</button><button class="btn primary" data-action="gig-log" data-id="'+p.gigId+'">Log result</button></div></div>'}).join(""):'<div class="empty">No active gig experiment yet.</div>')+'</div></section>'+
-    '<section class="card pad" style="margin-top:18px"><div class="card-head"><div><h3>Opportunity catalog</h3><div class="small muted">'+S.gigCatalog.length+' ideas · rough planning ranges, never guaranteed earnings</div></div><span class="pill good">$0-first bias</span></div><div class="gig-filter"><input id="gigSearch" value="'+esc(S.gigSearch)+'" placeholder="Search coding, YouTube, testing, remote work…"><select id="gigLane"><option value="all">All lanes</option><option value="fast">Fast money</option><option value="steady">Steadier work</option><option value="foundation">Foundation</option><option value="build">Build / long-term</option></select></div><div class="gig-grid" style="margin-top:12px">'+rows.map(renderGigCard).join("")+'</div></section>';
+    '<section class="card pad" style="margin-top:18px"><div class="card-head"><div><h3>Opportunity catalog</h3><div class="small muted">'+S.gigCatalog.length+' ideas · rough planning ranges, never guaranteed earnings</div></div><span class="pill good">$0-first bias</span></div><div class="gig-filter"><input id="gigSearch" value="'+esc(S.gigSearch)+'" placeholder="Search coding, YouTube, PC builds, resale…"><select id="gigLane"><option value="all">All lanes</option><option value="fast">Fast money</option><option value="steady">Steadier work</option><option value="foundation">Foundation</option><option value="build">Build / long-term</option></select><select id="gigCategory"><option value="all">All categories</option>'+categories.map(x=>'<option value="'+esc(x)+'">'+esc(x)+'</option>').join("")+'</select></div><div class="gig-grid" style="margin-top:12px">'+rows.map(renderGigCard).join("")+'</div></section>';
 }
 function openGigSetup(){
   const skills=Array.isArray(S.profile.gigSkills)?S.profile.gigSkills.join(", "):"";
@@ -3082,6 +3082,7 @@ function bindViewInputs(){
   const af=$("#aiBridgeForm");if(af){af.aiProvider.value=S.profile.aiProvider||"disabled";af.aiProtocol.value=S.profile.aiProtocol||"pier";af.onsubmit=saveAiBridgeSettings}
   const gs=$("#gigSearch");if(gs)gs.oninput=e=>{S.gigSearch=e.target.value;render()};
   const gl=$("#gigLane");if(gl){gl.value=S.gigLane||"all";gl.onchange=e=>{S.gigLane=e.target.value;render()}};
+  const gc=$("#gigCategory");if(gc){gc.value=S.gigCategory||"all";gc.onchange=e=>{S.gigCategory=e.target.value;render()}};
   const nf=$("#coachNotifyForm");if(nf){nf.minutes.value=String(S.profile.coachNotifyMinutes||60);nf.mode.value=S.profile.coachNotifyMode||"persistent";nf.onsubmit=saveCoachNotificationSettings}
 }
 
@@ -3266,6 +3267,7 @@ async function handleAction(action,id,el){
   if(action==="add-savings-goal")return openGoalModal({kind:"money",name:"Savings goal",priority:3,target:500,nextAction:"Set aside money toward this goal",nextActionMinutes:10,plannerEnabled:true});
   if(action==="gig-setup")return openGigSetup();
   if(action==="gig-target")return openGigTarget();
+  if(action==="gig-target-quick")return setDoc(userDoc(),{weeklyIncomeTarget:Math.max(25,num(id)||100),updatedAt:serverTimestamp()},{merge:true}).then(()=>toast("Weekly extra-income target set to "+money(id)+"."));
   if(action==="gig-details")return openGigDetails(id);
   if(action==="gig-start")return startGig(id);
   if(action==="gig-unlock-plan")return createGigUnlockPlan(id);

@@ -503,6 +503,28 @@ tr:last-child td{border-bottom:0}
   .mobile-section-rail::-webkit-scrollbar{display:none}
   .mobile-section-rail .btn{flex:0 0 auto;min-height:40px;padding:9px 11px;border-radius:12px;font-size:10px}
 }
+
+/* Pier v3.1 money/gig engine */
+.gig-hero{padding:18px;border:1px solid var(--line);border-radius:18px;background:linear-gradient(135deg,rgba(79,209,165,.09),rgba(101,183,255,.06)),var(--panel)}
+.gig-progress{height:12px;border-radius:999px;background:var(--panel3);overflow:hidden;margin-top:10px}
+.gig-progress>div{height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));border-radius:999px}
+.gig-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:11px}
+.gig-card{border:1px solid var(--line);border-radius:15px;background:var(--panel2);padding:14px;display:flex;flex-direction:column;gap:9px}
+.gig-card.blocked{opacity:.68}
+.gig-card.active{border-color:rgba(79,209,165,.42);background:rgba(79,209,165,.04)}
+.gig-money{font-size:20px;font-weight:950;letter-spacing:-.04em}
+.gig-score{font-size:10px;font-weight:900;padding:4px 8px;border-radius:999px;background:rgba(101,183,255,.08);border:1px solid rgba(101,183,255,.28)}
+.gig-reqs{display:flex;flex-wrap:wrap;gap:5px}
+.gig-req{font-size:9px;padding:3px 7px;border:1px solid var(--line);border-radius:999px;color:var(--muted)}
+.gig-req.ok{color:var(--ok);border-color:rgba(79,209,165,.28)}
+.gig-req.bad{color:var(--danger);border-color:rgba(255,107,107,.28)}
+.q-meter{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center}
+.q-track{height:8px;border-radius:999px;background:var(--panel3);overflow:hidden}
+.q-track>div{height:100%;border-radius:999px;background:var(--accent2)}
+.gig-filter{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.gig-filter input{min-width:220px;flex:1}
+@media(max-width:1100px){.gig-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:820px){.gig-grid{grid-template-columns:1fr}.gig-card{padding:13px}.gig-filter{display:grid;grid-template-columns:1fr}.gig-filter input,.gig-filter select{width:100%;min-width:0}.gig-hero{padding:14px}}
 </style>
 </head>
 <body>
@@ -1103,6 +1125,139 @@ function renderMyLife(){
     '<section class="card pad" style="margin-top:18px"><div class="card-head"><h3>Active goals & projects</h3><span class="pill blue">'+S.goals.filter(g=>g.status!=="done").length+'</span></div><div class="profile-grid">'+S.goals.filter(g=>g.status!=="done").slice(0,12).map(g=>'<div class="goal-card"><div class="goal-title">'+esc(g.name)+'</div><div class="row-meta">P'+num(g.priority||3)+(g.deadline?' · '+fmtDate(g.deadline):'')+'</div><div class="small muted" style="margin-top:7px">'+esc(g.nextAction||"No next action")+'</div></div>').join("")+'</div></section>';
 }
 
+
+function weekStartKey(){
+  const d=new Date(),day=d.getDay(),diff=(day+6)%7;d.setDate(d.getDate()-diff);d.setHours(0,0,0,0);return d.toISOString().slice(0,10)
+}
+function weeklyGigIncome(){
+  const start=weekStartKey();return S.gigAttempts.filter(x=>String(x.date||"")>=start).reduce((n,x)=>n+num(x.earned)-num(x.refunded||0),0)
+}
+function gigSkills(){
+  const configured=Array.isArray(S.profile.gigSkills)?S.profile.gigSkills.map(x=>String(x).toLowerCase()):[];
+  const hay=(S.assets.map(x=>(x.name||"")+" "+(x.specs||"")).join(" ")+" "+S.goals.map(x=>(x.name||"")+" "+(x.nextAction||"")).join(" ")+" "+S.jobs.map(x=>(x.name||"")+" "+(x.notes||"")).join(" ")).toLowerCase();
+  const inferred=[];
+  if(/code|engine|firebase|javascript|c\+\+|roblox|software|developer/.test(hay))inferred.push("coding","firebase","web","game design","testing","tech support");
+  if(/sales|business|outreach|fugth/.test(hay))inferred.push("sales");
+  if(/concierge|front desk|security/.test(hay))inferred.push("concierge","customer service","communication");
+  return Array.from(new Set([...configured,...inferred]));
+}
+function gigCapabilities(){
+  const skills=gigSkills(),assets=S.assets.map(x=>String(x.kind||"").toLowerCase());
+  return {
+    phone:assets.includes("phone")||true,
+    laptop:assets.includes("laptop"),
+    internet:navigator.onLine,
+    quietSpace:!!S.profile.gigQuietSpace,
+    coding:skills.some(x=>["coding","firebase","web","javascript","c++","game design"].includes(x)),
+    sales:skills.includes("sales"),
+    organization:skills.includes("organization")||skills.includes("concierge"),
+    communication:skills.includes("communication")||skills.includes("customer service")||skills.includes("concierge"),
+    customerService:skills.includes("customer service")||skills.includes("concierge"),
+    games:skills.includes("game design")||skills.includes("games"),
+    language:skills.includes("language"),
+    teaching:skills.includes("teaching"),
+    research:skills.includes("research")||skills.includes("organization"),
+    content:skills.includes("content"),
+    voice:skills.includes("voice"),
+    concierge:skills.includes("concierge"),
+    "game design":skills.includes("game design"),
+    "tech support":skills.includes("tech support"),
+    testing:skills.includes("testing"),
+    web:skills.includes("web")||skills.includes("coding"),
+    Firebase:skills.includes("firebase")||skills.includes("coding"),
+    JavaScript:skills.includes("javascript")||skills.includes("coding")
+  };
+}
+function gigRequirementResult(g){
+  const caps=gigCapabilities(),missing=[];
+  for(const r of (g.requirements||[])){
+    const key=String(r);const low=key.toLowerCase();
+    if(["phone","laptop","internet","quietspace","coding","sales","organization","communication","games","language","teaching","research","content","voice","concierge","testing","web"].includes(low)){
+      const mapKey=low==="quietspace"?"quietSpace":low;
+      if(!caps[mapKey])missing.push(key);
+    }
+  }
+  if(num(g.setupCost)>Math.max(0,availableMoney()))missing.push("needs "+money(g.setupCost)+" setup cash");
+  return {unlocked:missing.length===0,missing};
+}
+function gigAttemptsFor(id){return S.gigAttempts.filter(x=>x.gigId===id)}
+function gigQ(id){
+  const rows=gigAttemptsFor(id).slice().sort((a,b)=>String(a.date||"").localeCompare(String(b.date||"")));
+  let q=0;const alpha=.25;
+  for(const x of rows){
+    const net=num(x.earned)-num(x.cost),timePenalty=Math.max(0,num(x.minutes)/60*2),leadBonus=Math.min(10,num(x.leads)*1.5),reward=net-timePenalty+leadBonus;
+    q=q+alpha*(reward-q);
+  }
+  return q;
+}
+function gigFitScore(g){
+  const r=gigRequirementResult(g);let score=r.unlocked?55:10;
+  const lane=g.lane||"build";if(lane==="fast")score+=20;else if(lane==="steady")score+=14;else if(lane==="foundation")score+=8;else score+=4;
+  score+=Math.max(0,20-num(g.firstMoneyDays||30));
+  if(num(g.weeklyMin)>=100)score+=10;
+  if(num(g.setupCost)===0)score+=8;
+  score+=clamp(gigQ(g.id)/5,-20,30);
+  if(weeklyGigIncome()<num(S.profile.weeklyIncomeTarget||100))score+=10;
+  return Math.round(score);
+}
+function gigPlanFor(id){return S.gigPlans.find(x=>x.gigId===id&&x.status!=="done"&&x.status!=="dropped")||null}
+function filteredGigs(){
+  const q=String(S.gigSearch||"").toLowerCase(),lane=S.gigLane||"all";
+  return S.gigCatalog.filter(g=>(lane==="all"||g.lane===lane)&&(!q||(g.title+" "+g.category+" "+(g.skills||[]).join(" ")+" "+(g.platforms||[]).join(" ")).toLowerCase().includes(q))).sort((a,b)=>gigFitScore(b)-gigFitScore(a));
+}
+function topGigRecommendations(limit=5){return filteredGigs().filter(g=>gigRequirementResult(g).unlocked).slice(0,limit)}
+function renderGigRequirements(g){
+  const caps=gigCapabilities();return '<div class="gig-reqs">'+(g.requirements||[]).map(r=>{const low=String(r).toLowerCase(),mapKey=low==="quietspace"?"quietSpace":low,ok=!["phone","laptop","internet","quietspace","coding","sales","organization","communication","games","language","teaching","research","content","voice","concierge","testing","web"].includes(low)||!!caps[mapKey];return '<span class="gig-req '+(ok?"ok":"bad")+'">'+(ok?"✓ ":"× ")+esc(r)+'</span>'}).join("")+(num(g.setupCost)?'<span class="gig-req '+(num(g.setupCost)<=Math.max(0,availableMoney())?"ok":"bad")+'">'+money(g.setupCost)+' setup</span>':'<span class="gig-req ok">$0 setup</span>')+'</div>';
+}
+function renderGigCard(g){
+  const req=gigRequirementResult(g),plan=gigPlanFor(g.id),q=gigQ(g.id),score=gigFitScore(g),attempts=gigAttemptsFor(g.id),net=attempts.reduce((n,x)=>n+num(x.earned)-num(x.cost),0);
+  return '<article class="gig-card '+(!req.unlocked?'blocked ':'')+(plan?'active':'')+'"><div class="card-head"><div><span class="pill '+(g.lane==="fast"?"good":g.lane==="steady"?"blue":"")+'">'+esc(String(g.lane||"build").toUpperCase())+'</span></div><span class="gig-score">FIT '+score+'</span></div><div class="task-title">'+esc(g.title)+'</div><div class="row-meta">'+esc(g.category)+' · est. first money '+num(g.firstMoneyDays)+'d · '+esc(g.confidence||"variable")+' confidence</div><div class="gig-money">'+money(g.weeklyMin)+'–'+money(g.weeklyMax)+'<span class="small muted"> / wk planning range</span></div>'+renderGigRequirements(g)+'<div class="q-meter"><div class="q-track"><div style="width:'+clamp(50+q,0,100)+'%"></div></div><span class="small muted">Q '+q.toFixed(1)+'</span></div><div class="small muted">'+esc((g.platforms||[]).join(" · "))+'</div>'+(req.unlocked?'':'<div class="pill must">Locked: '+esc(req.missing.join(", "))+'</div>')+(plan?'<div class="pill good">ACTIVE · step '+(num(plan.stepIndex)+1)+'</div>':'')+(attempts.length?'<div class="small muted">'+attempts.length+' attempt(s) · net '+money(net)+'</div>':'')+'<div class="toolbar"><button class="btn" data-action="gig-details" data-id="'+g.id+'">Details</button>'+(plan?'<button class="btn primary" data-action="gig-log" data-id="'+g.id+'">Log outcome</button>':req.unlocked?'<button class="btn primary" data-action="gig-start" data-id="'+g.id+'">Start this gig</button>':'<button class="btn" data-action="gig-setup">Fix requirements</button>')+'</div></article>';
+}
+function renderGigs(){
+  const target=Math.max(25,num(S.profile.weeklyIncomeTarget||100)),earned=weeklyGigIncome(),pct=clamp(earned/target*100,0,100),top=topGigRecommendations(3),active=S.gigPlans.filter(x=>x.status==="active"),rows=filteredGigs().slice(0,60);
+  return '<div class="section-title"><div><h1>Gigs / $'+target+' Week</h1><p>Pier ranks ways to make money from what you already have, then learns from what actually earns, costs, or wastes your time.</p></div><div class="toolbar"><button class="btn" data-action="gig-setup">My gig setup</button><button class="btn primary" data-action="gig-target">Set weekly target</button></div></div>'+
+    '<section class="gig-hero"><div class="eyebrow">WEEKLY EXTRA-INCOME TARGET</div><div class="gig-money" style="font-size:34px">'+money(earned)+' / '+money(target)+'</div><div class="row-meta">'+(earned>=target?"Target reached this week. Keep only the gigs with the best net return.":money(target-earned)+" still needed this week.")+'</div><div class="gig-progress"><div style="width:'+pct+'%"></div></div></section>'+
+    '<div class="grid-3" style="margin-top:14px">'+(top.length?top.map(g=>'<section class="card pad"><div class="card-head"><h3>'+esc(g.title)+'</h3><span class="gig-score">FIT '+gigFitScore(g)+'</span></div><div class="row-meta">'+money(g.weeklyMin)+'–'+money(g.weeklyMax)+' / wk · '+num(g.firstMoneyDays)+'d est. first money</div><button class="btn primary wide" style="margin-top:9px" data-action="'+(gigPlanFor(g.id)?"gig-log":"gig-start")+'" data-id="'+g.id+'">'+(gigPlanFor(g.id)?"Log outcome":"Start")+'</button></section>').join(""):'<section class="card pad"><div class="empty">Fill in My gig setup so Pier can unlock better recommendations.</div></section>')+'</div>'+
+    '<section class="card pad" style="margin-top:18px"><div class="card-head"><div><h3>Active money experiments</h3><div class="small muted">Do not try 15 things at once. Run a few, measure them, keep what actually pays.</div></div><span class="pill blue">'+active.length+'</span></div><div class="stack">'+(active.length?active.map(p=>{const g=S.gigCatalog.find(x=>x.id===p.gigId);return '<div class="task-row"><div class="row-main"><div class="task-title">'+esc(g?.title||p.title||p.gigId)+'</div><div class="row-meta">Step '+(num(p.stepIndex)+1)+' · Q '+gigQ(p.gigId).toFixed(1)+' · target '+money(p.weeklyTarget||target)+'</div></div><div class="row-actions"><button class="btn" data-action="gig-details" data-id="'+p.gigId+'">Open</button><button class="btn primary" data-action="gig-log" data-id="'+p.gigId+'">Log result</button></div></div>'}).join(""):'<div class="empty">No active gig experiment yet.</div>')+'</div></section>'+
+    '<section class="card pad" style="margin-top:18px"><div class="card-head"><div><h3>Opportunity catalog</h3><div class="small muted">'+S.gigCatalog.length+' ideas · rough planning ranges, never guaranteed earnings</div></div><span class="pill good">$0-first bias</span></div><div class="gig-filter"><input id="gigSearch" value="'+esc(S.gigSearch)+'" placeholder="Search coding, YouTube, testing, remote work…"><select id="gigLane"><option value="all">All lanes</option><option value="fast">Fast money</option><option value="steady">Steadier work</option><option value="foundation">Foundation</option><option value="build">Build / long-term</option></select></div><div class="gig-grid" style="margin-top:12px">'+rows.map(renderGigCard).join("")+'</div></section>';
+}
+function openGigSetup(){
+  const skills=Array.isArray(S.profile.gigSkills)?S.profile.gigSkills.join(", "):"";
+  showModal("My gig setup",'<form><div class="field"><label>Skills / strengths (comma separated)</label><input name="skills" value="'+esc(skills)+'" placeholder="coding, sales, content, language, teaching, research"></div><label class="check"><input name="quietSpace" type="checkbox" '+(S.profile.gigQuietSpace?'checked':'')+'> I have a reasonably quiet place for calls/recording</label><div class="field"><label>Hours I can put into extra income each week</label><input name="hours" type="number" min="1" max="80" value="'+num(S.profile.gigHoursPerWeek||10)+'"></div><div class="small muted">Pier also detects basic capabilities from your saved devices, work, goals and online status. Add only skills you can actually perform.</div><div class="modal-foot"><button class="btn ghost" type="button" id="cancelModalBtn">Cancel</button><button class="btn primary" type="submit">Save setup</button></div></form>',async fd=>{await setDoc(userDoc(),{gigSkills:fd.get("skills").split(",").map(x=>x.trim().toLowerCase()).filter(Boolean),gigQuietSpace:fd.get("quietSpace")==="on",gigHoursPerWeek:num(fd.get("hours"))||10,updatedAt:serverTimestamp()},{merge:true});toast("Gig setup saved.")});$("#cancelModalBtn").onclick=closeModal;
+}
+function openGigTarget(){
+  showModal("Weekly extra-income target",'<form><div class="field"><label>Target per week</label><input name="target" type="number" min="25" step="5" value="'+num(S.profile.weeklyIncomeTarget||100)+'"></div><div class="small muted">This target drives Gig ranking and coach nudges. It is a planning target, not a promise that the gigs will pay it.</div><div class="modal-foot"><button class="btn ghost" type="button" id="cancelModalBtn">Cancel</button><button class="btn primary" type="submit">Save target</button></div></form>',async fd=>{await setDoc(userDoc(),{weeklyIncomeTarget:Math.max(25,num(fd.get("target"))||100),updatedAt:serverTimestamp()},{merge:true});toast("Weekly money target saved.")});$("#cancelModalBtn").onclick=closeModal;
+}
+function openGigDetails(id){
+  const g=S.gigCatalog.find(x=>x.id===id);if(!g)return;
+  const req=gigRequirementResult(g),plan=gigPlanFor(id);
+  showModal(g.title,'<div class="money-hero">'+metric("Fit",gigFitScore(g),"Higher = better match")+metric("Q value",gigQ(id).toFixed(1),"Learns from outcomes")+metric("Weekly range",money(g.weeklyMin)+"–"+money(g.weeklyMax),"Planning estimate")+metric("First money",num(g.firstMoneyDays)+"d","Rough estimate")+'</div><div class="card pad" style="margin-top:12px"><h3>Requirements</h3>'+renderGigRequirements(g)+'</div><div class="card pad" style="margin-top:12px"><h3>Start-to-finish steps</h3><div class="stack">'+(g.steps||[]).map((s,i)=>'<div class="task-row"><div class="plan-num">'+(i+1)+'</div><div class="row-main"><div class="task-title">'+esc(s)+'</div></div></div>').join("")+'</div></div><div class="reason-box" style="margin-top:12px"><strong>Platforms/examples:</strong> '+esc((g.platforms||[]).join(" · "))+'<br><span class="small muted">Availability, eligibility, fees, screening and demand vary. Never pay someone just to access a “job.”</span></div><div class="modal-foot"><button class="btn ghost" type="button" id="cancelModalBtn">Close</button>'+(plan?'<button class="btn primary" type="button" id="gigOutcomeBtn">Log outcome</button>':req.unlocked?'<button class="btn primary" type="button" id="gigStartBtn">Start experiment</button>':'')+'</div>');
+  $("#cancelModalBtn").onclick=closeModal;if($("#gigStartBtn"))$("#gigStartBtn").onclick=()=>{closeModal();startGig(id)};if($("#gigOutcomeBtn"))$("#gigOutcomeBtn").onclick=()=>{closeModal();openGigOutcome(id)};
+}
+async function startGig(id){
+  const g=S.gigCatalog.find(x=>x.id===id);if(!g)return;const req=gigRequirementResult(g);if(!req.unlocked)return toast("Locked: "+req.missing.join(", "),"error");
+  const existing=gigPlanFor(id);if(existing)return openGigDetails(id);
+  const now=new Date().toISOString(),ref=await addDoc(subcol("gigPlans"),{gigId:id,title:g.title,status:"active",stepIndex:0,weeklyTarget:num(S.profile.weeklyIncomeTarget||100),qAtStart:gigQ(id),createdAtIso:now,updatedAtIso:now,...ctxFields(),createdAt:serverTimestamp()});
+  await addDoc(subcol("tasks"),{title:"Gig: "+g.title+" — "+(g.steps?.[0]||"start"),priority:4,must:false,dueAt:"",estimateMin:Math.max(15,Math.min(180,num(g.minutes||60))),moneyCost:num(g.setupCost),category:"Gig / Income",plannerEnabled:true,lifeGroup:"gig:"+id,gigPlanId:ref.id,gigId:id,status:"open",...ctxFields(),createdAt:serverTimestamp()});
+  await addDoc(subcol("coachEvents"),{kind:"gig_started",gigId:id,title:g.title,createdAtIso:now,...ctxFields(),createdAt:serverTimestamp()});
+  toast("Gig experiment started and added to your planner.");
+}
+function openGigOutcome(id){
+  const g=S.gigCatalog.find(x=>x.id===id),plan=gigPlanFor(id);if(!g||!plan)return;
+  const accounts=S.accounts.map(a=>'<option value="'+a.id+'">'+esc(a.name)+' · '+money(balances()[a.id]||0)+'</option>').join("");
+  showModal("Log gig outcome · "+g.title,'<form><div class="modal-grid"><div class="field"><label>Money earned</label><input name="earned" type="number" min="0" step=".01" value="0"></div><div class="field"><label>Money spent</label><input name="cost" type="number" min="0" step=".01" value="0"></div><div class="field"><label>Minutes spent</label><input name="minutes" type="number" min="0" value="'+num(g.minutes||60)+'"></div><div class="field"><label>Leads/replies generated</label><input name="leads" type="number" min="0" value="0"></div></div><div class="field"><label>Result</label><select name="result"><option value="worked">Worked / made progress</option><option value="no_money">No money yet</option><option value="failed">Bad fit / failed</option><option value="completed">Completed / pause it</option></select></div>'+(accounts?'<label class="check"><input name="recordMoney" type="checkbox" checked> Add earned/spent amounts to Pier Money</label><div class="field"><label>Money account</label><select name="accountId">'+accounts+'</select></div>':'')+'<div class="field"><label>What happened?</label><textarea name="notes" placeholder="What worked, what failed, what should Pier learn?"></textarea></div><div class="modal-foot"><button class="btn ghost" type="button" id="cancelModalBtn">Cancel</button><button class="btn primary" type="submit">Save outcome</button></div></form>',async fd=>{
+    const earned=num(fd.get("earned")),cost=num(fd.get("cost")),minutes=num(fd.get("minutes")),leads=num(fd.get("leads")),result=fd.get("result"),date=today(),now=new Date().toISOString();
+    await addDoc(subcol("gigAttempts"),{gigId:id,gigPlanId:plan.id,date,earned,cost,minutes,leads,result,notes:fd.get("notes").trim(),qBefore:gigQ(id),createdAtIso:now,...ctxFields(),createdAt:serverTimestamp()});
+    if(fd.get("recordMoney")==="on"&&fd.get("accountId")){
+      if(earned>0)await addDoc(subcol("transactions"),{type:"income",amount:earned,accountId:fd.get("accountId"),date,description:"Gig: "+g.title,category:"Side Gig",gigId:id,...ctxFields(),createdAt:serverTimestamp()});
+      if(cost>0)await addDoc(subcol("transactions"),{type:"expense",amount:cost,accountId:fd.get("accountId"),date,description:"Gig cost: "+g.title,category:"Business",gigId:id,...ctxFields(),createdAt:serverTimestamp()});
+    }
+    const nextStep=Math.min((g.steps||[]).length-1,num(plan.stepIndex)+1),done=result==="completed"||result==="failed";
+    await updateDoc(subdoc("gigPlans",plan.id),{stepIndex:Math.max(0,nextStep),status:done?"done":"active",lastEarned:earned,lastCost:cost,lastResult:result,updatedAtIso:now,updatedAt:serverTimestamp()});
+    await addDoc(subcol("coachEvents"),{kind:"gig_outcome",gigId:id,title:g.title,earned,cost,minutes,leads,result,reward:earned-cost-Math.max(0,minutes/60*2)+Math.min(10,leads*1.5),createdAtIso:now,...ctxFields(),createdAt:serverTimestamp()});
+    toast("Outcome saved. Pier's money Q-score will adjust.");
+  });$("#cancelModalBtn").onclick=closeModal;
+}
 /* SAVINGS */
 function categorySpendForMonth(){
   const ym=today().slice(0,7),map={};
@@ -2648,6 +2803,8 @@ function bindViewInputs(){
   const ss=$("#stockSector");if(ss){ss.value=S.stockSector;ss.onchange=e=>{S.stockSector=e.target.value;render()}};
   const ps=$("#practiceShares"),pm=$("#practiceMove");if(ps&&pm){ps.oninput=updatePracticeMath;pm.oninput=updatePracticeMath;updatePracticeMath()}
   const af=$("#aiBridgeForm");if(af){af.aiProvider.value=S.profile.aiProvider||"disabled";af.aiProtocol.value=S.profile.aiProtocol||"pier";af.onsubmit=saveAiBridgeSettings}
+  const gs=$("#gigSearch");if(gs)gs.oninput=e=>{S.gigSearch=e.target.value;render()};
+  const gl=$("#gigLane");if(gl){gl.value=S.gigLane||"all";gl.onchange=e=>{S.gigLane=e.target.value;render()}};
 }
 
 
@@ -2672,6 +2829,11 @@ async function handleAction(action,id,el){
   if(action==="license-setup")return openLicenseSetup();
   if(action==="license-check")return checkLicenseStatus();
   if(action==="add-savings-goal")return openGoalModal({kind:"money",name:"Savings goal",priority:3,target:500,nextAction:"Set aside money toward this goal",nextActionMinutes:10,plannerEnabled:true});
+  if(action==="gig-setup")return openGigSetup();
+  if(action==="gig-target")return openGigTarget();
+  if(action==="gig-details")return openGigDetails(id);
+  if(action==="gig-start")return startGig(id);
+  if(action==="gig-log")return openGigOutcome(id);
   if(action==="smoke-start")return startSmokeSession();
   if(action==="smoke-log")return logSmokeManual();
   if(action==="smoke-purchase")return openSmokePurchase();

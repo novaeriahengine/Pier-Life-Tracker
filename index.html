@@ -595,6 +595,24 @@ tr:last-child td{border-bottom:0}
     touch-action:pan-x pan-y pinch-zoom!important;
   }
 }
+
+/* Pier buddy movement, petting, mood and stats */
+.pier-buddy-dock{transition:transform 2.8s cubic-bezier(.22,.75,.25,1);will-change:transform}
+.pier-buddy{touch-action:none;user-select:none;-webkit-user-select:none}
+.pier-buddy.petted{animation:buddyPet .42s ease}
+@keyframes buddyPet{0%{scale:1}45%{scale:1.16;rotate:-5deg}75%{scale:.96;rotate:4deg}100%{scale:1;rotate:0}}
+.pier-buddy.mood-happy .buddy-mouth{width:21px;left:22px;border-bottom-width:4px}
+.pier-buddy.mood-focused .buddy-mouth{width:15px;left:25px;border-bottom-width:2px}
+.pier-buddy.mood-concerned .buddy-mouth{border-bottom:0;border-top:3px solid rgba(6,19,29,.78);border-radius:50% 50% 0 0;top:47px}
+.pier-buddy.mood-stressed .buddy-mouth{width:13px;height:6px;left:26px;border:2px solid rgba(6,19,29,.78);border-radius:50%;top:44px}
+.pier-buddy.mood-sleepy .buddy-eye{height:4px;top:28px}.pier-buddy.mood-sleepy .buddy-eye i{display:none}
+.buddy-stats{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
+.buddy-stat{padding:9px;border:1px solid var(--line);border-radius:11px;background:var(--panel2)}
+.buddy-stat strong{font-size:18px}
+.buddy-stat-track{height:6px;border-radius:999px;background:var(--panel3);overflow:hidden;margin-top:5px}
+.buddy-stat-track>div{height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));border-radius:999px}
+.buddy-mood-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+@media(max-width:820px){.pier-buddy-dock{transition-duration:2.2s}.buddy-stats{grid-template-columns:repeat(2,1fr)}}
 </style>
 </head>
 <body>
@@ -955,7 +973,7 @@ $("#quickAddBtn").onclick=()=>openTaskModal();
 $("#runPlannerBtn").onclick=()=>{S.plan=generatePlan();toast("Plan rebuilt.");render()};
 
 function refresh(){
-  $("#avatar").textContent=firstLetter();applyBuddySkin();initBuddyMotion();S.plan=generatePlan();
+  $("#avatar").textContent=firstLetter();applyBuddySkin();applyBuddyMood();initBuddyMotion();S.plan=generatePlan();
   if($("#appShell").classList.contains("hidden"))return;
   render();
 }
@@ -3052,6 +3070,36 @@ function personalityLine(kind,text){
   if(p==="money-coach")return text;
   return text;
 }
+
+function buddyStats(){
+  const flow=monthFlow(),target=Math.max(25,num(S.profile.weeklyIncomeTarget||100)),earned=weeklyGigIncome(),activeGig=S.gigPlans.some(x=>x.status==="active");
+  const completed7=S.tasks.filter(t=>t.status==="done"&&t.completedAt&&Date.now()-Date.parse(t.completedAt)<7*86400000).length;
+  const overdue=overdueCount(),unpaidDue=S.bills.filter(b=>b.status!=="paid"&&b.dueDate&&daysUntil(b.dueDate)<0).length;
+  const moneyScore=clamp(Math.round(48+(flow.income-flow.expense)/(target||100)*18+(availableMoney()>=0?12:-18)-(unpaidDue*8)),0,100);
+  const incomeScore=clamp(Math.round((earned/target)*65+(S.shifts.some(x=>x.date>=today())?15:0)+(activeGig?15:0)+Math.min(10,S.gigAttempts.filter(x=>num(x.earned)>0).length*2)),0,100);
+  const executionScore=clamp(Math.round(55+completed7*6-overdue*9-S.dailyDrafts.filter(x=>x.date===today()&&x.status==="pending").length*3),0,100);
+  const stabilityScore=clamp(Math.round(70-(unpaidDue*15)-(String(S.profile.licenseStatus)==="suspended"?12:0)+(totalBalance()>=num(S.profile.emergencyReserve)?15:0)),0,100);
+  const skillCount=Math.max(1,gigSkills().length),growthScore=clamp(35+Math.min(45,skillCount*5)+Math.min(20,S.gigAttempts.length*2),0,100);
+  const overall=Math.round(moneyScore*.25+incomeScore*.28+executionScore*.22+stabilityScore*.15+growthScore*.10);
+  return {money:moneyScore,income:incomeScore,execution:executionScore,stability:stabilityScore,growth:growthScore,overall,completed7,overdue};
+}
+function autoBuddyMood(){
+  const s=buddyStats(),manual=avatarProfile().avatarMoodMode||"auto";
+  if(manual!=="auto")return manual;
+  if(s.overall>=78)return "happy";
+  if(s.overall>=60)return "focused";
+  if(s.overall>=40)return "concerned";
+  return "stressed";
+}
+function applyBuddyMood(){
+  const b=$("#pierBuddy");if(!b)return;
+  ["happy","focused","concerned","stressed","sleepy"].forEach(x=>b.classList.remove("mood-"+x));
+  b.classList.add("mood-"+autoBuddyMood());
+}
+function buddyStatCards(){
+  const s=buddyStats(),rows=[["Life score",s.overall],["Income",s.income],["Money",s.money],["Execution",s.execution],["Stability",s.stability],["Skills/growth",s.growth]];
+  return '<div class="buddy-stats">'+rows.map(([n,v])=>'<div class="buddy-stat"><div class="small muted">'+esc(n)+'</div><strong>'+v+'</strong><div class="buddy-stat-track"><div style="width:'+v+'%"></div></div></div>').join("")+'</div>';
+}
 function basicCoachInsight(prompt=""){
   const q=String(prompt||"").toLowerCase(),target=num(S.profile.weeklyIncomeTarget||100),gigEarn=weeklyGigIncome(),p=plan(),flow=monthFlow(),topGigs=topGigRecommendations(3);
   if(/gig|money|income|cash|earn|job|work/.test(q)){
@@ -3112,6 +3160,7 @@ async function buddyRespond(prompt,display=true){
   speakBuddy(response);return response;
 }
 function showBuddyBubble(text,ms=9000){
+  const dock=$("#pierBuddyDock");if(dock){dock.style.transform="translate(0px,0px)";dock.dataset.homeUntil=String(Date.now()+ms+1500)}
   const b=$("#pierBuddyBubble");if(!b)return;b.textContent=text;b.classList.remove("hidden");clearTimeout(showBuddyBubble.t);showBuddyBubble.t=setTimeout(()=>b.classList.add("hidden"),ms);
 }
 function renderBuddyNav(){
@@ -3120,7 +3169,7 @@ function renderBuddyNav(){
 }
 function openBuddy(){
   const cp=avatarProfile(),top=topGigRecommendations(1)[0],gap=Math.max(0,num(S.profile.weeklyIncomeTarget||100)-weeklyGigIncome());
-  showModal(buddyName()+' · '+(cp.avatarPersonality||"money coach"),'<div class="buddy-chat"><div class="buddy-profile"><div class="buddy-mini-face">'+esc((buddyName()||"P").charAt(0).toUpperCase())+'</div><div><strong>'+esc(buddyName())+'</strong><div class="small muted">'+esc(cp.avatarPersonality||"money-coach")+' · '+esc(currentProfile().name||"profile")+' · '+esc(S.worldMode.toUpperCase())+'</div></div><button class="btn ghost" type="button" id="buddySettingsBtn" style="margin-left:auto">Customize</button></div><div class="reason-box">Weekly money gap: <strong>'+money(gap)+'</strong>'+(top?' · Best unlocked gig: <strong>'+esc(top.title)+'</strong>':'')+'</div><div id="buddyChatLog" class="buddy-chat-log"><div class="buddy-msg pier">'+esc(basicCoachInsight(""))+'</div></div><form id="buddyChatForm" class="quick-capture"><input name="prompt" autocomplete="off" placeholder="Ask Pier about money, today, gigs, savings…"><button class="btn primary">Ask</button></form><div class="small muted">Navigation</div>'+renderBuddyNav()+'</div>');
+  showModal(buddyName()+' · '+(cp.avatarPersonality||"money coach"),'<div class="buddy-chat"><div class="buddy-profile"><div class="buddy-mini-face">'+esc((buddyName()||"P").charAt(0).toUpperCase())+'</div><div><strong>'+esc(buddyName())+'</strong><div class="small muted">'+esc(cp.avatarPersonality||"money-coach")+' · '+esc(currentProfile().name||"profile")+' · '+esc(S.worldMode.toUpperCase())+'</div></div><button class="btn ghost" type="button" id="buddySettingsBtn" style="margin-left:auto">Customize</button></div><div class="buddy-mood-row"><span class="pill '+(buddyStats().overall>=60?'good':buddyStats().overall>=40?'urgent':'must')+'">MOOD '+esc(autoBuddyMood().toUpperCase())+'</span><span class="pill">LIFE SCORE '+buddyStats().overall+'/100</span><span class="pill">PETS '+num(cp.avatarPets||0)+'</span></div>'+buddyStatCards()+'<div class="reason-box">Weekly money gap: <strong>'+money(gap)+'</strong>'+(top?' · Best unlocked gig: <strong>'+esc(top.title)+'</strong>':'')+'</div><div id="buddyChatLog" class="buddy-chat-log"><div class="buddy-msg pier">'+esc(basicCoachInsight(""))+'</div></div><form id="buddyChatForm" class="quick-capture"><input name="prompt" autocomplete="off" placeholder="Ask Pier about money, today, gigs, savings…"><button class="btn primary">Ask</button></form><div class="small muted">Navigation</div>'+renderBuddyNav()+'</div>');
   $("#buddySettingsBtn").onclick=()=>{closeModal();openBuddySettings()};
   $$("#modalBody [data-buddy-view]").forEach(b=>b.onclick=()=>{closeModal();navigate(b.dataset.buddyView)});
   $("#buddyChatForm").onsubmit=async e=>{e.preventDefault();const input=e.currentTarget.prompt,prompt=input.value.trim();if(!prompt)return;$("#buddyChatLog").insertAdjacentHTML("beforeend",'<div class="buddy-msg me">'+esc(prompt)+'</div>');input.value="";await buddyRespond(prompt,true);$("#buddyChatLog").scrollTop=$("#buddyChatLog").scrollHeight};
@@ -3128,15 +3177,35 @@ function openBuddy(){
 }
 function openBuddySettings(){
   const p=avatarProfile();
-  showModal("Customize Pier avatar",'<form><div class="modal-grid"><div class="field"><label>Avatar name</label><input name="avatarName" value="'+esc(p.avatarName||"Pier")+'"></div><div class="field"><label>Personality</label><select name="avatarPersonality"><option value="money-coach">Money coach</option><option value="strict">Strict / no-excuses</option><option value="calm">Calm</option><option value="builder">Builder / project mode</option><option value="playful">Playful</option></select></div><div class="field"><label>Skin</label><select name="avatarSkin"><option value="aqua">Aqua</option><option value="purple">Purple</option><option value="gold">Gold</option><option value="rose">Rose</option><option value="mono">Mono</option><option value="night">Night</option></select></div><div class="field"><label>Speech speed</label><select name="avatarSpeechRate"><option value=".85">Slow</option><option value="1">Normal</option><option value="1.15">Fast</option></select></div></div><label class="check"><input name="avatarVoice" type="checkbox" '+(p.avatarVoice!==false?'checked':'')+'> Speak responses out loud when I talk to Pier</label><div class="small muted">This avatar configuration is stored on the selected Pier profile in Firebase, so each profile can have a different skin/personality.</div><div class="modal-foot"><button class="btn ghost" type="button" id="cancelModalBtn">Cancel</button><button class="btn primary" type="submit">Save avatar</button></div></form>',async fd=>{await setDoc(subdoc("profiles",S.activeProfileId),{avatarName:fd.get("avatarName").trim()||"Pier",avatarPersonality:fd.get("avatarPersonality"),avatarSkin:fd.get("avatarSkin"),avatarSpeechRate:num(fd.get("avatarSpeechRate"))||1,avatarVoice:fd.get("avatarVoice")==="on",updatedAt:serverTimestamp()},{merge:true});toast("Avatar saved for this profile.")});
-  $("#cancelModalBtn").onclick=closeModal;$("#modalBody select[name=avatarPersonality]").value=p.avatarPersonality||"money-coach";$("#modalBody select[name=avatarSkin]").value=p.avatarSkin||"aqua";$("#modalBody select[name=avatarSpeechRate]").value=String(p.avatarSpeechRate||1);
+  showModal("Customize Pier avatar",'<form><div class="modal-grid"><div class="field"><label>Avatar name</label><input name="avatarName" value="'+esc(p.avatarName||"Pier")+'"></div><div class="field"><label>Personality</label><select name="avatarPersonality"><option value="money-coach">Money coach</option><option value="strict">Strict / no-excuses</option><option value="calm">Calm</option><option value="builder">Builder / project mode</option><option value="playful">Playful</option></select></div><div class="field"><label>Skin</label><select name="avatarSkin"><option value="aqua">Aqua</option><option value="purple">Purple</option><option value="gold">Gold</option><option value="rose">Rose</option><option value="mono">Mono</option><option value="night">Night</option></select></div><div class="field"><label>Speech speed</label><select name="avatarSpeechRate"><option value=".85">Slow</option><option value="1">Normal</option><option value="1.15">Fast</option></select></div><div class="field"><label>Mood</label><select name="avatarMoodMode"><option value="auto">Auto from my life score</option><option value="happy">Happy</option><option value="focused">Focused</option><option value="concerned">Concerned</option><option value="stressed">Stressed</option><option value="sleepy">Sleepy</option></select></div></div><label class="check"><input name="avatarVoice" type="checkbox" '+(p.avatarVoice!==false?'checked':'')+'> Speak responses out loud when I talk to Pier</label><div class="small muted">This avatar configuration is stored on the selected Pier profile in Firebase, so each profile can have a different skin/personality.</div><div class="modal-foot"><button class="btn ghost" type="button" id="cancelModalBtn">Cancel</button><button class="btn primary" type="submit">Save avatar</button></div></form>',async fd=>{await setDoc(subdoc("profiles",S.activeProfileId),{avatarName:fd.get("avatarName").trim()||"Pier",avatarPersonality:fd.get("avatarPersonality"),avatarSkin:fd.get("avatarSkin"),avatarSpeechRate:num(fd.get("avatarSpeechRate"))||1,avatarMoodMode:fd.get("avatarMoodMode")||"auto",avatarVoice:fd.get("avatarVoice")==="on",updatedAt:serverTimestamp()},{merge:true});toast("Avatar saved for this profile.")});
+  $("#cancelModalBtn").onclick=closeModal;$("#modalBody select[name=avatarPersonality]").value=p.avatarPersonality||"money-coach";$("#modalBody select[name=avatarSkin]").value=p.avatarSkin||"aqua";$("#modalBody select[name=avatarSpeechRate]").value=String(p.avatarSpeechRate||1);$("#modalBody select[name=avatarMoodMode]").value=p.avatarMoodMode||"auto";
 }
 function initBuddyMotion(){
   if(initBuddyMotion.done)return;initBuddyMotion.done=true;
-  let raf=0,lastX=innerWidth/2,lastY=innerHeight/2;
-  const aim=(x,y)=>{lastX=x;lastY=y;if(raf)return;raf=requestAnimationFrame(()=>{raf=0;const b=$("#pierBuddy");if(!b)return;const r=b.getBoundingClientRect(),cx=r.left+r.width/2,cy=r.top+r.height/2,dx=x-cx,dy=y-cy,len=Math.max(1,Math.hypot(dx,dy)),ex=clamp(dx/len*3.2,-3.2,3.2),ey=clamp(dy/len*2.3,-2.3,2.3);b.style.setProperty("--eye-x",ex+"px");b.style.setProperty("--eye-y",ey+"px")})};
-  document.addEventListener("pointermove",e=>aim(e.clientX,e.clientY),{passive:true});document.addEventListener("pointerdown",e=>aim(e.clientX,e.clientY),{passive:true});
-  const blink=()=>{const b=$("#pierBuddy");if(b){b.classList.add("blink");setTimeout(()=>b.classList.remove("blink"),140)}setTimeout(blink,2400+Math.random()*4200)};setTimeout(blink,1800);
+  let raf=0,petStart=null,petDistance=0,pendingPets=0,petFlushTimer=null,lastPetAt=0;
+  const aim=(x,y)=>{if(raf)return;raf=requestAnimationFrame(()=>{raf=0;const b=$("#pierBuddy");if(!b)return;const r=b.getBoundingClientRect(),cx=r.left+r.width/2,cy=r.top+r.height/2,dx=x-cx,dy=y-cy,len=Math.max(1,Math.hypot(dx,dy)),ex=clamp(dx/len*3.2,-3.2,3.2),ey=clamp(dy/len*2.3,-2.3,2.3);b.style.setProperty("--eye-x",ex+"px");b.style.setProperty("--eye-y",ey+"px")})};
+  document.addEventListener("pointermove",e=>aim(e.clientX,e.clientY),{passive:true});
+  document.addEventListener("pointerdown",e=>aim(e.clientX,e.clientY),{passive:true});
+  const blink=()=>{const b=$("#pierBuddy");if(b&&!b.classList.contains("talking")){b.classList.add("blink");setTimeout(()=>b.classList.remove("blink"),140)}setTimeout(blink,2400+Math.random()*4200)};setTimeout(blink,1800);
+  const wander=()=>{
+    const dock=$("#pierBuddyDock"),b=$("#pierBuddy");
+    if(dock&&b&&Date.now()>num(dock.dataset.homeUntil||0)&&$("#modalBackdrop")?.classList.contains("hidden")){
+      const maxX=Math.max(0,innerWidth-b.offsetWidth-28),maxY=Math.max(0,innerHeight-b.offsetHeight-100);
+      const x=-(Math.random()*maxX*.88),y=-(Math.random()*maxY*.72);
+      dock.style.transform="translate("+Math.round(x)+"px,"+Math.round(y)+"px)";
+      b.style.rotate=(Math.random()>.5?"":"-")+(Math.random()*7).toFixed(1)+"deg";
+      setTimeout(()=>{if(b)b.style.rotate=""},2600);
+    }
+    setTimeout(wander,6500+Math.random()*8500);
+  };setTimeout(wander,4200);
+  const flushPets=()=>{clearTimeout(petFlushTimer);petFlushTimer=setTimeout(async()=>{if(!pendingPets||!S.user)return;const add=pendingPets;pendingPets=0;const current=num(avatarProfile().avatarPets||0);try{await setDoc(subdoc("profiles",S.activeProfileId),{avatarPets:current+add,lastPettedAt:new Date().toISOString(),updatedAt:serverTimestamp()},{merge:true})}catch{}},1300)};
+  const buddy=$("#pierBuddy");
+  if(buddy){
+    buddy.addEventListener("pointerdown",e=>{petStart={x:e.clientX,y:e.clientY,lastX:e.clientX,lastY:e.clientY};petDistance=0;buddy.setPointerCapture?.(e.pointerId)});
+    buddy.addEventListener("pointermove",e=>{if(!petStart)return;petDistance+=Math.hypot(e.clientX-petStart.lastX,e.clientY-petStart.lastY);petStart.lastX=e.clientX;petStart.lastY=e.clientY;aim(e.clientX,e.clientY);if(petDistance>18)buddy.classList.add("petted")});
+    buddy.addEventListener("pointerup",e=>{if(petStart&&petDistance>18){pendingPets++;lastPetAt=Date.now();buddy.classList.add("petted");setTimeout(()=>buddy.classList.remove("petted"),460);showBuddyBubble(pendingPets>1?"More pets 🫶":"Pet received 🫶",1700);flushPets()}petStart=null;petDistance=0});
+    document.addEventListener("click",e=>{if(e.target.closest("#pierBuddy")&&Date.now()-lastPetAt<650){e.preventDefault();e.stopImmediatePropagation()}},true);
+  }
 }
 let pwaInstallPrompt=null;
 window.addEventListener("beforeinstallprompt",e=>{e.preventDefault();pwaInstallPrompt=e});

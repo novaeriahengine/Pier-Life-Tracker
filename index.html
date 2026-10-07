@@ -1020,6 +1020,21 @@ function dedupeDailyActions(actions){
   }
   return out;
 }
+
+function moneyGigAction(){
+  const target=Math.max(25,num(S.profile.weeklyIncomeTarget||100)),earned=weeklyGigIncome();
+  if(earned>=target||!S.gigCatalogLoaded)return null;
+  const gap=target-earned,active=S.gigPlans.find(x=>x.status==="active");
+  if(active){
+    const g=S.gigCatalog.find(x=>x.id===active.gigId);if(!g)return null;
+    const already=openTasks().some(t=>t.gigId===g.id||t.lifeGroup==="gig:"+g.id);
+    if(already)return null;
+    const step=(g.steps||[])[Math.min(num(active.stepIndex),Math.max(0,(g.steps||[]).length-1))]||"Do the next paid step";
+    return {key:"gigAuto:"+g.id,type:"gigAuto",id:g.id,title:"Money move: "+step,priority:4,must:false,due:today(),minutes:Math.max(20,Math.min(120,num(g.minutes||60))),cashCost:num(g.setupCost),category:"Gig / Income",lifeGroup:"gig:"+g.id,moneyGap:gap};
+  }
+  const g=topGigRecommendations(1)[0];if(!g)return null;
+  return {key:"gigAuto:"+g.id,type:"gigAuto",id:g.id,title:"Start money experiment: "+g.title,priority:4,must:false,due:today(),minutes:30,cashCost:num(g.setupCost),category:"Gig / Income",lifeGroup:"gig:"+g.id,moneyGap:gap};
+}
 function allActions(){
   return [
     ...openTasks().filter(t=>t.plannerEnabled!==false).map(toTaskAction),
@@ -1027,7 +1042,7 @@ function allActions(){
     ...S.routines.filter(routineDue).map(toRoutineAction),
     ...S.goals.filter(g=>g.status!=="done"&&g.nextAction&&g.plannerEnabled!==false).map(toGoalAction),
     ...S.relationshipPlans.filter(r=>r.status!=="done"&&r.status!=="skipped").map(toRelationshipAction),
-    ...[relationshipMaintenanceAction()].filter(Boolean)
+    ...[relationshipMaintenanceAction(),moneyGigAction()].filter(Boolean)
   ];
 }
 function scoreAction(a){
@@ -1038,7 +1053,7 @@ function scoreAction(a){
   else if(d===1)score+=72;
   else if(d<=3)score+=48;
   else if(d<=7)score+=26;
-  if(a.type==="bill")score+=24;if(a.type==="routine")score+=10;if(a.type==="relationship")score+=Math.floor(relationshipAttention()/5);
+  if(a.type==="bill")score+=24;if(a.type==="routine")score+=10;if(a.type==="relationship")score+=Math.floor(relationshipAttention()/5);if(a.type==="gigAuto")score+=32+Math.min(28,Math.floor(num(a.moneyGap)/5));
   if(a.minutes<=20)score+=5;
   return Math.round(score);
 }
@@ -1064,13 +1079,14 @@ function scoreBreakdown(a){
   if(a.type==="bill")parts.push(["Bill",24]);
   if(a.type==="routine")parts.push(["Routine",10]);
   if(a.type==="relationship")parts.push(["Relationship cadence",Math.floor(relationshipAttention()/5)]);
+  if(a.type==="gigAuto")parts.push(["Weekly money gap",32+Math.min(28,Math.floor(num(a.moneyGap)/5))]);
   if(a.minutes<=20)parts.push(["Quick win",5]);
   return parts;
 }
 function renderPlanner(){
   const p=plan(),all=allActions().map(a=>({...a,score:scoreAction(a),reason:whyAction(a),parts:scoreBreakdown(a)})).sort((a,b)=>b.score-a.score);
   return '<div class="section-title"><div><h1>Planner / Why</h1><p>Every recommendation is explainable. No hidden AI guess.</p></div><button class="btn primary" data-action="replan-now">⚡ Rebuild plan</button></div>'+
-    '<div class="money-hero">'+metric("Candidate actions",all.length,"Open tasks + bills + routines + goals")+metric("Selected today",p.selected.length,(p.initial.minutes-p.remaining.minutes)+" min scheduled")+metric("Blocked",p.blocked.length,"Not enough time or spendable cash")+metric("Spendable cash",money(p.initial.cash),"After protected reserve")+'</div>'+
+    '<div class="money-hero">'+metric("Candidate actions",all.length,"Tasks + bills + routines + goals + money gigs")+metric("Selected today",p.selected.length,(p.initial.minutes-p.remaining.minutes)+" min scheduled")+metric("Blocked",p.blocked.length,"Not enough time or spendable cash")+metric("Spendable cash",money(p.initial.cash),"After protected reserve")+'</div>'+
     '<div class="grid-2"><section class="card pad"><div class="card-head"><h3>Selected plan</h3><span class="pill good">IN ORDER</span></div><div class="stack">'+(p.selected.length?p.selected.map((a,i)=>plannerDetail(a,i+1,"selected")).join(""):'<div class="empty">Nothing selected.</div>')+'</div></section>'+
     '<section class="card pad"><div class="card-head"><h3>Blocked urgent actions</h3><span class="pill must">'+p.blocked.length+'</span></div><div class="stack">'+(p.blocked.length?p.blocked.map((a,i)=>plannerDetail(a,i+1,"blocked")).join(""):'<div class="empty">No urgent blockers.</div>')+'</div></section></div>'+
     '<section class="card pad" style="margin-top:18px"><div class="card-head"><h3>All candidates and score reasons</h3><span class="small muted">Highest score first</span></div><div class="stack">'+(all.length?all.map((a,i)=>plannerDetail(a,i+1,"candidate")).join(""):'<div class="empty">Add tasks, bills, routines or goal next-actions.</div>')+'</div></section>';
@@ -3182,6 +3198,7 @@ async function completePlanItem(key){
   if(type==="goal"){const g=S.goals.find(x=>x.id===id);return g&&openGoalProgress(g)}
   if(type==="relationship")return completeRelationship(id);
   if(type==="relationshipAuto"){navigate("relationship");return toast("Pick or create a relationship plan, then Pier can schedule the real plan.");}
+  if(type==="gigAuto"){const g=S.gigCatalog.find(x=>x.id===id);if(gigPlanFor(id))return openGigDetails(id);navigate("gigs");return g?toast("Pier picked this money experiment: "+g.title):toast("Open Gigs and pick a money experiment.");}
 }
 
 function openTaskModal(t={}){

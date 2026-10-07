@@ -3038,6 +3038,7 @@ function openBuddy(){
   $("#buddySettingsBtn").onclick=()=>{closeModal();openBuddySettings()};
   $$("#modalBody [data-buddy-view]").forEach(b=>b.onclick=()=>{closeModal();navigate(b.dataset.buddyView)});
   $("#buddyChatForm").onsubmit=async e=>{e.preventDefault();const input=e.currentTarget.prompt,prompt=input.value.trim();if(!prompt)return;$("#buddyChatLog").insertAdjacentHTML("beforeend",'<div class="buddy-msg me">'+esc(prompt)+'</div>');input.value="";await buddyRespond(prompt,true);$("#buddyChatLog").scrollTop=$("#buddyChatLog").scrollHeight};
+  setTimeout(()=>$("#buddyChatForm input")?.blur(),90);
 }
 function openBuddySettings(){
   const p=avatarProfile();

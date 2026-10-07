@@ -1,4 +1,4 @@
-const CACHE="pier-shell-v4";
+const CACHE="pier-shell-v5";
 const SHELL=["./","./index.html","./stock_universe.json","./gig_catalog.json","./manifest.webmanifest","./icon-192.svg","./icon-512.svg","./icon-maskable.svg"];
 
 self.addEventListener("install",event=>{

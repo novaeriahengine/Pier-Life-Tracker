@@ -1,5 +1,5 @@
 const CACHE="pier-shell-v6";
-const SHELL=["./","./index.html","./stock_universe.json","./gig_catalog.json","./project_catalog.json","./manifest-aqua.webmanifest","./manifest-purple.webmanifest","./manifest-gold.webmanifest","./manifest-night.webmanifest","./manifest-alert.webmanifest","./icon-aqua.svg","./icon-purple.svg","./icon-gold.svg","./icon-night.svg","./icon-alert.svg","./icon-192.svg","./icon-512.svg","./icon-maskable.svg"];
+const SHELL=["./","./index.html","./stock_universe.json","./gig_catalog.json","./project_catalog.json","./manifest-aqua.webmanifest","./manifest-purple.webmanifest","./manifest-gold.webmanifest","./manifest-night.webmanifest","./manifest-alert.webmanifest","./icon-aqua.svg","./icon-aqua-192.svg","./icon-aqua-512.svg","./icon-purple.svg","./icon-purple-192.svg","./icon-purple-512.svg","./icon-gold.svg","./icon-gold-192.svg","./icon-gold-512.svg","./icon-night.svg","./icon-alert.svg","./icon-192.svg","./icon-512.svg","./icon-maskable.svg"];
 
 self.addEventListener("install",event=>{
   event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(SHELL)).then(()=>self.skipWaiting()));

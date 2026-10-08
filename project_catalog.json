@@ -1,0 +1,154 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-10-08T19:18:09.313Z",
+  "projects": [
+    {
+      "importKey": "project-globe-map-conquest",
+      "name": "Globe Map Conquest",
+      "type": "Game / Web",
+      "repo": "novaeriahengine/Globe-Map-Conquest",
+      "repoUrl": "https://github.com/novaeriahengine/Globe-Map-Conquest",
+      "liveUrl": "https://novaeriahengine.github.io/Globe-Map-Conquest/",
+      "stage": "working-build",
+      "moneyLane": "launch",
+      "priority": 5,
+      "targetWeekly": 100,
+      "budgetNeeded": 0,
+      "summary": "Browser-based living grand-strategy / war sandbox with Earth/procedural worlds, diplomacy, conquest, NPC armies and cloud world memory.",
+      "revenueIdeas": [
+        "Free web launch + donations",
+        "Low-cost supporter tier later",
+        "Creator/world packs later",
+        "YouTube creator outreach",
+        "Commission/custom scenario work"
+      ],
+      "nextMoneyAction": "Freeze a small public game loop, publish the easiest playable version, create a 30–60 second gameplay clip, and contact 5 strategy/game creators.",
+      "nextBuildAction": "Polish the smallest online war loop: pick nation → diplomacy → war → conquest → save/share."
+    },
+    {
+      "importKey": "project-mep-video-maker",
+      "name": "MEP Video Maker",
+      "type": "Creator Tool / Content",
+      "repo": "novaeriahengine/MEP-Video-Maker",
+      "repoUrl": "https://github.com/novaeriahengine/MEP-Video-Maker",
+      "liveUrl": "https://novaeriahengine.github.io/MEP-Video-Maker/",
+      "stage": "working-editor",
+      "moneyLane": "content-engine",
+      "priority": 5,
+      "targetWeekly": 100,
+      "budgetNeeded": 0,
+      "summary": "Browser-first 2D animation workspace for illustrated history and educational videos with scenes, characters, poses, keyframes and AI-director-ready structured data.",
+      "revenueIdeas": [
+        "Produce history Shorts/videos",
+        "Build a repeatable history-video channel",
+        "Sell/download creator templates later",
+        "Offer custom short history explainers later"
+      ],
+      "nextMoneyAction": "Finish a repeatable 30–60 second history-video workflow and publish the first 3 videos instead of expanding every editor feature first.",
+      "nextBuildAction": "Prioritize fast scene assembly, narration/captions, reusable characters, playback/export and templates."
+    },
+    {
+      "importKey": "project-pier",
+      "name": "Pier Life Tracker",
+      "type": "Life OS / Web",
+      "repo": "novaeriahengine/Pier-Life-Tracker",
+      "repoUrl": "https://github.com/novaeriahengine/Pier-Life-Tracker",
+      "liveUrl": "https://novaeriahengine.github.io/Pier-Life-Tracker/",
+      "stage": "active",
+      "moneyLane": "personal-ops",
+      "priority": 5,
+      "targetWeekly": 0,
+      "budgetNeeded": 0,
+      "summary": "Firebase-backed personal life, money, GOAP, gig, calendar and assistant system.",
+      "revenueIdeas": [
+        "Use it to organize income work first",
+        "Generic template/product later if it becomes stable"
+      ],
+      "nextMoneyAction": "Use Pier to force one measurable money experiment at a time and stop non-revenue feature sprawl from consuming the week.",
+      "nextBuildAction": "Keep mobile UX, cash-rescue planner, project tracking and chatbot useful before adding more broad systems."
+    },
+    {
+      "importKey": "project-mep-engine",
+      "name": "MEPEngine",
+      "type": "Game Engine",
+      "repo": "",
+      "repoUrl": "",
+      "liveUrl": "",
+      "stage": "development",
+      "moneyLane": "long-term",
+      "priority": 3,
+      "targetWeekly": 0,
+      "budgetNeeded": 0,
+      "summary": "Reusable game-engine work around worlds, NPC simulation, factions, terrain and playable projects.",
+      "revenueIdeas": [
+        "Playable games",
+        "Reusable tools/templates",
+        "Commission/demo portfolio"
+      ],
+      "nextMoneyAction": "Only spend engine time on features required by a shippable game or sellable demo.",
+      "nextBuildAction": "Keep the engine tied to a playable slice instead of broad editor expansion."
+    },
+    {
+      "importKey": "project-fugth-management",
+      "name": "Fugth Management OS",
+      "type": "SMB SaaS / Service",
+      "repo": "",
+      "repoUrl": "",
+      "liveUrl": "",
+      "stage": "sales-capable",
+      "moneyLane": "service",
+      "priority": 4,
+      "targetWeekly": 100,
+      "budgetNeeded": 0,
+      "summary": "AI receptionist / booking and lead-management system for small businesses.",
+      "revenueIdeas": [
+        "Setup fee",
+        "Monthly subscription",
+        "Paid pilot",
+        "Local-business outreach"
+      ],
+      "nextMoneyAction": "Pick one narrow business type and sell one working pilot before adding more features.",
+      "nextBuildAction": "Only patch what blocks demos, onboarding, calls, booking or payment."
+    },
+    {
+      "importKey": "project-trading-platform",
+      "name": "C++ Trading / Paper Platform",
+      "type": "Trading Software",
+      "repo": "",
+      "repoUrl": "",
+      "liveUrl": "",
+      "stage": "architecture",
+      "moneyLane": "not-immediate",
+      "priority": 2,
+      "targetWeekly": 0,
+      "budgetNeeded": 0,
+      "summary": "Personal C++ paper/live simulation platform with GOAP/Q-learning, options focus and risk controls.",
+      "revenueIdeas": [
+        "Not treated as emergency-income source"
+      ],
+      "nextMoneyAction": "Do not count trading profits toward the $100/week survival-income target.",
+      "nextBuildAction": "Keep paper/replay/risk-control work separated from money needed for rent."
+    },
+    {
+      "importKey": "project-novaeriah-games",
+      "name": "Novaeriah Games",
+      "type": "Game Studio / Portfolio",
+      "repo": "novaeriahengine/Novaeriah-Games",
+      "repoUrl": "https://github.com/novaeriahengine/Novaeriah-Games",
+      "liveUrl": "",
+      "stage": "umbrella",
+      "moneyLane": "portfolio",
+      "priority": 3,
+      "targetWeekly": 0,
+      "budgetNeeded": 0,
+      "summary": "Umbrella for games and public releases.",
+      "revenueIdeas": [
+        "Game releases",
+        "Creator outreach",
+        "Portfolio for commissions"
+      ],
+      "nextMoneyAction": "Use shipped playable projects as proof for paid game-dev work.",
+      "nextBuildAction": "Keep portfolio focused on playable, finished slices."
+    }
+  ]
+}

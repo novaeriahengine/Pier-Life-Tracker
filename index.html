@@ -673,6 +673,14 @@ tr:last-child td{border-bottom:0}
 .icon-preview{width:44px;height:44px;border-radius:13px;display:grid;place-items:center;color:#07111b;font-weight:950;font-size:17px}
 .icon-preview.aqua{background:linear-gradient(135deg,#4fd1a5,#65b7ff)}.icon-preview.purple{background:linear-gradient(135deg,#a278ff,#6d8cff)}.icon-preview.gold{background:linear-gradient(135deg,#ffd166,#ff9f43)}.icon-preview.night{background:linear-gradient(135deg,#313d58,#121928);color:#fff}.icon-preview.alert{background:linear-gradient(135deg,#ff7b7b,#ffb36b)}
 @media(max-width:820px){.icon-choice-grid{grid-template-columns:repeat(3,1fr)}}
+
+.cash-ladder-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px}
+.cash-ladder-card{border:1px solid var(--line);border-radius:14px;background:var(--panel2);padding:11px;min-width:0}
+.cash-ladder-head{display:grid;gap:3px;margin-bottom:9px}
+.cash-ladder-row{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;padding:8px 0;border-top:1px solid var(--line)}
+.cash-ladder-row:first-child{border-top:0}
+@media(max-width:1100px){.cash-ladder-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:820px){.cash-ladder-grid{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch}.cash-ladder-card{flex:0 0 86%;scroll-snap-align:start}}
 </style>
 </head>
 <body>
@@ -1406,12 +1414,21 @@ function gigQ(id){
 }
 function gigFitScore(g){
   const r=gigRequirementResult(g);let score=r.unlocked?55:10;
-  const lane=g.lane||"build";if(lane==="fast")score+=20;else if(lane==="steady")score+=14;else if(lane==="foundation")score+=8;else score+=4;
+  const lane=g.lane||"build",pressure=cashPressureLevel();
+  if(lane==="fast")score+=20;else if(lane==="steady")score+=14;else if(lane==="foundation")score+=8;else score+=4;
   score+=Math.max(0,20-num(g.firstMoneyDays||30));
   if(num(g.weeklyMin)>=100)score+=10;
   if(num(g.setupCost)===0)score+=8;
   score+=clamp(gigQ(g.id)/5,-20,30);
   if(weeklyGigIncome()<num(S.profile.weeklyIncomeTarget||100))score+=10;
+  if(pressure==="critical"){
+    if(num(g.setupCost)===0)score+=25;
+    if(lane==="fast"&&num(g.firstMoneyDays)<=3)score+=24;
+    if(num(g.setupCost)>0)score-=Math.min(45,10+Math.floor(num(g.setupCost)/50));
+    if(lane==="build"&&num(g.firstMoneyDays)>7)score-=18;
+  }else if(pressure==="high"){
+    if(num(g.setupCost)===0)score+=12;if(lane==="fast")score+=8;
+  }
   return Math.round(score);
 }
 function gigPlanFor(id){return S.gigPlans.find(x=>x.gigId===id&&x.status!=="done"&&x.status!=="dropped")||null}
@@ -1474,13 +1491,28 @@ function openProjectEdit(id){
   });
   $("#cancelModalBtn").onclick=closeModal;$("#modalBody select[name=status]").value=p.status||"active";$("#modalBody select[name=priority]").value=String(p.priority||3);
 }
+
+function cashLadderCard(title,subtitle,rows,kind="gig"){
+  return '<div class="cash-ladder-card"><div class="cash-ladder-head"><strong>'+esc(title)+'</strong><span class="small muted">'+esc(subtitle)+'</span></div><div class="stack">'+(rows.length?rows.map(x=>{
+    if(kind==="project")return '<div class="cash-ladder-row"><div><div class="task-title">'+esc(x.name)+'</div><div class="small muted">'+esc(x.nextMoneyAction||"")+'</div></div><button class="btn" data-action="project-money-task" data-id="'+x.id+'">Add</button></div>';
+    const plan=gigPlanFor(x.id),req=gigRequirementResult(x);return '<div class="cash-ladder-row"><div><div class="task-title">'+esc(x.title)+'</div><div class="small muted">'+money(x.setupCost)+' setup · '+num(x.firstMoneyDays)+'d first-money estimate · FIT '+gigFitScore(x)+'</div></div><button class="btn '+(req.unlocked?'primary':'')+'" data-action="'+(plan?"gig-details":req.unlocked?"gig-start":"gig-unlock-plan")+'" data-id="'+x.id+'">'+(plan?"Open":req.unlocked?"Start":"Plan")+'</button></div>'
+  }).join(""):'<div class="empty">Nothing in this lane yet.</div>')+'</div></div>';
+}
+function renderCashLadder(){
+  const all=[...S.gigCatalog],unlocked=all.filter(g=>gigRequirementResult(g).unlocked);
+  const now=unlocked.filter(g=>num(g.setupCost)===0&&num(g.firstMoneyDays)<=3&&g.lane==="fast").sort((a,b)=>gigFitScore(b)-gigFitScore(a)).slice(0,4);
+  const week=unlocked.filter(g=>num(g.setupCost)===0&&num(g.firstMoneyDays)<=7&&!now.some(n=>n.id===g.id)).sort((a,b)=>gigFitScore(b)-gigFitScore(a)).slice(0,4);
+  const projects=[...S.projects].filter(p=>p.status!=="done"&&p.nextMoneyAction&&num(p.budgetNeeded||0)===0).sort((a,b)=>projectMoneyRank(b)-projectMoneyRank(a)).slice(0,4);
+  const capital=all.filter(g=>num(g.setupCost)>Math.max(0,availableMoney())).sort((a,b)=>(num(a.setupCost)-Math.max(0,availableMoney()))-(num(b.setupCost)-Math.max(0,availableMoney()))).slice(0,4);
+  return '<section class="card pad" style="margin-top:14px"><div class="card-head"><div><h3>Cash ladder</h3><div class="small muted">Today → this week → ship what you own → capital later. Pier stops treating a $1,000 idea like an answer to a $0 day.</div></div><span class="pill '+(cashPressureLevel()==="critical"?"must":"good")+'">'+esc(cashPressureLevel().toUpperCase())+'</span></div><div class="cash-ladder-grid">'+cashLadderCard("1 · Today / $0","Fastest unlocked experiments",now)+cashLadderCard("2 · This week","Still $0 to start",week)+cashLadderCard("3 · Ship what you own","Your existing software/content",projects,"project")+cashLadderCard("4 · Capital later","Save/unlock; do not raid protected bills",capital)+'</div></section>';
+}
 function renderGigs(){
   const target=Math.max(25,num(S.profile.weeklyIncomeTarget||100)),earned=weeklyGigIncome(),pct=clamp(earned/target*100,0,100),top=topGigRecommendations(3),active=S.gigPlans.filter(x=>x.status==="active"),rows=filteredGigs().slice(0,100),categories=Array.from(new Set(S.gigCatalog.map(g=>g.category))).sort();
   const survival=availableMoney()<75||S.bills.some(b=>b.status!=="paid"&&b.dueDate&&daysUntil(b.dueDate)<=7);
   const gameGig=S.gigCatalog.find(x=>x.id==="game-release-small"),pcGig=S.gigCatalog.find(x=>x.id==="pc-recycler-builds"),ebayGig=S.gigCatalog.find(x=>x.id==="ebay-starter");
   return '<div class="section-title"><div><h1>Gigs / $'+target+' Week</h1><p>Pier ranks ways to make money from what you already have, then learns from what actually earns, costs, or wastes your time.</p></div><div class="toolbar"><button class="btn" data-action="gig-setup">My gig setup</button><button class="btn primary" data-action="gig-target">Set weekly target</button><button class="btn ghost" data-action="gig-target-quick" data-id="100">$100/wk</button><button class="btn ghost" data-action="gig-target-quick" data-id="200">$200/wk</button></div></div>'+
     '<section class="gig-hero"><div class="eyebrow">WEEKLY EXTRA-INCOME TARGET</div><div class="gig-money" style="font-size:34px">'+money(earned)+' / '+money(target)+'</div><div class="row-meta">'+(earned>=target?"Target reached this week. Keep only the gigs with the best net return.":money(target-earned)+" still needed this week.")+'</div><div class="gig-progress"><div style="width:'+pct+'%"></div></div></section>'+
-    '<div class="reason-box" style="margin-top:12px"><strong>'+(survival?'CASH-SURVIVAL MODE':'BUILD MODE')+':</strong> '+(survival?'Pier will bias toward $0/fast gigs and protect bills before recommending inventory-heavy ideas. The PC batch can stay as an unlock goal until the capital is actually safe.':'You have room to test some higher-capital ideas, but Pier still protects upcoming bills and reserve first.')+'</div>'+
+    '<div class="reason-box" style="margin-top:12px"><strong>'+(survival?'CASH-SURVIVAL MODE':'BUILD MODE')+':</strong> '+(survival?'Pier will bias toward $0/fast gigs and protect bills before recommending inventory-heavy ideas. The PC batch can stay as an unlock goal until the capital is actually safe.':'You have room to test some higher-capital ideas, but Pier still protects upcoming bills and reserve first.')+'</div>'+renderCashLadder()+
     '<section class="card pad" style="margin-top:14px"><div class="card-head"><div><h3>Custom money projects</h3><div class="small muted">These open a deeper setup instead of a generic gig checklist.</div></div><span class="pill blue">GAME · PC · RESALE</span></div><div class="grid-3">'+
       (gameGig?'<div class="goal-card"><div class="goal-title">Release a game</div><div class="small muted">Track game type, price, budget, release date, sales/downloads, platform fees and actual revenue.</div><div class="toolbar" style="margin-top:10px"><button class="btn primary" data-action="'+(gigPlanFor(gameGig.id)?'gig-details':'gig-start')+'" data-id="'+gameGig.id+'">'+(gigPlanFor(gameGig.id)?'Open project':'Set up release')+'</button></div></div>':'')+
       (pcGig?'<div class="goal-card"><div class="goal-title">Recycler PC batch</div><div class="small muted">Choose recycler, Marketplace, Micro Center, Amazon or mixed sourcing; number of PCs, part/case costs, GPU/RAM/storage targets and sale price.</div><div class="toolbar" style="margin-top:10px"><button class="btn '+(gigRequirementResult(pcGig).unlocked?'primary':'')+'" data-action="'+(gigPlanFor(pcGig.id)?'gig-details':gigRequirementResult(pcGig).unlocked?'gig-start':'gig-unlock-plan')+'" data-id="'+pcGig.id+'">'+(gigPlanFor(pcGig.id)?'Open project':gigRequirementResult(pcGig).unlocked?'Set up PC batch':'Plan '+money(Math.max(0,num(pcGig.setupCost)-Math.max(0,availableMoney())))+' capital')+'</button></div></div>':'')+

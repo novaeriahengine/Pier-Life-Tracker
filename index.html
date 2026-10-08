@@ -651,6 +651,19 @@ tr:last-child td{border-bottom:0}
 .project-next{padding:10px;border-radius:12px;background:var(--panel2);font-size:11px;line-height:1.5}
 .project-next strong{display:block;color:var(--accent);font-size:9px;text-transform:uppercase;letter-spacing:.07em;margin-bottom:3px}
 @media(max-width:820px){.project-rescue{grid-template-columns:1fr;padding:14px}.project-grid{grid-template-columns:1fr}.project-card{padding:13px}}
+
+.chatbot-tabs{display:flex;gap:7px;overflow-x:auto;scrollbar-width:none;margin-bottom:12px}
+.chatbot-tabs::-webkit-scrollbar{display:none}
+.chat-page{display:grid;gap:10px;min-height:58vh}
+.full-chat-log{border:1px solid var(--line);background:var(--panel);border-radius:17px;padding:12px;display:grid;align-content:start;gap:10px;min-height:350px;max-height:58vh;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.full-chat-turn{display:grid;gap:7px}
+.chat-suggestions{display:flex;gap:7px;overflow-x:auto;scrollbar-width:none}
+.chat-suggestions::-webkit-scrollbar{display:none}
+.chat-suggestions .btn{flex:0 0 auto}
+.chat-compose{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:end}
+.chat-compose textarea{min-height:54px;max-height:130px}
+.chat-compose .btn{min-height:54px}
+@media(max-width:820px){.chat-page{min-height:0}.full-chat-log{min-height:50vh;max-height:60vh}.chat-compose{grid-template-columns:1fr}.chat-compose .btn{min-height:44px}}
 </style>
 </head>
 <body>
@@ -3055,6 +3068,46 @@ function setPaperCashModal(){
   showModal("Set custom paper starting cash",'<form><div class="field"><label>Starting paper cash</label><input name="amount" type="number" min="0" step=".01" value="'+paperStartingCash()+'"></div><div class="small muted">This is only the paper-market wallet. It never changes Money, bills or your real SHADOW/LIVE cash.</div><div class="modal-foot"><button class="btn ghost" type="button" id="cancelModalBtn">Cancel</button><button class="btn primary" type="submit">Save custom paper wallet</button></div></form>',async fd=>{await setDoc(subdoc("profiles",S.activeProfileId),{[field]:num(fd.get("amount")),paperWalletMode:"custom"},{merge:true});toast("Custom paper wallet saved.")});$("#cancelModalBtn").onclick=closeModal;
 }
 
+
+function recentAssistantChats(){
+  return S.coachEvents.filter(x=>x.kind==="assistant_chat").slice(0,30).reverse();
+}
+function chatbotVoiceOptions(){
+  if(!("speechSynthesis" in window))return [];
+  return (speechSynthesis.getVoices?.()||[]).slice().sort((a,b)=>(a.lang||"").localeCompare(b.lang||"")||(a.name||"").localeCompare(b.name||""));
+}
+function renderChatbotChat(){
+  const rows=recentAssistantChats(),starter=basicCoachInsight("");
+  return '<section class="chat-page"><div id="fullChatLog" class="full-chat-log">'+(rows.length?rows.map(x=>'<div class="full-chat-turn"><div class="buddy-msg me">'+esc(x.prompt||"")+'</div><div class="buddy-msg pier">'+esc(x.response||"")+'</div></div>').join(""):'<div class="buddy-msg pier">'+esc(starter)+'</div>')+'</div><div class="chat-suggestions"><button class="btn" data-action="chatbot-chip" data-id="I am broke. What should I do for money today?">Money today</button><button class="btn" data-action="chatbot-chip" data-id="Which of my projects should I work on to make money?">Project order</button><button class="btn" data-action="chatbot-chip" data-id="What should I do today?">Today</button><button class="btn" data-action="chatbot-chip" data-id="What should I do with my game?">Game</button><button class="btn" data-action="chatbot-chip" data-id="What should I do with MEP Video Maker?">Video maker</button></div><form id="chatbotPageForm" class="chat-compose"><textarea name="prompt" rows="2" placeholder="Talk to Pier about money, projects, today, bills, family, gigs…"></textarea><button class="btn primary" type="submit">Send</button></form></section>';
+}
+function renderChatbotControl(){
+  const p=avatarProfile(),s=buddyStats(),provider=aiBridgeProviderLabel(),projectTop=[...S.projects].filter(x=>x.status!=="done").sort((a,b)=>projectMoneyRank(b)-projectMoneyRank(a))[0];
+  return '<div class="grid-2"><section class="card pad"><div class="card-head"><div><h3>'+esc(buddyName())+'</h3><div class="small muted">Current assistant character for '+esc(currentProfile().name||"this profile")+'</div></div><span class="pill '+(s.overall>=60?"good":s.overall>=40?"urgent":"must")+'">'+esc(autoBuddyMood().toUpperCase())+'</span></div>'+buddyStatCards()+'<div class="life-list" style="margin-top:10px"><div class="life-line"><span>Personality</span><strong>'+esc(p.avatarPersonality||"money-coach")+'</strong></div><div class="life-line"><span>Brain</span><strong>'+esc(provider)+'</strong></div><div class="life-line"><span>Weekly gig income</span><strong>'+money(weeklyGigIncome())+'</strong></div><div class="life-line"><span>Cash pressure</span><strong>'+esc(cashPressureLevel().toUpperCase())+'</strong></div><div class="life-line"><span>Top revenue project</span><strong>'+esc(projectTop?.name||"none")+'</strong></div></div><div class="toolbar" style="margin-top:12px"><button class="btn primary" data-action="buddy-customize">Customize character</button><button class="btn" data-view="settings">Backend / GGUF settings</button></div></section><section class="card pad"><div class="card-head"><h3>What this brain currently knows</h3><span class="pill blue">FIREBASE</span></div><div class="life-list"><div class="life-line"><span>Tasks</span><strong>'+S.tasks.length+'</strong></div><div class="life-line"><span>Goals</span><strong>'+S.goals.length+'</strong></div><div class="life-line"><span>Projects</span><strong>'+S.projects.length+'</strong></div><div class="life-line"><span>Gig attempts</span><strong>'+S.gigAttempts.length+'</strong></div><div class="life-line"><span>Transactions</span><strong>'+S.transactions.length+'</strong></div><div class="life-line"><span>GOAP feedback</span><strong>'+S.goapFeedback.length+'</strong></div><div class="life-line"><span>Coach events</span><strong>'+S.coachEvents.length+'</strong></div></div><div class="reason-box" style="margin-top:12px">Pier Basic Brain is rules + scoring + your Firebase state. If you connect a GGUF/backend later, this same screen and same data context can use it without replacing GOAP.</div></section></div>';
+}
+function renderChatbotVoice(){
+  const p=avatarProfile(),voices=chatbotVoiceOptions();
+  return '<section class="card pad"><div class="card-head"><div><h3>Browser voice</h3><div class="small muted">Uses voices installed/provided by this device/browser. No voice API is required.</div></div><span class="pill">'+voices.length+' voices</span></div><form id="chatbotVoiceForm"><div class="modal-grid"><div class="field"><label>Voice</label><select name="voiceName"><option value="">Browser default</option>'+voices.map(v=>'<option value="'+esc(v.name)+'">'+esc(v.name+' · '+v.lang+(v.localService?" · local":""))+'</option>').join("")+'</select></div><div class="field"><label>Speed</label><input name="rate" type="range" min=".5" max="2" step=".05" value="'+num(p.avatarSpeechRate||1)+'"><div class="small muted">Current '+num(p.avatarSpeechRate||1).toFixed(2)+'×</div></div><div class="field"><label>Pitch</label><input name="pitch" type="range" min=".5" max="2" step=".05" value="'+num(p.avatarSpeechPitch||1)+'"></div><div class="field"><label>Volume</label><input name="volume" type="range" min="0" max="1" step=".05" value="'+num(p.avatarSpeechVolume??1)+'"></div></div><label class="check"><input name="enabled" type="checkbox" '+(p.avatarVoice!==false?'checked':'')+'> Let Pier speak responses</label><div class="toolbar"><button class="btn primary" type="submit">Save voice</button><button class="btn" type="button" data-action="chatbot-test-voice">Test voice</button></div></form></section>';
+}
+function renderChatbotMemory(){
+  const pack=buildAiDataPack(),current=S.aiSnapshots.find(x=>x.kind==="current");
+  return '<div class="grid-2"><section class="card pad"><div class="card-head"><h3>Model-ready context</h3><span class="pill good">pier.ai.context.v1</span></div><div class="life-list"><div class="life-line"><span>Generated</span><strong>'+esc(pack.generatedAt)+'</strong></div><div class="life-line"><span>Open tasks</span><strong>'+pack.actions.openTasks.length+'</strong></div><div class="life-line"><span>Projects</span><strong>'+S.projects.length+'</strong></div><div class="life-line"><span>Gig attempts</span><strong>'+S.gigAttempts.length+'</strong></div><div class="life-line"><span>Calendar items</span><strong>'+pack.planning.upcomingCalendar.length+'</strong></div><div class="life-line"><span>Current snapshot</span><strong>'+(current?.generatedAt?new Date(current.generatedAt).toLocaleString():"waiting")+'</strong></div></div><div class="toolbar" style="margin-top:12px"><button class="btn primary" data-action="ai-save-snapshot">Save snapshot</button><button class="btn" data-action="ai-export-pack">Download JSON</button></div></section><section class="card pad"><div class="card-head"><h3>Learning layers</h3></div><div class="stack"><div class="task-row"><div class="row-main"><div class="task-title">GOAP feedback</div><div class="row-meta">Approvals, corrections, rejects, preferred times and durations.</div></div><strong>'+S.goapFeedback.length+'</strong></div><div class="task-row"><div class="row-main"><div class="task-title">Gig Q-score</div><div class="row-meta">Actual earned money, cost, time and leads change future gig ranking.</div></div><strong>'+S.gigAttempts.length+'</strong></div><div class="task-row"><div class="row-main"><div class="task-title">Coach history</div><div class="row-meta">Assistant chats, nudges, gig starts and outcomes.</div></div><strong>'+S.coachEvents.length+'</strong></div></div></section></div>';
+}
+function renderChatbot(){
+  const tabs=[["chat","Chat"],["chatbot","Chatbot"],["voice","Voice"],["memory","Memory / GGUF"]];
+  let body=S.chatbotTab==="chatbot"?renderChatbotControl():S.chatbotTab==="voice"?renderChatbotVoice():S.chatbotTab==="memory"?renderChatbotMemory():renderChatbotChat();
+  return '<div class="section-title"><div><h1>Chatbot</h1><p>One assistant surface for your life, money, projects and future GGUF backend.</p></div><div class="toolbar"><button class="btn" data-action="buddy-customize">Avatar</button><button class="btn primary" data-action="chatbot-speak-now">Talk to me</button></div></div><div class="chatbot-tabs">'+tabs.map(x=>'<button class="tab '+(S.chatbotTab===x[0]?"active":"")+'" data-action="chatbot-tab" data-id="'+x[0]+'">'+x[1]+'</button>').join("")+'</div>'+body;
+}
+async function saveChatbotVoice(e){
+  e.preventDefault();const fd=new FormData(e.currentTarget);
+  await setDoc(subdoc("profiles",S.activeProfileId),{avatarVoiceName:fd.get("voiceName")||"",avatarSpeechRate:num(fd.get("rate"))||1,avatarSpeechPitch:num(fd.get("pitch"))||1,avatarSpeechVolume:num(fd.get("volume")),avatarVoice:fd.get("enabled")==="on",updatedAt:serverTimestamp()},{merge:true});toast("Voice settings saved.");
+}
+async function submitChatbotPage(prompt){
+  const text=String(prompt||"").trim();if(!text)return;
+  const log=$("#fullChatLog");if(log)log.insertAdjacentHTML("beforeend",'<div class="full-chat-turn"><div class="buddy-msg me">'+esc(text)+'</div><div class="buddy-msg pier" data-pending="1">Thinking…</div></div>');
+  const response=await buddyRespond(text,false),pending=log?.querySelector('[data-pending="1"]');
+  if(pending){pending.removeAttribute("data-pending");pending.textContent=response;log.scrollTop=log.scrollHeight}
+}
+if("speechSynthesis" in window&&speechSynthesis.addEventListener)speechSynthesis.addEventListener("voiceschanged",()=>{if(S.view==="chatbot"&&S.chatbotTab==="voice")render()});
 function renderAiBridgePanel(){
   const provider=S.profile.aiProvider||"disabled",protocol=S.profile.aiProtocol||"pier",url=S.profile.aiBridgeUrl||"",model=S.profile.aiModel||"",path=S.profile.aiBridgePath||"/v1/pier/respond";
   const current=S.aiSnapshots.find(x=>x.kind==="current");
@@ -3209,6 +3262,8 @@ function bindViewInputs(){
   const gl=$("#gigLane");if(gl){gl.value=S.gigLane||"all";gl.onchange=e=>{S.gigLane=e.target.value;render()}};
   const gc=$("#gigCategory");if(gc){gc.value=S.gigCategory||"all";gc.onchange=e=>{S.gigCategory=e.target.value;render()}};
   const nf=$("#coachNotifyForm");if(nf){nf.minutes.value=String(S.profile.coachNotifyMinutes||60);nf.mode.value=S.profile.coachNotifyMode||"persistent";nf.onsubmit=saveCoachNotificationSettings}
+  const cf=$("#chatbotPageForm");if(cf)cf.onsubmit=async e=>{e.preventDefault();const input=e.currentTarget.prompt,p=input.value.trim();if(!p)return;input.value="";await submitChatbotPage(p)};
+  const vf=$("#chatbotVoiceForm");if(vf){vf.voiceName.value=avatarProfile().avatarVoiceName||"";vf.onsubmit=saveChatbotVoice}
 }
 
 
@@ -3280,28 +3335,46 @@ function buddyLearningSummary(){
   return '<div class="buddy-learning"><div class="small muted">PIER LEARNING</div><div class="life-line"><span>Best learned gig</span><strong>'+(best?esc(best.g.title)+" · Q "+best.q.toFixed(1):"Not enough outcomes yet")+'</strong></div><div class="life-line"><span>Weakest learned gig</span><strong>'+(weak?esc(weak.g.title)+" · Q "+weak.q.toFixed(1):"Not enough outcomes yet")+'</strong></div><div class="small muted">Skills Pier currently sees</div><div class="buddy-skill-list">'+(skills.length?skills.map(x=>'<span class="gig-req ok">'+esc(x)+(xp[x]?(" · XP "+Math.round(xp[x])):"")+'</span>').join(""):'<span class="muted small">Add skills in Gigs → My gig setup.</span>')+'</div></div>';
 }
 function basicCoachInsight(prompt=""){
-  const q=String(prompt||"").toLowerCase(),target=num(S.profile.weeklyIncomeTarget||100),gigEarn=weeklyGigIncome(),p=plan(),flow=monthFlow(),topGigs=topGigRecommendations(3);
+  const q=String(prompt||"").toLowerCase(),target=num(S.profile.weeklyIncomeTarget||100),gigEarn=weeklyGigIncome(),p=plan(),flow=monthFlow(),topGigs=topGigRecommendations(5),pressure=cashPressureLevel();
+  const gap=Math.max(0,target-gigEarn),zeroCost=S.gigCatalog.filter(g=>num(g.setupCost)===0&&gigRequirementResult(g).unlocked).sort((a,b)=>gigFitScore(b)-gigFitScore(a)).slice(0,3);
+  if(/broke|nothing|no money|cash emergency|rent|need money now/.test(q)){
+    const names=zeroCost.map((x,i)=>(i+1)+". "+x.title).join(" ");
+    const project=[...S.projects].filter(x=>x.status!=="done"&&x.nextMoneyAction&&num(x.budgetNeeded||0)===0).sort((a,b)=>projectMoneyRank(b)-projectMoneyRank(a))[0];
+    return personalityLine("money","Cash pressure is "+pressure.toUpperCase()+". Do not make the $1,000 PC batch today's answer. Your strongest $0 experiments are "+(names||"finish Gig Setup so I can rank them")+". "+(project?"Your strongest project money step is "+project.name+": "+project.nextMoneyAction:"")+" Weekly extra-income gap: "+money(gap)+".");
+  }
   if(/gig|money|income|cash|earn|job|work/.test(q)){
-    const gap=Math.max(0,target-gigEarn),names=topGigs.map(x=>x.title).join("; ");
-    return personalityLine("money","You have "+money(gap)+" left on the extra-income target this week. Best currently-unlocked experiments: "+(names||"finish your gig setup first")+". Keep only the ones that produce net cash.");
+    const names=topGigs.slice(0,3).map(x=>x.title).join("; ");
+    return personalityLine("money","You have "+money(gap)+" left on the extra-income target this week. Best currently-unlocked experiments: "+(names||"finish your gig setup first")+". Cash pressure: "+pressure+". Keep the experiments that produce net cash and kill the ones that only eat time.");
+  }
+  if(/project|working on|build.*money|which.*build/.test(q)){
+    const rows=[...S.projects].filter(x=>x.status!=="done").sort((a,b)=>projectMoneyRank(b)-projectMoneyRank(a)).slice(0,4);
+    return rows.length?"Your project money order is: "+rows.map((x,i)=>(i+1)+". "+x.name+" — "+(x.nextMoneyAction||x.nextBuildAction||"define next step")).join(" "):"Open Build / Income and sync your current projects.";
+  }
+  if(/game|globe|war game|roblox|conquest/.test(q)){
+    const x=S.projects.find(p=>/globe map conquest/i.test(p.name||""))||S.projects.find(p=>/game/i.test(p.type||""));
+    return x?("For "+x.name+", the money move is: "+x.nextMoneyAction+" The build move is: "+x.nextBuildAction+" Keep the launch small enough to ship and put in front of actual players."):"Open Build / Income and sync your game project.";
+  }
+  if(/video|youtube|history|stickman|animation/.test(q)){
+    const x=S.projects.find(p=>/video maker/i.test(p.name||""));
+    return x?("For "+x.name+", the money move is: "+x.nextMoneyAction+" The build move is: "+x.nextBuildAction+" The point is a repeatable video pipeline, not an endless editor."):"Open Build / Income and sync MEP Video Maker.";
   }
   if(/today|plan|task|do next|what.*do/.test(q)){
-    const top=p.selected.slice(0,3).map((x,i)=>(i+1)+". "+x.title).join(" ");
-    return top?("Your current top moves are: "+top):"Your planner is clear. Add a task, bill, goal next-action, or gig experiment and I’ll rank it.";
+    const top=p.selected.slice(0,4).map((x,i)=>(i+1)+". "+x.title).join(" ");
+    return top?("Your current top moves are: "+top):"Your planner is clear. Add a task, bill, goal next-action, project or gig experiment and I’ll rank it.";
   }
   if(/save|spend|expense|budget/.test(q)){
-    return "This month is "+money(flow.income-flow.expense)+" net. Spendable money is "+money(availableMoney())+" after your reserve. Smoking spend this month is "+money(smokeSpendMonth())+".";
+    return "This month is "+money(flow.income-flow.expense)+" net. Spendable money is "+money(availableMoney())+" after your reserve/protected bills. Smoking spend this month is "+money(smokeSpendMonth())+". Cash pressure is "+pressure+".";
   }
   if(/smok|joint|blunt/.test(q)){
-    const s=smokeStats(today());return "Today you logged "+s.mine.toFixed(2)+" participation units, "+s.physical.toFixed(2)+" physical units, and "+s.shared.toFixed(2)+" shared units. The goal here is visibility so you can reduce the trend.";
+    const s=smokeStats(today());return "Today you logged "+s.mine.toFixed(2)+" participation units, "+s.physical.toFixed(2)+" physical units, and "+s.shared.toFixed(2)+" shared units. The point is trend visibility so you can keep bringing the number and spending down.";
   }
   if(/relationship|daphney|partner/.test(q)){
     const person=relationshipPerson();return "Relationship attention pressure is "+relationshipAttention(person?.id||"")+"/100. "+(S.relationshipPlans.some(x=>x.status!=="done"&&x.status!=="skipped")?"You already have an open plan.":"You do not have an open relationship plan right now.");
   }
-  if(/license|dmv|id/.test(q))return "Your saved license status is "+String(S.profile.licenseStatus||"unknown").toUpperCase()+". Use My Life → Florida driver license for the official-status workflow.";
-  if(/avatar|personality|skin/.test(q))return "Open my settings from this panel and you can change my skin, personality, name, and voice for this Pier profile.";
-  const moneyGap=Math.max(0,target-gigEarn),next=p.selected[0];
-  return personalityLine("money",(next?"Highest-value move: "+next.title+". ":"")+"Extra-income gap this week: "+money(moneyGap)+". "+(topGigs[0]?"Best gig experiment right now: "+topGigs[0].title+".":"Fill in Gig setup so I can rank money options."));
+  if(/license|dmv|id/.test(q))return "Your saved license status is "+String(S.profile.licenseStatus||"unknown").toUpperCase()+". Use Life → My Life → Florida driver license for the official-status workflow.";
+  if(/avatar|personality|skin|voice/.test(q))return "Open Chatbot → Chatbot or Voice. You can change my skin, mood behavior, personality, browser voice, speed, pitch and volume per profile.";
+  const next=p.selected[0],proj=[...S.projects].filter(x=>x.status!=="done").sort((a,b)=>projectMoneyRank(b)-projectMoneyRank(a))[0];
+  return personalityLine("money",(next?"Highest-value move: "+next.title+". ":"")+"Weekly extra-income gap: "+money(gap)+". "+(topGigs[0]?"Best gig experiment: "+topGigs[0].title+". ":"")+(proj?"Best revenue project: "+proj.name+".":""));
 }
 async function callConfiguredAssistant(prompt){
   const provider=S.profile.aiProvider||"disabled";
@@ -3324,7 +3397,9 @@ async function callConfiguredAssistant(prompt){
 }
 function speakBuddy(text){
   if(avatarProfile().avatarVoice===false||!("speechSynthesis" in window)||!text)return;
-  speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(String(text).slice(0,700));u.rate=num(avatarProfile().avatarSpeechRate||1)||1;
+  speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(String(text).slice(0,900)),p=avatarProfile();
+  u.rate=clamp(num(p.avatarSpeechRate||1)||1,.5,2);u.pitch=clamp(num(p.avatarSpeechPitch||1)||1,.5,2);u.volume=clamp(num(p.avatarSpeechVolume??1),0,1);
+  const voices=speechSynthesis.getVoices?.()||[],picked=voices.find(v=>v.name===p.avatarVoiceName);if(picked)u.voice=picked;
   const b=$("#pierBuddy");u.onstart=()=>b?.classList.add("talking");u.onend=()=>b?.classList.remove("talking");u.onerror=()=>b?.classList.remove("talking");speechSynthesis.speak(u);
 }
 async function buddyRespond(prompt,display=true){
@@ -3401,6 +3476,11 @@ function openMobileMore(){
   $$("#modalBody [data-mobile-view]").forEach(b=>b.onclick=()=>{closeModal();navigate(b.dataset.mobileView)});
 }
 async function handleAction(action,id,el){
+  if(action==="chatbot-tab"){S.chatbotTab=id||"chat";return render()}
+  if(action==="chatbot-chip")return submitChatbotPage(id);
+  if(action==="buddy-customize")return openBuddySettings();
+  if(action==="chatbot-test-voice")return speakBuddy("Pier voice test. I am connected to this profile and ready to keep you on the plan.");
+  if(action==="chatbot-speak-now"){speakBuddy(basicCoachInsight("what should I do next"));return}
   if(action==="buddy-open")return openBuddy();
   if(action==="mobile-more")return openMobileMore();
   if(action==="install-pier")return installPier();

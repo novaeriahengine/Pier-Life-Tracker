@@ -639,6 +639,18 @@ tr:last-child td{border-bottom:0}
   .subnav-btn{padding:8px 10px}
   .pier-buddy-dock{bottom:calc(74px + env(safe-area-inset-bottom))!important}
 }
+
+.project-rescue{display:grid;grid-template-columns:1.6fr .8fr;gap:14px;align-items:center;padding:18px;border:1px solid var(--line);border-radius:18px;background:linear-gradient(135deg,rgba(101,183,255,.07),transparent),var(--panel)}
+.project-rescue.critical{border-color:rgba(255,107,107,.45);background:linear-gradient(135deg,rgba(255,107,107,.08),transparent),var(--panel)}
+.project-rescue.high{border-color:rgba(255,202,99,.4)}
+.project-focus{display:grid;gap:6px;padding:13px;border:1px solid var(--line);border-radius:14px;background:var(--panel2)}
+.project-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px}
+.project-card{border:1px solid var(--line);border-radius:16px;background:var(--panel);padding:15px;display:grid;gap:10px}
+.project-card.blocked{border-color:rgba(255,202,99,.28)}
+.project-title{font-size:18px;font-weight:900;letter-spacing:-.02em}
+.project-next{padding:10px;border-radius:12px;background:var(--panel2);font-size:11px;line-height:1.5}
+.project-next strong{display:block;color:var(--accent);font-size:9px;text-transform:uppercase;letter-spacing:.07em;margin-bottom:3px}
+@media(max-width:820px){.project-rescue{grid-template-columns:1fr;padding:14px}.project-grid{grid-template-columns:1fr}.project-card{padding:13px}}
 </style>
 </head>
 <body>
@@ -1135,6 +1147,24 @@ function moneyGigAction(){
   const g=topGigRecommendations(1)[0];if(!g)return null;
   return {key:"gigAuto:"+g.id,type:"gigAuto",id:g.id,title:"Start money experiment: "+g.title,priority:4,must:false,due:today(),minutes:30,cashCost:num(g.setupCost),category:"Gig / Income",lifeGroup:"gig:"+g.id,moneyGap:gap};
 }
+
+function cashPressureLevel(){
+  const spend=availableMoney(),due7=S.bills.filter(b=>b.status!=="paid"&&b.dueDate&&daysUntil(b.dueDate)>=0&&daysUntil(b.dueDate)<=7).reduce((n,b)=>n+num(b.minimumDue||b.amount),0);
+  if(spend<=0||totalBalance()<=10)return "critical";
+  if(spend<50||due7>spend)return "high";
+  if(spend<150)return "tight";
+  return "stable";
+}
+function projectMoneyAction(){
+  const pressure=cashPressureLevel();
+  const lanes={service:5,launch:4,"content-engine":4,portfolio:2,"personal-ops":2,"long-term":1,"not-immediate":0};
+  const rows=S.projects.filter(p=>p.status!=="paused"&&p.status!=="done"&&p.plannerEnabled!==false&&p.nextMoneyAction)
+    .filter(p=>num(p.budgetNeeded||0)<=Math.max(0,availableMoney())||num(p.budgetNeeded||0)===0)
+    .sort((a,b)=>(lanes[b.moneyLane]||0)-(lanes[a.moneyLane]||0)||num(b.priority)-num(a.priority));
+  const p=rows[0];if(!p)return null;
+  const laneBoost=lanes[p.moneyLane]||0;
+  return {key:"projectAuto:"+p.id,type:"projectAuto",id:p.id,title:"Revenue project: "+p.name+" — "+p.nextMoneyAction,priority:clamp(num(p.priority||3)+(pressure==="critical"&&laneBoost>=4?1:0),1,5),must:false,due:today(),minutes:45,cashCost:0,category:"Project / Income",lifeGroup:"project-money:"+p.id,projectLane:p.moneyLane||"",moneyGap:Math.max(0,num(S.profile.weeklyIncomeTarget||100)-weeklyGigIncome())};
+}
 function allActions(){
   return [
     ...openTasks().filter(t=>t.plannerEnabled!==false).map(toTaskAction),
@@ -1142,7 +1172,7 @@ function allActions(){
     ...S.routines.filter(routineDue).map(toRoutineAction),
     ...S.goals.filter(g=>g.status!=="done"&&g.nextAction&&g.plannerEnabled!==false).map(toGoalAction),
     ...S.relationshipPlans.filter(r=>r.status!=="done"&&r.status!=="skipped").map(toRelationshipAction),
-    ...[relationshipMaintenanceAction(),moneyGigAction()].filter(Boolean)
+    ...[relationshipMaintenanceAction(),moneyGigAction(),projectMoneyAction()].filter(Boolean)
   ];
 }
 function scoreAction(a){
@@ -1153,7 +1183,7 @@ function scoreAction(a){
   else if(d===1)score+=72;
   else if(d<=3)score+=48;
   else if(d<=7)score+=26;
-  if(a.type==="bill")score+=24;if(a.type==="routine")score+=10;if(a.type==="relationship")score+=Math.floor(relationshipAttention()/5);if(a.type==="gigAuto")score+=32+Math.min(28,Math.floor(num(a.moneyGap)/5));
+  if(a.type==="bill")score+=24;if(a.type==="routine")score+=10;if(a.type==="relationship")score+=Math.floor(relationshipAttention()/5);if(a.type==="gigAuto")score+=32+Math.min(28,Math.floor(num(a.moneyGap)/5));if(a.type==="projectAuto")score+=24+Math.min(20,Math.floor(num(a.moneyGap)/8));
   if(a.minutes<=20)score+=5;
   return Math.round(score);
 }
@@ -1180,6 +1210,7 @@ function scoreBreakdown(a){
   if(a.type==="routine")parts.push(["Routine",10]);
   if(a.type==="relationship")parts.push(["Relationship cadence",Math.floor(relationshipAttention()/5)]);
   if(a.type==="gigAuto")parts.push(["Weekly money gap",32+Math.min(28,Math.floor(num(a.moneyGap)/5))]);
+  if(a.type==="projectAuto")parts.push(["Revenue project",24+Math.min(20,Math.floor(num(a.moneyGap)/8))]);
   if(a.minutes<=20)parts.push(["Quick win",5]);
   return parts;
 }
@@ -1383,6 +1414,43 @@ function activeGigMeta(p){
   if(x.kind==="pc_build_resale")return num(x.pcsBuilt||0)+"/"+num(x.buildCount||0)+" PCs built · "+num(x.pcsSold||0)+" sold · "+money(x.revenue||0)+" revenue";
   const rows=gigAttemptsFor(p.gigId),earned=rows.reduce((n,a)=>n+num(a.earned),0),cost=rows.reduce((n,a)=>n+num(a.cost),0);
   return rows.length+" logged result(s) · "+money(earned-cost)+" net";
+}
+
+function projectLaneLabel(lane){
+  return ({service:"SELL NOW",launch:"SHIP / LAUNCH","content-engine":"CONTENT ENGINE",portfolio:"PORTFOLIO","personal-ops":"OPERATIONS","long-term":"LONG TERM","not-immediate":"NOT RENT MONEY"})[lane]||String(lane||"PROJECT").toUpperCase()
+}
+function projectMoneyRank(p){
+  const lane={service:35,launch:28,"content-engine":28,portfolio:12,"personal-ops":8,"long-term":5,"not-immediate":-25}[p.moneyLane]||0;
+  const cost=num(p.budgetNeeded),pressure=cashPressureLevel();
+  let score=num(p.priority||3)*12+lane;
+  if(cost===0)score+=20;
+  if(cost>Math.max(0,availableMoney()))score-=50;
+  if(pressure==="critical"&&["service","launch","content-engine"].includes(p.moneyLane))score+=18;
+  return Math.round(score);
+}
+function projectCard(p){
+  const pct=clamp(num(p.progress),0,100),blocked=num(p.budgetNeeded)>Math.max(0,availableMoney()),rank=projectMoneyRank(p);
+  return '<article class="project-card '+(blocked?'blocked':'')+'"><div class="card-head"><div><span class="pill '+(["service","launch","content-engine"].includes(p.moneyLane)?"good":"")+'">'+esc(projectLaneLabel(p.moneyLane))+'</span></div><span class="gig-score">MONEY '+rank+'</span></div><div class="project-title">'+esc(p.name)+'</div><div class="row-meta">'+esc(p.type||"Project")+' · '+esc(p.stage||"active")+'</div><div class="small muted" style="line-height:1.55">'+esc(p.summary||"")+'</div><div class="progress" style="margin-top:4px"><span style="width:'+pct+'%"></span></div><div class="row-meta">'+pct.toFixed(0)+'% tracked progress'+(num(p.budgetNeeded)?' · needs '+money(p.budgetNeeded):' · $0 required now')+'</div><div class="project-next"><strong>Money next</strong><div>'+esc(p.nextMoneyAction||"No money step yet")+'</div></div><div class="project-next"><strong>Build next</strong><div>'+esc(p.nextBuildAction||"No build step yet")+'</div></div><div class="toolbar">'+(p.repoUrl?'<a class="btn ghost" target="_blank" rel="noopener" href="'+esc(p.repoUrl)+'">GitHub ↗</a>':'')+(p.liveUrl?'<a class="btn ghost" target="_blank" rel="noopener" href="'+esc(p.liveUrl)+'">Open ↗</a>':'')+'<button class="btn primary" data-action="project-money-task" data-id="'+p.id+'">$ step</button><button class="btn" data-action="project-build-task" data-id="'+p.id+'">Build step</button><button class="btn" data-action="project-edit" data-id="'+p.id+'">Edit</button></div></article>';
+}
+function renderProjects(){
+  const pressure=cashPressureLevel(),ranked=[...S.projects].filter(p=>p.status!=="done").sort((a,b)=>projectMoneyRank(b)-projectMoneyRank(a)),top=ranked[0],target=Math.max(25,num(S.profile.weeklyIncomeTarget||100)),gap=Math.max(0,target-weeklyGigIncome());
+  return '<div class="section-title"><div><h1>Build / Income</h1><p>Your real projects, but ranked by whether they can help your life instead of just giving you more code to work on.</p></div><div class="toolbar"><button class="btn primary" data-view="gigs">Open gigs</button><button class="btn" data-action="project-seed">Sync my projects</button></div></div>'+
+    '<section class="project-rescue '+pressure+'"><div><div class="eyebrow">MONEY PRESSURE · '+esc(pressure.toUpperCase())+'</div><div class="hero-title">'+(gap>0?money(gap)+' still needed on the weekly extra-income target':'Weekly extra-income target covered')+'</div><div class="hero-sub">'+(pressure==="critical"?"Pier will favor $0-cost selling, outreach, service work, shipping a usable build, and content you can make with what you already own. Capital-heavy projects stay visible but should not consume protected bill money.":"Projects are still ranked by actual cost, time and monetization path.")+'</div></div>'+(top?'<div class="project-focus"><span class="pill good">FOCUS PROJECT</span><strong>'+esc(top.name)+'</strong><span class="small muted">'+esc(top.nextMoneyAction||"")+'</span></div>':'')+'</section>'+
+    '<div class="project-grid" style="margin-top:14px">'+(ranked.length?ranked.map(projectCard).join(""):'<div class="card pad"><div class="empty">Projects will sync here from your Pier project catalog.</div></div>')+'</div>'+
+    '<section class="card pad" style="margin-top:18px"><div class="card-head"><div><h3>Rule for project time</h3><div class="small muted">When money is tight, a project has to earn its time.</div></div><span class="pill blue">GOAP CONNECTED</span></div><div class="grid-3"><div class="goal-card"><div class="goal-title">1 · Sell</div><div class="small muted">Can this create a client, paid setup, commission, sale, donation, or useful lead quickly?</div></div><div class="goal-card"><div class="goal-title">2 · Ship</div><div class="small muted">If not, does this block a public release you can actually put in front of people?</div></div><div class="goal-card"><div class="goal-title">3 · Park</div><div class="small muted">If it does neither right now, keep it recorded but stop letting it eat emergency-income hours.</div></div></div></section>';
+}
+async function createProjectTask(id,kind){
+  const p=S.projects.find(x=>x.id===id);if(!p)return;
+  const title=kind==="money"?(p.nextMoneyAction||"Do the next money step"):(p.nextBuildAction||"Do the next build step");
+  await addDoc(subcol("tasks"),{title:(kind==="money"?"Revenue: ":"Build: ")+p.name+" — "+title,priority:kind==="money"?5:Math.max(2,num(p.priority||3)),category:"Project / "+(kind==="money"?"Income":"Build"),dueAt:"",estimateMin:kind==="money"?45:75,moneyCost:0,must:false,requiresDriving:false,plannerEnabled:true,projectId:p.id,lifeGroup:"project-"+kind+":"+p.id,status:"open",...ctxFields(),createdAt:serverTimestamp()});
+  toast((kind==="money"?"Money":"Build")+" step added to GOAP.");
+}
+function openProjectEdit(id){
+  const p=S.projects.find(x=>x.id===id);if(!p)return;
+  showModal("Project · "+p.name,'<form><div class="modal-grid"><div class="field"><label>Status</label><select name="status"><option value="active">Active</option><option value="paused">Paused</option><option value="done">Done</option></select></div><div class="field"><label>Priority</label><select name="priority">'+[1,2,3,4,5].map(x=>'<option value="'+x+'">P'+x+'</option>').join("")+'</select></div><div class="field"><label>Stage</label><input name="stage" value="'+esc(p.stage||"")+'"></div><div class="field"><label>Progress %</label><input name="progress" type="number" min="0" max="100" value="'+num(p.progress)+'"></div><div class="field"><label>Budget needed before next step</label><input name="budgetNeeded" type="number" min="0" step=".01" value="'+num(p.budgetNeeded)+'"></div><div class="field"><label>Weekly revenue target</label><input name="targetWeekly" type="number" min="0" step="5" value="'+num(p.targetWeekly)+'"></div></div><div class="field"><label>Next money action</label><textarea name="nextMoneyAction">'+esc(p.nextMoneyAction||"")+'</textarea></div><div class="field"><label>Next build action</label><textarea name="nextBuildAction">'+esc(p.nextBuildAction||"")+'</textarea></div><label class="check"><input name="plannerEnabled" type="checkbox" '+(p.plannerEnabled!==false?'checked':'')+'> Let GOAP consider the revenue step</label><div class="modal-foot"><button class="btn ghost" type="button" id="cancelModalBtn">Cancel</button><button class="btn primary" type="submit">Save project</button></div></form>',async fd=>{
+    await updateDoc(subdoc("projects",p.id),{status:fd.get("status"),priority:num(fd.get("priority")),stage:fd.get("stage").trim(),progress:clamp(num(fd.get("progress")),0,100),budgetNeeded:num(fd.get("budgetNeeded")),targetWeekly:num(fd.get("targetWeekly")),nextMoneyAction:fd.get("nextMoneyAction").trim(),nextBuildAction:fd.get("nextBuildAction").trim(),plannerEnabled:fd.get("plannerEnabled")==="on",updatedAt:serverTimestamp()});toast("Project updated.");
+  });
+  $("#cancelModalBtn").onclick=closeModal;$("#modalBody select[name=status]").value=p.status||"active";$("#modalBody select[name=priority]").value=String(p.priority||3);
 }
 function renderGigs(){
   const target=Math.max(25,num(S.profile.weeklyIncomeTarget||100)),earned=weeklyGigIncome(),pct=clamp(earned/target*100,0,100),top=topGigRecommendations(3),active=S.gigPlans.filter(x=>x.status==="active"),rows=filteredGigs().slice(0,100),categories=Array.from(new Set(S.gigCatalog.map(g=>g.category))).sort();
@@ -3340,6 +3408,10 @@ async function handleAction(action,id,el){
   if(action==="license-setup")return openLicenseSetup();
   if(action==="license-check")return checkLicenseStatus();
   if(action==="add-savings-goal")return openGoalModal({kind:"money",name:"Savings goal",priority:3,target:500,nextAction:"Set aside money toward this goal",nextActionMinutes:10,plannerEnabled:true});
+  if(action==="project-seed")return ensureProjectSeed();
+  if(action==="project-money-task")return createProjectTask(id,"money");
+  if(action==="project-build-task")return createProjectTask(id,"build");
+  if(action==="project-edit")return openProjectEdit(id);
   if(action==="gig-setup")return openGigSetup();
   if(action==="gig-target")return openGigTarget();
   if(action==="gig-target-quick")return setDoc(userDoc(),{weeklyIncomeTarget:Math.max(25,num(id)||100),updatedAt:serverTimestamp()},{merge:true}).then(()=>toast("Weekly extra-income target set to "+money(id)+"."));
@@ -3469,6 +3541,7 @@ async function completePlanItem(key){
   if(type==="relationship")return completeRelationship(id);
   if(type==="relationshipAuto"){navigate("relationship");return toast("Pick or create a relationship plan, then Pier can schedule the real plan.");}
   if(type==="gigAuto"){const g=S.gigCatalog.find(x=>x.id===id);if(gigPlanFor(id))return openGigDetails(id);navigate("gigs");return g?toast("Pier picked this money experiment: "+g.title):toast("Open Gigs and pick a money experiment.");}
+  if(type==="projectAuto"){navigate("projects");return toast("Pier picked a revenue step from one of your active projects.");}
 }
 
 function openTaskModal(t={}){

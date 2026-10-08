@@ -8,7 +8,8 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Pier">
-<link rel="manifest" href="./manifest.webmanifest">
+<link id="appManifest" rel="manifest" href="./manifest-aqua.webmanifest">
+<link id="dynamicFavicon" rel="icon" href="./icon-aqua.svg" type="image/svg+xml">
 <title>Pier Life Tracker</title>
 <meta name="description" content="A deterministic personal life planner powered by GOAP-style rules, not an LLM.">
 <style>
@@ -664,6 +665,14 @@ tr:last-child td{border-bottom:0}
 .chat-compose textarea{min-height:54px;max-height:130px}
 .chat-compose .btn{min-height:54px}
 @media(max-width:820px){.chat-page{min-height:0}.full-chat-log{min-height:50vh;max-height:60vh}.chat-compose{grid-template-columns:1fr}.chat-compose .btn{min-height:44px}}
+
+.icon-choice-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:8px}
+.icon-choice{display:grid;place-items:center;gap:6px;padding:10px;border:1px solid var(--line);border-radius:13px;background:var(--panel2);font-size:10px;cursor:pointer}
+.icon-choice input{position:absolute;opacity:0;pointer-events:none}
+.icon-choice.active,.icon-choice:has(input:checked){border-color:rgba(101,183,255,.55);background:rgba(101,183,255,.08)}
+.icon-preview{width:44px;height:44px;border-radius:13px;display:grid;place-items:center;color:#07111b;font-weight:950;font-size:17px}
+.icon-preview.aqua{background:linear-gradient(135deg,#4fd1a5,#65b7ff)}.icon-preview.purple{background:linear-gradient(135deg,#a278ff,#6d8cff)}.icon-preview.gold{background:linear-gradient(135deg,#ffd166,#ff9f43)}.icon-preview.night{background:linear-gradient(135deg,#313d58,#121928);color:#fff}.icon-preview.alert{background:linear-gradient(135deg,#ff7b7b,#ffb36b)}
+@media(max-width:820px){.icon-choice-grid{grid-template-columns:repeat(3,1fr)}}
 </style>
 </head>
 <body>
@@ -1036,7 +1045,7 @@ $("#quickAddBtn").onclick=()=>openTaskModal();
 $("#runPlannerBtn").onclick=()=>{S.plan=generatePlan();toast("Plan rebuilt.");render()};
 
 function refresh(){
-  $("#avatar").textContent=firstLetter();applyBuddySkin();applyBuddyMood();initBuddyMotion();S.plan=generatePlan();
+  $("#avatar").textContent=firstLetter();applyBuddySkin();applyBuddyMood();applyAppIconTheme();startFaviconEyes();initBuddyMotion();S.plan=generatePlan();
   if($("#appShell").classList.contains("hidden"))return;
   render();
 }
@@ -1728,6 +1737,10 @@ function buildAiDataPack(){
     market:{
       watched:compactRows(S.marketWatch,["symbol","name","sector","tier","active","rank"],10),
       cachedQuotes:S.marketCache.filter(x=>x.quote).slice(0,10).map(x=>({symbol:x.symbol,quote:x.quote,quoteFetchedIso:x.quoteFetchedIso}))
+    },
+    projects:{
+      active:compactRows(S.projects.filter(x=>x.status!=="done"),["id","importKey","name","type","stage","moneyLane","priority","targetWeekly","budgetNeeded","progress","summary","nextMoneyAction","nextBuildAction","repoUrl","liveUrl","plannerEnabled"],30),
+      topMoneyProjects:[...S.projects].filter(x=>x.status!=="done").sort((a,b)=>projectMoneyRank(b)-projectMoneyRank(a)).slice(0,8).map(x=>({id:x.id,name:x.name,moneyRank:projectMoneyRank(x),moneyLane:x.moneyLane,budgetNeeded:x.budgetNeeded,nextMoneyAction:x.nextMoneyAction,nextBuildAction:x.nextBuildAction}))
     },
     incomeEngine:{
       weeklyTarget:num(S.profile.weeklyIncomeTarget||100),
@@ -3239,7 +3252,7 @@ function renderSettings(){
       '<div class="setting-row"><div><strong>Firestore</strong><div class="small muted">'+(S.syncError?esc(S.syncError):"Realtime sync active")+'</div></div><span class="pill '+(S.syncError?'must':'good')+'">'+(S.syncError?"SETUP":"LIVE")+'</span></div>'+
       '<div class="split-line"></div><div class="small muted" style="line-height:1.55">If Firestore says permission denied: Firebase Console → Authentication → Sign-in method → enable Email/Password. Then Firestore → Rules → publish the contents of <span class="mono">firestore.rules</span> from this repository.</div>'+
       '<div class="split-line"></div><div class="import-zone"><strong>Life JSON → Firebase</strong><div class="small muted" style="margin-top:5px">Upload one JSON file to merge/update tasks, goals, devices, vehicles, household, work, bills, legal/admin, routines, schedules, relationship plans and GOAP memory across the whole site. Same importKey = update, not duplicate.</div><div class="toolbar" style="margin-top:10px"><button class="btn primary" data-action="private-import">Upload / update Life JSON</button><button class="btn" data-action="daily-regenerate">Generate today&#39;s GOAP draft</button></div></div><div class="split-line"></div><div class="toolbar"><button class="btn primary" data-action="install-pier">Install Pier on this device</button><button class="btn" data-action="export-data">Export JSON</button><button class="btn" data-action="request-notifications">Browser alerts</button><button class="btn danger" data-action="sign-out">Sign out</button></div>'+
-    '</section></div>'+renderCoachNotificationPanel()+renderAiBridgePanel()+
+    '</section></div>'+renderAppIconPanel()+renderCoachNotificationPanel()+renderAiBridgePanel()+
     '<section class="card pad" style="margin-top:18px"><div class="card-head"><h3>Market data API</h3><span class="pill blue">MARKETDATA.APP</span></div><div class="grid-2"><div><div class="api-box"><div class="field"><label>API token</label><input id="marketTokenInput" type="password" autocomplete="off" placeholder="Paste your personal MarketData.app token"></div><div class="toolbar"><button class="btn primary" data-action="save-market-token">Save token</button><button class="btn" data-action="test-market-token">Test with AAPL</button><button class="btn danger" data-action="remove-market-token">Remove</button></div></div></div><div><div class="small muted" style="line-height:1.65">The token is saved under your authenticated Firebase account, not inside this public GitHub source. Never paste market API tokens into chat, GitHub issues or code. Because Pier runs in your browser, a signed-in person can inspect their own network requests, so do not share your Pier login. The free provider plan is useful for building/training data but is delayed; the Market Data page shows freshness instead of labeling it live.</div><div style="margin-top:12px"><a class="btn" target="_blank" rel="noopener noreferrer" href="https://www.marketdata.app/">Create / manage MarketData.app account ↗</a></div></div></div></section>'+
     '<section class="card pad" style="margin-top:18px"><div class="card-head"><h3>Data ownership</h3><span class="pill good">YOUR FIREBASE</span></div><div class="toolbar"><button class="btn" data-action="export-training-data">Export market/training dataset</button><button class="btn" data-view="data">Open Training Data</button></div><div class="small muted" style="margin-top:10px">API secrets are excluded from exports.</div></section>'+
     '<section class="card pad" style="margin-top:18px"><div class="card-head"><h3>GOAP learning memory</h3><span class="pill blue">FIREBASE</span></div><div class="goap-memory"><div class="import-stat"><strong>'+S.goapFeedback.length+'</strong>learned actions</div><div class="import-stat"><strong>'+S.goapFeedback.reduce((n,x)=>n+num(x.approvedCount),0)+'</strong>approvals</div><div class="import-stat"><strong>'+S.goapFeedback.reduce((n,x)=>n+num(x.correctedCount),0)+'</strong>corrections</div><div class="import-stat"><strong>'+S.goapFeedback.reduce((n,x)=>n+num(x.rejectedCount),0)+'</strong>rejections</div></div><div class="small muted" style="margin-top:10px;line-height:1.6">Pier stores approve/correct/reject choices in Firebase. Future daily drafts for the same source task, goal or routine move toward the time and duration you actually accepted and get penalized if you repeatedly reject them.</div></section>'+
@@ -3261,6 +3274,7 @@ function bindViewInputs(){
   const gs=$("#gigSearch");if(gs)gs.oninput=e=>{S.gigSearch=e.target.value;render()};
   const gl=$("#gigLane");if(gl){gl.value=S.gigLane||"all";gl.onchange=e=>{S.gigLane=e.target.value;render()}};
   const gc=$("#gigCategory");if(gc){gc.value=S.gigCategory||"all";gc.onchange=e=>{S.gigCategory=e.target.value;render()}};
+  const iconForm=$("#appIconForm");if(iconForm)iconForm.onsubmit=saveAppIcon;
   const nf=$("#coachNotifyForm");if(nf){nf.minutes.value=String(S.profile.coachNotifyMinutes||60);nf.mode.value=S.profile.coachNotifyMode||"persistent";nf.onsubmit=saveCoachNotificationSettings}
   const cf=$("#chatbotPageForm");if(cf)cf.onsubmit=async e=>{e.preventDefault();const input=e.currentTarget.prompt,p=input.value.trim();if(!p)return;input.value="";await submitChatbotPage(p)};
   const vf=$("#chatbotVoiceForm");if(vf){vf.voiceName.value=avatarProfile().avatarVoiceName||"";vf.onsubmit=saveChatbotVoice}
@@ -3270,6 +3284,37 @@ function bindViewInputs(){
 
 
 function avatarProfile(){return currentProfile()}
+
+const APP_ICON_STYLES=["auto","aqua","purple","gold","night","alert"];
+function resolvedAppIconStyle(){
+  const chosen=avatarProfile().appIconStyle||"auto";if(chosen!=="auto"&&APP_ICON_STYLES.includes(chosen))return chosen;
+  const mood=autoBuddyMood();return mood==="stressed"||mood==="concerned"?"alert":mood==="sleepy"?"night":mood==="happy"?"gold":"aqua";
+}
+function appIconPalette(style){
+  return ({aqua:["#4fd1a5","#65b7ff"],purple:["#a278ff","#6d8cff"],gold:["#ffd166","#ff9f43"],night:["#313d58","#121928"],alert:["#ff7b7b","#ffb36b"]})[style]||["#4fd1a5","#65b7ff"];
+}
+function animatedFaviconSvg(style,dx=0,dy=0){
+  const [a,b]=appIconPalette(style),mood=autoBuddyMood(),mouth=mood==="stressed"||mood==="concerned"?'<path d="M20 31 Q32 21 44 31" fill="none" stroke="#07111b" stroke-width="3" stroke-linecap="round"/>':'<path d="M20 28 Q32 39 44 28" fill="none" stroke="#07111b" stroke-width="3" stroke-linecap="round"/>';
+  return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop stop-color="'+a+'"/><stop offset="1" stop-color="'+b+'"/></linearGradient></defs><rect width="64" height="64" rx="15" fill="#07111b"/><circle cx="32" cy="32" r="24" fill="url(#g)"/><ellipse cx="24" cy="27" rx="5.2" ry="4.6" fill="#fff"/><ellipse cx="40" cy="27" rx="5.2" ry="4.6" fill="#fff"/><circle cx="'+(24+dx)+'" cy="'+(27+dy)+'" r="2.1" fill="#07111b"/><circle cx="'+(40+dx)+'" cy="'+(27+dy)+'" r="2.1" fill="#07111b"/>'+mouth+'</svg>';
+}
+function applyAppIconTheme(){
+  const style=resolvedAppIconStyle(),manifest=$("#appManifest"),fav=$("#dynamicFavicon");
+  if(manifest)manifest.href="./manifest-"+style+".webmanifest";
+  if(fav)fav.href="./icon-"+style+".svg";
+  document.documentElement.dataset.appIcon=style;
+}
+function startFaviconEyes(){
+  if(startFaviconEyes.done)return;startFaviconEyes.done=true;
+  setInterval(()=>{const fav=$("#dynamicFavicon");if(!fav)return;const style=resolvedAppIconStyle(),dx=(Math.random()*3-1.5).toFixed(1),dy=(Math.random()*2-1).toFixed(1),svg=animatedFaviconSvg(style,dx,dy);fav.href="data:image/svg+xml;charset=utf-8,"+encodeURIComponent(svg)},2600);
+}
+function renderAppIconPanel(){
+  const chosen=avatarProfile().appIconStyle||"auto",resolved=resolvedAppIconStyle();
+  return '<section class="card pad" style="margin-top:18px"><div class="card-head"><div><h3>App icon</h3><div class="small muted">Choose the installed/browser icon style for this profile.</div></div><span class="pill blue">'+esc(resolved.toUpperCase())+'</span></div><form id="appIconForm"><div class="icon-choice-grid">'+APP_ICON_STYLES.map(x=>'<label class="icon-choice '+(chosen===x?"active":"")+'"><input type="radio" name="style" value="'+x+'" '+(chosen===x?"checked":"")+'><div class="icon-preview '+(x==="auto"?resolved:x)+'">'+(x==="auto"?"A":"P")+'</div><strong>'+esc(x==="auto"?"Auto mood":x.charAt(0).toUpperCase()+x.slice(1))+'</strong></label>').join("")+'</div><div class="toolbar" style="margin-top:12px"><button class="btn primary" type="submit">Save icon</button><button class="btn" type="button" data-action="install-pier">Install / reinstall Pier</button></div><div class="small muted" style="margin-top:10px">Inside Chrome, Pier can move the favicon eyes. Android/iPhone home-screen PWA icons are launcher-managed and cannot continuously animate from webpage JavaScript. Changing this setting changes the manifest/icon used for future installs; an already-installed icon may require reinstalling Pier before the launcher refreshes it.</div></form></section>';
+}
+async function saveAppIcon(e){
+  e.preventDefault();const fd=new FormData(e.currentTarget),style=fd.get("style")||"auto";
+  await setDoc(subdoc("profiles",S.activeProfileId),{appIconStyle:style,updatedAt:serverTimestamp()},{merge:true});applyAppIconTheme();toast("App icon style saved.");
+}
 function applyBuddySkin(){
   const b=$("#pierBuddy");if(!b)return;
   const skin=avatarProfile().avatarSkin||"aqua";b.className="pier-buddy skin-"+skin;

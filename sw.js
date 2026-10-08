@@ -1,5 +1,5 @@
-const CACHE="pier-shell-v5";
-const SHELL=["./","./index.html","./stock_universe.json","./gig_catalog.json","./manifest.webmanifest","./icon-192.svg","./icon-512.svg","./icon-maskable.svg"];
+const CACHE="pier-shell-v6";
+const SHELL=["./","./index.html","./stock_universe.json","./gig_catalog.json","./project_catalog.json","./manifest-aqua.webmanifest","./manifest-purple.webmanifest","./manifest-gold.webmanifest","./manifest-night.webmanifest","./manifest-alert.webmanifest","./icon-aqua.svg","./icon-purple.svg","./icon-gold.svg","./icon-night.svg","./icon-alert.svg","./icon-192.svg","./icon-512.svg","./icon-maskable.svg"];
 
 self.addEventListener("install",event=>{
   event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(SHELL)).then(()=>self.skipWaiting()));
@@ -27,7 +27,7 @@ self.addEventListener("push",event=>{
   const title=data.title||"Pier";
   const options={
     body:data.body||"You have something waiting in Pier.",
-    icon:"./icon-192.svg",
+    icon:data.icon||"./icon-aqua.svg",
     badge:"./icon-192.svg",
     tag:data.tag||"pier-push",
     renotify:true,

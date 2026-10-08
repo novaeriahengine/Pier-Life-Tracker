@@ -618,6 +618,27 @@ tr:last-child td{border-bottom:0}
 @keyframes buddyHop{0%,100%{margin-bottom:0}38%{margin-bottom:16px;scale:1.05}65%{margin-bottom:3px;scale:.98}}
 .buddy-learning{display:grid;gap:7px;padding:10px;border:1px solid var(--line);border-radius:12px;background:var(--panel2)}
 .buddy-skill-list{display:flex;gap:5px;flex-wrap:wrap}
+
+/* Pier v3.3: five-main-tab information architecture */
+.subnav-shell{position:sticky;top:var(--top);z-index:12;margin:-1px 0 14px;padding:9px 0 8px;background:linear-gradient(180deg,var(--bg) 72%,transparent)}
+.subnav-title{display:none;font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:6px}
+.subnav-scroll{display:flex;gap:7px;overflow-x:auto;scrollbar-width:none;padding:1px 1px 4px}
+.subnav-scroll::-webkit-scrollbar{display:none}
+.subnav-btn{flex:0 0 auto;border:1px solid var(--line);background:var(--panel2);color:var(--muted);border-radius:999px;padding:8px 11px;font-size:10px;font-weight:800;display:flex;gap:6px;align-items:center}
+.subnav-btn.active{color:var(--text);border-color:rgba(101,183,255,.4);background:rgba(101,183,255,.08)}
+@media(max-width:820px){
+  .primary-mobile-nav{display:grid!important;position:fixed!important;bottom:0;left:0;right:0;z-index:80;height:calc(61px + env(safe-area-inset-bottom));grid-template-columns:repeat(5,1fr);background:rgba(7,17,27,.96);backdrop-filter:blur(18px);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom)}
+  .primary-mobile-nav button{border:0;background:transparent;color:var(--muted);display:grid;place-items:center;align-content:center;gap:2px;font-size:9px;font-weight:850}
+  .primary-mobile-nav button span{font-size:18px}
+  .primary-mobile-nav button.active{color:var(--accent)}
+  .main{padding-bottom:calc(76px + env(safe-area-inset-bottom))!important}
+  .content{padding-bottom:calc(110px + env(safe-area-inset-bottom))!important}
+  .subnav-shell{top:60px;margin:0 -2px 10px;padding:7px 0;background:rgba(7,17,27,.96);backdrop-filter:blur(14px)}
+  [data-theme="light"] .subnav-shell{background:rgba(238,244,248,.96)}
+  .subnav-title{display:block}
+  .subnav-btn{padding:8px 10px}
+  .pier-buddy-dock{bottom:calc(74px + env(safe-area-inset-bottom))!important}
+}
 </style>
 </head>
 <body>
@@ -643,33 +664,12 @@ tr:last-child td{border-bottom:0}
 <div id="appShell" class="hidden">
   <aside class="sidebar">
     <div class="logo"><div class="logo-mark">P</div><span>Pier</span></div>
-    <nav class="nav" id="sideNav">
-      <button class="nav-btn active" data-view="dashboard"><span class="nav-icon">⌂</span>Dashboard</button>
-      <button class="nav-btn" data-view="mylife"><span class="nav-icon">✦</span>My Life</button>
-      <button class="nav-btn" data-view="tasks"><span class="nav-icon">✓</span>Tasks</button>
+    <nav class="nav main-five-nav" id="sideNav">
+      <button class="nav-btn active" data-view="dashboard"><span class="nav-icon">⌂</span>Home</button>
       <button class="nav-btn" data-view="money"><span class="nav-icon">$</span>Money</button>
-      <button class="nav-btn" data-view="savings"><span class="nav-icon">⌁</span>Savings</button>
-      <button class="nav-btn" data-view="gigs"><span class="nav-icon">↗</span>Gigs / $100 Week</button>
-      <button class="nav-btn" data-view="coach"><span class="nav-icon">⇅</span>What to Pay</button>
-      <button class="nav-btn" data-view="goals"><span class="nav-icon">◎</span>Goals</button>
-      <button class="nav-btn" data-view="routines"><span class="nav-icon">↻</span>Routines</button>
-      <button class="nav-btn" data-view="planner"><span class="nav-icon">⚡</span>Planner / Why</button>
-      <button class="nav-btn" data-view="calendar"><span class="nav-icon">▦</span>Calendar</button>
-      <button class="nav-btn" data-view="work"><span class="nav-icon">◷</span>Work & Pay</button>
-      <button class="nav-btn" data-view="life"><span class="nav-icon">⌂</span>Family & Life</button>
-      <button class="nav-btn" data-view="admin"><span class="nav-icon">!</span>Admin / Legal</button>
-      <button class="nav-btn" data-view="assets"><span class="nav-icon">▣</span>Devices & Cars</button>
-      <button class="nav-btn" data-view="sessions"><span class="nav-icon">◉</span>Sessions</button>
-      <button class="nav-btn" data-view="smoking"><span class="nav-icon">◌</span>Smoke Tracker</button>
-      <button class="nav-btn" data-view="relationship"><span class="nav-icon">♡</span>Relationship</button>
-      <button class="nav-btn" data-view="day"><span class="nav-icon">◫</span>Day Plan</button>
-      <button class="nav-btn" data-view="market"><span class="nav-icon">⌁</span>Market Data</button>
-      <button class="nav-btn" data-view="learn"><span class="nav-icon">◈</span>Stocks & Options 101</button>
-      <button class="nav-btn" data-view="paper"><span class="nav-icon">↗</span>Paper Markets</button>
-      <button class="nav-btn" data-view="data"><span class="nav-icon">▤</span>Training Data</button>
-      <button class="nav-btn" data-view="profiles"><span class="nav-icon">◉</span>Profiles</button>
-      <button class="nav-btn" data-view="inbox"><span class="nav-icon">↓</span>Inbox</button>
-      <button class="nav-btn" data-view="settings"><span class="nav-icon">⚙</span>Settings</button>
+      <button class="nav-btn" data-view="projects"><span class="nav-icon">◆</span>Build / Income</button>
+      <button class="nav-btn" data-view="mylife"><span class="nav-icon">✦</span>Life</button>
+      <button class="nav-btn" data-view="chatbot"><span class="nav-icon">◉</span>Chatbot</button>
     </nav>
     <div class="sidebar-bottom">
       <div class="sync-box">
@@ -700,12 +700,12 @@ tr:last-child td{border-bottom:0}
     </div>
   </main>
 
-  <nav class="mobile-nav" id="mobileNav">
+  <nav class="mobile-nav primary-mobile-nav" id="mobileNav">
     <button class="active" data-view="dashboard"><span>⌂</span>Home</button>
-    <button data-view="mylife"><span>✦</span>My Life</button>
     <button data-view="money"><span>$</span>Money</button>
-    <button data-view="day"><span>◫</span>Day</button>
-    <button data-action="mobile-more"><span>⋯</span>More</button>
+    <button data-view="projects"><span>◆</span>Build</button>
+    <button data-view="mylife"><span>✦</span>Life</button>
+    <button data-view="chatbot"><span>◉</span>Chat</button>
   </nav>
 
   <div id="pierBuddyDock" class="pier-buddy-dock">
@@ -785,13 +785,13 @@ const DEFAULT_PROFILE={
   theme:"dark",notifications:false,coachNotifications:true,coachNotifyMinutes:60,coachNotifyGigs:true,coachNotifyMoney:true,coachNotifyTasks:true,coachNotifyRelationship:true,createdAt:null
 };
 
-const DATA_COLLECTIONS=["tasks","accounts","transactions","bills","goals","routines","inbox","jobs","shifts","timeEntries","paychecks","household","appointments","shopping","paperTrades","relationshipPlans","timeBlocks","focusSessions","marketWatch","marketCache","learningProgress","legalObligations","assets","assetEvents","sessionLogs","dailyDrafts","goapFeedback","smokeLogs","aiSnapshots","gigPlans","gigAttempts","coachEvents"];
+const DATA_COLLECTIONS=["tasks","accounts","transactions","bills","goals","routines","inbox","jobs","shifts","timeEntries","paychecks","household","appointments","shopping","paperTrades","relationshipPlans","timeBlocks","focusSessions","marketWatch","marketCache","learningProgress","legalObligations","assets","assetEvents","sessionLogs","dailyDrafts","goapFeedback","smokeLogs","aiSnapshots","gigPlans","gigAttempts","coachEvents","projects"];
 const S={
   user:null,profile:{...DEFAULT_PROFILE},profiles:[],
   tasks:[],accounts:[],transactions:[],bills:[],goals:[],routines:[],inbox:[],
   jobs:[],shifts:[],timeEntries:[],paychecks:[],household:[],appointments:[],shopping:[],paperTrades:[],
-  relationshipPlans:[],timeBlocks:[],focusSessions:[],marketWatch:[],marketCache:[],learningProgress:[],legalObligations:[],assets:[],assetEvents:[],sessionLogs:[],dailyDrafts:[],goapFeedback:[],smokeLogs:[],aiSnapshots:[],gigPlans:[],gigAttempts:[],coachEvents:[],
-  stockUniverse:[],stockUniverseLoaded:false,gigCatalog:[],gigCatalogLoaded:false,gigSearch:"",gigLane:"all",gigCategory:"all",stockSearch:"",stockSector:"all",marketTab:"watch",learnTab:"stocks",
+  relationshipPlans:[],timeBlocks:[],focusSessions:[],marketWatch:[],marketCache:[],learningProgress:[],legalObligations:[],assets:[],assetEvents:[],sessionLogs:[],dailyDrafts:[],goapFeedback:[],smokeLogs:[],aiSnapshots:[],gigPlans:[],gigAttempts:[],coachEvents:[],projects:[],
+  stockUniverse:[],stockUniverseLoaded:false,gigCatalog:[],gigCatalogLoaded:false,projectCatalog:[],projectCatalogLoaded:false,gigSearch:"",gigLane:"all",gigCategory:"all",chatbotTab:"chat",stockSearch:"",stockSector:"all",marketTab:"watch",learnTab:"stocks",
   all:{},activeProfileId:localStorage.getItem("pierProfile")||"primary",worldMode:localStorage.getItem("pierWorld")||"live",
   unsubs:[],view:"dashboard",syncError:"",taskSearch:"",taskFilter:"open",plan:null,calendarCursor:new Date(),dayCursor:new Date(),relStore:"all",relBudget:550,relSearch:"",
   market:{symbol:"SPY",quote:null,candles:[],chain:[],rate:null,error:"",loading:false,lastFetch:null,hasToken:null,autoBusy:false},dailyDraftBusy:false,dailyDraftTimer:null,aiSnapshotBusy:false,aiSnapshotTimer:null
@@ -877,8 +877,8 @@ onAuthStateChanged(auth,async user=>{
   stopListeners();S.user=user;
   if(!user){$("#authScreen").classList.remove("hidden");$("#appShell").classList.add("hidden");return}
   $("#authScreen").classList.add("hidden");$("#appShell").classList.remove("hidden");$("#userEmail").textContent=user.email||"Signed in";
-  await bootstrapUser();await Promise.all([loadStockUniverse(),loadGigCatalog()]);startListeners();
-  const requested=new URLSearchParams(location.search).get("view"),allowed=["dashboard","mylife","tasks","money","savings","gigs","coach","goals","routines","planner","calendar","work","life","admin","assets","sessions","smoking","relationship","day","market","learn","paper","data","profiles","inbox","settings"];
+  await bootstrapUser();await Promise.all([loadStockUniverse(),loadGigCatalog(),loadProjectCatalog()]);startListeners();setTimeout(()=>ensureProjectSeed(),1200);
+  const requested=new URLSearchParams(location.search).get("view"),allowed=["dashboard","mylife","tasks","money","savings","projects","chatbot","gigs","coach","goals","routines","planner","calendar","work","life","admin","assets","sessions","smoking","relationship","day","market","learn","paper","data","profiles","inbox","settings"];
   navigate(allowed.includes(requested)?requested:"dashboard");
 });
 
@@ -897,6 +897,24 @@ async function loadGigCatalog(){
     const r=await fetch("./gig_catalog.json",{cache:"force-cache"});if(!r.ok)throw new Error("gig catalog "+r.status);
     const j=await r.json();S.gigCatalog=Array.isArray(j.gigs)?j.gigs:[];S.gigCatalogLoaded=true;
   }catch(e){console.warn("gig catalog",e);S.gigCatalog=[];S.gigCatalogLoaded=true}
+}
+
+async function loadProjectCatalog(){
+  if(S.projectCatalogLoaded)return;
+  try{
+    const r=await fetch("./project_catalog.json",{cache:"no-cache"});if(!r.ok)throw new Error("project catalog "+r.status);
+    const j=await r.json();S.projectCatalog=Array.isArray(j.projects)?j.projects:[];S.projectCatalogLoaded=true;
+  }catch(e){console.warn("project catalog",e);S.projectCatalog=[];S.projectCatalogLoaded=true}
+}
+async function ensureProjectSeed(){
+  if(!S.user||!S.projectCatalogLoaded||!S.projectCatalog.length)return;
+  try{
+    const snap=await getDocs(subcol("projects")),rows=snap.docs.map(d=>({id:d.id,...d.data()}));
+    for(const p of S.projectCatalog){
+      const existing=rows.find(x=>x.importKey===p.importKey&&(x.profileId||"primary")===S.activeProfileId&&(x.world||"live")==="live");
+      if(!existing)await addDoc(subcol("projects"),{...p,plannerEnabled:p.priority>=4,status:"active",progress:0,profileId:S.activeProfileId,world:"live",createdAt:serverTimestamp(),updatedAt:serverTimestamp()});
+    }
+  }catch(e){console.warn("project seed",e)}
 }
 function userDoc(){return doc(db,"users",S.user.uid)}
 function subcol(name){return collection(db,"users",S.user.uid,name)}
@@ -952,6 +970,7 @@ function sortData(name){
   if(name==="gigPlans")S.gigPlans.sort((a,b)=>String(b.updatedAtIso||b.createdAtIso||"").localeCompare(String(a.updatedAtIso||a.createdAtIso||"")));
   if(name==="gigAttempts")S.gigAttempts.sort((a,b)=>String(b.date||b.createdAtIso||"").localeCompare(String(a.date||a.createdAtIso||"")));
   if(name==="coachEvents")S.coachEvents.sort((a,b)=>String(b.createdAtIso||"").localeCompare(String(a.createdAtIso||"")));
+  if(name==="projects")S.projects.sort((a,b)=>num(b.priority)-num(a.priority)||String(a.name||"").localeCompare(String(b.name||"")));
 }
 function setSynced(){
   if(S.syncError)return;$("#syncDot").className="dot ok";$("#syncLabel").textContent="Synced";$("#syncDetail").textContent=esc(currentProfile().name||"Profile")+" · "+S.worldMode.toUpperCase();
@@ -965,10 +984,23 @@ function setSyncError(err){
 }
 function applyTheme(){document.documentElement.dataset.theme=S.profile.theme==="light"?"light":"dark"}
 
+
+const NAV_GROUPS=[
+  {id:"home",label:"Home",root:"dashboard",items:[["dashboard","⌂","Dashboard"],["day","◫","Day"],["calendar","▦","Calendar"],["tasks","✓","Tasks"],["planner","⚡","Planner"],["inbox","↓","Inbox"]]},
+  {id:"money",label:"Money",root:"money",items:[["money","$","Money"],["savings","⌁","Savings"],["coach","⇅","What to Pay"],["work","◷","Work & Pay"],["market","⌁","Markets"],["paper","↗","Paper"]]},
+  {id:"build",label:"Build / Income",root:"projects",items:[["projects","◆","Projects"],["gigs","↗","Gigs"],["goals","◎","Goals"],["routines","↻","Routines"],["learn","◈","Options 101"],["data","▤","Training"]]},
+  {id:"life",label:"Life",root:"mylife",items:[["mylife","✦","My Life"],["life","⌂","Family"],["relationship","♡","Relationship"],["smoking","◌","Smoke"],["sessions","◉","Sessions"],["assets","▣","Devices"],["admin","!","Legal"],["profiles","◉","Profiles"]]},
+  {id:"chatbot",label:"Chatbot",root:"chatbot",items:[["chatbot","◉","Chatbot"],["settings","⚙","Settings"]]}
+];
+function navGroupForView(view){return NAV_GROUPS.find(g=>g.items.some(x=>x[0]===view))||NAV_GROUPS[0]}
+function renderSubnav(){
+  const g=navGroupForView(S.view);
+  return '<div class="subnav-shell"><div class="subnav-title">'+esc(g.label)+'</div><div class="subnav-scroll">'+g.items.map(x=>'<button class="subnav-btn '+(S.view===x[0]?'active':'')+'" data-view="'+x[0]+'"><span>'+x[1]+'</span>'+x[2]+'</button>').join("")+'</div></div>';
+}
 function navigate(view){
-  S.view=view;const titles={dashboard:"Dashboard",mylife:"My Life",tasks:"Tasks",money:"Money",savings:"Savings",gigs:"Gigs / $100 Week",coach:"What to Pay",goals:"Goals",routines:"Routines",planner:"Planner / Why",calendar:"Calendar",work:"Work & Pay",life:"Family & Life",admin:"Admin / Legal",assets:"Devices & Cars",sessions:"Sessions",smoking:"Smoke Tracker",relationship:"Relationship",day:"Day Plan",market:"Market Data",learn:"Stocks & Options 101",paper:"Paper Markets",data:"Training Data",profiles:"Profiles",inbox:"Inbox",settings:"Settings"};
+  S.view=view;const titles={dashboard:"Dashboard",mylife:"My Life",tasks:"Tasks",money:"Money",savings:"Savings",projects:"Projects / Build",chatbot:"Chatbot",gigs:"Gigs / $100 Week",coach:"What to Pay",goals:"Goals",routines:"Routines",planner:"Planner / Why",calendar:"Calendar",work:"Work & Pay",life:"Family & Life",admin:"Admin / Legal",assets:"Devices & Cars",sessions:"Sessions",smoking:"Smoke Tracker",relationship:"Relationship",day:"Day Plan",market:"Market Data",learn:"Stocks & Options 101",paper:"Paper Markets",data:"Training Data",profiles:"Profiles",inbox:"Inbox",settings:"Settings"};
   $("#pageTitle").textContent=titles[view]||"Pier";
-  $$("[data-view]").forEach(b=>b.classList.toggle("active",b.dataset.view===view));
+  const group=navGroupForView(view);$("#sideNav [data-view],#mobileNav [data-view]").forEach(b=>b.classList.toggle("active",b.dataset.view===group.root));
   render();
 }
 document.addEventListener("click",e=>{
@@ -991,6 +1023,8 @@ function render(){
   else if(S.view==="tasks")html=renderTasks();
   else if(S.view==="money")html=renderMoney();
   else if(S.view==="savings")html=renderSavings();
+  else if(S.view==="projects")html=renderProjects();
+  else if(S.view==="chatbot")html=renderChatbot();
   else if(S.view==="gigs")html=renderGigs();
   else if(S.view==="coach")html=renderPayCoach();
   else if(S.view==="goals")html=renderGoals();
@@ -1013,7 +1047,7 @@ function render(){
   else if(S.view==="inbox")html=renderInbox();
   else html=renderSettings();
   const shadow=S.worldMode==="shadow"?'<div class="shadow-strip"><div><strong>SHADOW WORLD</strong><div class="small muted">Safe sandbox copied from LIVE. Real-life account balances are snapshotted here; paper-market cash stays separate.</div></div><div class="toolbar"><button class="btn" data-action="sync-shadow-new" data-id="'+esc(S.activeProfileId)+'">Sync new LIVE items</button><button class="btn" data-action="sync-shadow-money" data-id="'+esc(S.activeProfileId)+'">Sync LIVE money</button><button class="btn" data-action="reset-shadow" data-id="'+esc(S.activeProfileId)+'">Reset all from LIVE</button></div></div>':"";
-  root.innerHTML=shadow+html;
+  root.innerHTML=shadow+renderSubnav()+html;
   updateContextUI();bindViewInputs();
 }
 
